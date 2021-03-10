@@ -20,12 +20,22 @@ from .config import QUDA_MPI, GITVERSION, CUDA_INCLUDE
 class QudaLib(Lib):
     "Adds additional enviromental control required by QUDA"
 
+    __slots__ = [
+        "_initialized",
+        "_device_id",
+    ]
+
     def __init__(self, *args, **kwargs):
-        self.initialized = False
+        self._initialized = False
         self.device_id = 0
         if not self.tune_dir:
             self.tune_dir = user_data_dir("quda", "lyncs") + "/" + GITVERSION
         super().__init__(*args, **kwargs)
+
+    @property
+    def initialized(self):
+        "Whether the QUDA library has been initialized"
+        return self._initialized
 
     @property
     def tune_dir(self):
@@ -89,10 +99,10 @@ class QudaLib(Lib):
             self.initialized = False
 
 
+libs = []
 if QUDA_MPI:
     from lyncs_mpi import lib as libmpi
-else:
-    libmpi = None
+    libs.append(libmpi)
 
 PATHS = list(__path__)
 
@@ -108,7 +118,7 @@ headers = [
 lib = QudaLib(
     path=PATHS,
     header=headers,
-    library=["libquda.so", libmpi],
+    library=["libquda.so"]+libs,
     check="initQuda",
     include=CUDA_INCLUDE.split(";"),
     namespace="quda",
