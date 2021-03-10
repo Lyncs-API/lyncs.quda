@@ -1,20 +1,7 @@
 import sys
 from pathlib import Path
 import fileinput
-
-try:
-    from lyncs_setuptools import setup, CMakeExtension
-except:
-    print(
-        """
-    
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    Install first the requirements:
-    pip install -r requirements.txt
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    
-    """
-    )
+from lyncs_setuptools import setup, CMakeExtension
 
 requirements = [
     "cupy",
@@ -24,6 +11,7 @@ requirements = [
 QUDA_CMAKE_ARGS = [
     "-DCMAKE_BUILD_TYPE=RELEASE",
     "-DQUDA_BUILD_SHAREDLIB=ON",
+    "-DQUDA_BUILD_ALL_TESTS=OFF",
     "-DQUDA_GPU_ARCH=sm_60",
     "-DQUDA_FORCE_GAUGE=ON",
     "-DQUDA_TEX=OFF",
@@ -59,6 +47,6 @@ setup(
         )
     ],
     data_files=[(".", ["config.py.in"])],
-    install_requires=["lyncs-cppyy",],
+    install_requires=requirements,
     keywords=["Lyncs", "quda", "Lattice QCD", "python", "interface",],
 )
