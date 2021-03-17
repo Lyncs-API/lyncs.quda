@@ -76,6 +76,8 @@ class LatticeField:
     @property
     def precision(self):
         "Field data type precision"
+        if not str(self.dtype).startswith("float"):
+            return "INVALID"
         if str(self.dtype).endswith("64"):
             return "DOUBLE"
         if str(self.dtype).endswith("32"):
