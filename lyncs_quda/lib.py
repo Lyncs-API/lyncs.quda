@@ -81,7 +81,7 @@ class QudaLib(Lib):
             Path(self.tune_dir).mkdir(parents=True, exist_ok=True)
         super().__getattr__("initQuda")(dev)
         self.device_id = self.get_current_device()
-        self.initialized = True
+        self._initialized = True
 
     def __getattr__(self, key):
         if not self.initialized:
@@ -96,12 +96,13 @@ class QudaLib(Lib):
     def __del__(self):
         if self.initialized:
             self.endQuda()
-            self.initialized = False
+            self._initialized = False
 
 
 libs = []
 if QUDA_MPI:
     from lyncs_mpi import lib as libmpi
+
     libs.append(libmpi)
 
 PATHS = list(__path__)
@@ -118,7 +119,7 @@ headers = [
 lib = QudaLib(
     path=PATHS,
     header=headers,
-    library=["libquda.so"]+libs,
+    library=["libquda.so"] + libs,
     check="initQuda",
     include=CUDA_INCLUDE.split(";"),
     namespace="quda",
