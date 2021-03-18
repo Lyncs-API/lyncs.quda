@@ -3,6 +3,7 @@ Interface to gauge_field.h
 """
 # pylint: disable=C0303
 __all__ = [
+    "gauge",
     "GaugeField",
 ]
 
@@ -13,6 +14,25 @@ import cupy
 from lyncs_cppyy.ll import to_pointer, array_to_pointers
 from .lib import lib
 from .lattice_field import LatticeField
+
+
+def gauge(lattice, dtype=None, device=True):
+    "Constructs a new gauge field"
+    shape = (4, 18) + tuple(lattice)
+    kwargs = dict(dtype=dtype)
+
+    if device in [False, None]:
+        return GaugeField(numpy.empty(shape, **kwargs))
+
+    if device is True:
+        device = lib.device_id
+    elif isinstance(device, int):
+        lib.device_id = device
+    else:
+        raise TypeError(f"Unsupported type for device: {type(device)}")
+
+    with cupy.cuda.Device(device):
+        return GaugeField(cupy.empty(shape, **kwargs))
 
 
 class GaugeField(LatticeField):
@@ -134,6 +154,10 @@ class GaugeField(LatticeField):
         "Returns and instance of quda::GaugeField"
         return lib.GaugeField.Create(self.quda_params)
 
+    def new(self):
+        "Returns a new empy field based on the current"
+        return gauge(self.lattice, dtype=self.dtype, device=self.device)
+
     def zero(self):
         "Set all field elements to zero"
         self.quda_field.zero()
@@ -146,6 +170,18 @@ class GaugeField(LatticeField):
         tmp[:] = 0
         tmp[:, :, [0, 4, 8], :, 0] = 1
         self.field = tmp.reshape(self.shape)
+
+    def project(self, tol=None):
+        """
+        Project the gauge field onto the SU(3) group.  This
+        is a destructive operation.  The number of link failures is
+        reported so appropriate action can be taken.
+        """
+        if tol is None:
+            tol = numpy.finfo(self.dtype).eps
+        fails = cupy.zeros((1,), dtype="int32")
+        lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
+        return fails[0]
 
     def gaussian(self, epsilon=1, seed=None):
         """
@@ -168,14 +204,30 @@ class GaugeField(LatticeField):
         Returns
         -------
         tuple(total, spatial, temporal) plaquette site averaged and
-        normalized such that each  plaquette is in the range [0,1]
+            normalized such that each plaquette is in the range [0,1]
         """
         plaq = lib.plaquette(self.quda_field)
         return plaq.x, plaq.y, plaq.z
 
     def topological_charge(self):
-        "Computes the topological charge"
-        return lib.computeQCharge(self.quda_field)
+        """
+        Computes the topological charge
+
+        Returns
+        -------
+        charge, (total, spatial, temporal): The total topological charge
+            and total, spatial, and temporal field energy
+        """
+        out = numpy.zeros(4, dtype="double")
+        lib.computeQCharge(out[:3], out[3:], self.quda_field)
+        return out[3], tuple(out[:3])
+
+    def topological_charge_density(self):
+        "Computes the topological charge density"
+        out1 = numpy.zeros(4, dtype="double")
+        if out is None:
+            out = numpy.zeros(4, dtype="double")
+        return lib.computeQCharge(out[:3], out[3:], self.quda_field)
 
     def norm1(self, link_dir=-1):
         "Computes the L1 norm of the field"
@@ -257,8 +309,8 @@ class GaugeField(LatticeField):
                         paths_array[dim, i, j] = 7 - (-step - 1 + dim) % 4
 
         if add_to is None:
-            shape = (self.ndims, 18,) + self.dims
-            add_to = GaugeField(cupy.zeros(shape, dtype=self.dtype))
+            add_to = self.new()
+            add_to.zero()
 
         quda_paths_array = array_to_pointers(paths_array)
         lib.gaugeForce(
@@ -293,15 +345,14 @@ class GaugeField(LatticeField):
             coeffs=1 / 6,
         )
 
-    def exponentiate(self, coeff=1, mul_to=None, conj=False, exact=False):
+    def exponentiate(self, coeff=1, mul_to=None, out=None, conj=False, exact=False):
         """
         Exponentiates a momentum field
         """
-        shape = (self.ndims, 18,) + self.dims
-        out = GaugeField(cupy.zeros(shape, dtype=self.dtype))
+        if out is None:
+            out = self.new()
         if mul_to is None:
-            shape = (self.ndims, 18,) + self.dims
-            mul_to = GaugeField(cupy.zeros(shape, dtype=self.dtype))
+            mul_to = self.new()
             mul_to.unity()
 
         lib.updateGaugeField(
