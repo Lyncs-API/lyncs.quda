@@ -34,6 +34,13 @@ class LatticeField:
         self._field = field
 
     @property
+    def device(self):
+        "Device id of the field (None if not on GPUs)"
+        if isinstance(self.field, cupy.ndarray):
+            return self.field.device.id
+        return None
+
+    @property
     def shape(self):
         "Shape of the field"
         return self.field.shape
@@ -57,6 +64,8 @@ class LatticeField:
     def dims(self):
         "Shape of the lattice dimensions"
         return self.shape[-self.ndims :]
+
+    lattice = dims
 
     @property
     def quda_dims(self):
