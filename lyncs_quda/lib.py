@@ -68,7 +68,9 @@ class QudaLib(Lib):
     @device_id.setter
     def device_id(self, value):
         if self.initialized:
-            raise RuntimeError("Device_id cannot be changed")
+            raise RuntimeError(
+                f"device_id cannot be changed: current={self.device_id}, given={value}"
+            )
         self._device_id = value
 
     def get_current_device(self):
