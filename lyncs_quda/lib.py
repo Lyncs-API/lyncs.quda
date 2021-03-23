@@ -27,7 +27,7 @@ class QudaLib(Lib):
 
     def __init__(self, *args, **kwargs):
         self._initialized = False
-        self.device_id = 0
+        self._device_id = 0
         if not self.tune_dir:
             self.tune_dir = user_data_dir("quda", "lyncs") + "/" + GITVERSION
         super().__init__(*args, **kwargs)
@@ -67,6 +67,8 @@ class QudaLib(Lib):
 
     @device_id.setter
     def device_id(self, value):
+        if value == self.device_id:
+            return
         if self.initialized:
             raise RuntimeError(
                 f"device_id cannot be changed: current={self.device_id}, given={value}"
@@ -78,19 +80,31 @@ class QudaLib(Lib):
         super().__getattr__("cudaGetDevice")(dev)
         return dev[0]
 
-    def initQuda(self, dev):
+    def initQuda(self, dev=None):
+        if self.initialized:
+            raise RuntimeError("Quda already initialized")
         if self.tune_dir:
             Path(self.tune_dir).mkdir(parents=True, exist_ok=True)
+        if dev is None:
+            if QUDA_MPI:
+                dev = -1
+            else:
+                dev = self.device_id
         super().__getattr__("initQuda")(dev)
         self.device_id = self.get_current_device()
         self._initialized = True
 
-    def __getattr__(self, key):
+    def endQuda(self):
         if not self.initialized:
-            if QUDA_MPI:
-                self.initQuda(-1)
-            else:
-                self.initQuda(self.device_id)
+            raise RuntimeError("Quda has not been initialized")
+        super().__getattr__("endQuda")()
+        self._initialized = False
+
+    def __getattr__(self, key):
+        if key.startswith("_"):
+            raise AttributeError(f"QudaLib does not have attribute '{key}'")
+        if not self.initialized:
+            self.initQuda()
         if self.get_current_device() != self.device_id:
             super().__getattr__("cudaSetDevice")(self.device_id)
         return super().__getattr__(key)
@@ -98,7 +112,6 @@ class QudaLib(Lib):
     def __del__(self):
         if self.initialized:
             self.endQuda()
-            self._initialized = False
 
 
 libs = []
