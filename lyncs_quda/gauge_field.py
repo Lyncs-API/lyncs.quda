@@ -14,6 +14,7 @@ import cupy
 from lyncs_cppyy.ll import to_pointer, array_to_pointers
 from .lib import lib
 from .lattice_field import LatticeField
+from .time_profile import default_profiler
 
 
 def gauge(lattice, dtype=None, device=True):
@@ -21,7 +22,7 @@ def gauge(lattice, dtype=None, device=True):
     shape = (4, 18) + tuple(lattice)
     kwargs = dict(dtype=dtype)
 
-    if device in [False, None]:
+    if device is False or device is None:
         return GaugeField(numpy.empty(shape, **kwargs))
 
     if device is True:
@@ -283,7 +284,9 @@ class GaugeField(LatticeField):
 
         num_paths = len(paths)
         coeffs = numpy.array(coeffs, dtype="float64")
-        lengths = numpy.array(list(map(len, paths)), dtype="int32") - 1
+        lengths = (
+            numpy.array(list(map(len, paths)), dtype="int32") - 1
+        )  # -1 because the first step is always 1 (the direction itself)
         max_length = int(lengths.max())
         paths_array = numpy.zeros((self.ndims, num_paths, max_length), dtype="int32")
 
@@ -304,16 +307,19 @@ class GaugeField(LatticeField):
             for dim in range(self.ndims):
                 for j, step in enumerate(path[1:]):
                     if step > 0:
-                        paths_array[dim, i, j] = (step - 1 + dim) % 4
+                        paths_array[dim, i, j] = (step - 1 + dim) % self.ndims
                     else:
-                        paths_array[dim, i, j] = 7 - (-step - 1 + dim) % 4
+                        paths_array[dim, i, j] = 7 - (-step - 1 + dim) % self.ndims
 
         if add_to is None:
             add_to = self.new()
             add_to.zero()
 
         quda_paths_array = array_to_pointers(paths_array)
-        lib.gaugeForce(
+        in_quda_field = lib.createExtendedGauge(
+            self.quda_field, numpy.ones(4, dtype="int32"), default_profiler().quda
+        )
+        lib.gaugePath(
             add_to.quda_field,
             self.quda_field,
             add_coeff,
