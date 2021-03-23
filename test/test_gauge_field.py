@@ -1,6 +1,7 @@
 from lyncs_quda import gauge
 import numpy as np
 import cupy as cp
+from fixlib import lib
 
 lattice = (4, 4, 4, 4)
 
@@ -12,7 +13,7 @@ def test_default():
     assert gf.geometry == "VECTOR"
 
 
-def test_zero():
+def test_zero(lib):
     gf = gauge(lattice)
     gf.zero()
     assert (gf.field == 0).all()
@@ -27,7 +28,7 @@ def test_zero():
     gf.zero()
 
 
-def test_unity():
+def test_unity(lib):
     gf = gauge(lattice)
     gf.unity()
     assert gf.plaquette() == (1, 1, 1)
