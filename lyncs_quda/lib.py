@@ -118,7 +118,7 @@ class QudaLib(Lib):
             comm = self.MPI.COMM_SELF.Create_cart((1, 1, 1, 1))
         if not isinstance(comm, self.MPI.Cartcomm):
             raise TypeError("comm expected to be a Cartcomm")
-        if self._comm is not None and self._comm.Compare(comm) <= MPI.CONGRUENT:
+        if self._comm is not None and self.MPI.Comm.Compare(comm, self._comm) <= self.MPI.CONGRUENT:
             return
         if comm.ndim != 4:
             raise ValueError("comm expected to be a 4D Cartcomm")
@@ -216,3 +216,20 @@ lib = QudaLib(
     include=CUDA_INCLUDE.split(";"),
     namespace="quda",
 )
+
+
+try:
+    from pytest import fixture
+
+    @fixture(scope="session")
+    def fixlib():
+        "A fixture to guarantee that in pytest lib is finalized at the end"
+        if not lib.initialized:
+            lib.init_quda()
+        yield lib
+        if lib.initialized:
+            lib.end_quda()
+
+
+except ImportError:
+    pass

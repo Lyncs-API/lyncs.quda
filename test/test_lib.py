@@ -1,9 +1,9 @@
-from fixlib import lib
+from lyncs_quda.lib import fixlib as lib
 
 
 def test_init(lib):
     assert lib.initialized
-    lib.endQuda()
+    lib.end_quda()
     assert not lib.initialized
-    lib.initQuda()
+    lib.init_quda()
     assert lib.initialized

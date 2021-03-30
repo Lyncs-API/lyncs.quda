@@ -1,7 +1,7 @@
 from lyncs_quda import gauge
 import numpy as np
 import cupy as cp
-from fixlib import lib
+from lyncs_quda.lib import fixlib as lib
 
 lattice = (4, 4, 4, 4)
 
