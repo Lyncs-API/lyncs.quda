@@ -1,21 +1,27 @@
 import sys
 from pathlib import Path
 import fileinput
-from lyncs_setuptools import setup, CMakeExtension
+from lyncs_setuptools import setup, CMakeExtension, find_package
 
 requirements = [
     "cupy",
     "lyncs-cppyy",
 ]
 
-QUDA_CMAKE_ARGS = [
-    "-DCMAKE_BUILD_TYPE=RELEASE",
-    "-DQUDA_BUILD_SHAREDLIB=ON",
-    "-DQUDA_BUILD_ALL_TESTS=OFF",
-    "-DQUDA_GPU_ARCH=sm_60",
-    "-DQUDA_FORCE_GAUGE=ON",
-    "-DQUDA_TEX=OFF",
-]
+QUDA_CMAKE_ARGS = {
+    "CMAKE_BUILD_TYPE": "RELEASE",
+    "QUDA_BUILD_SHAREDLIB": "ON",
+    "QUDA_BUILD_ALL_TESTS": "OFF",
+    "QUDA_GPU_ARCH": "sm_60",
+    "QUDA_FORCE_GAUGE": "ON",
+    "QUDA_MPI": "OFF",
+}
+
+
+findMPI = find_package("MPI")
+if findMPI["cxx_found"]:
+    requirements.append("lyncs_mpi")
+    QUDA_CMAKE_ARGS["QUDA_MPI"] = "ON"
 
 
 def patch_include(builder, ext):
@@ -35,6 +41,9 @@ def patch_include(builder, ext):
                 print(line, end="")
 
 
+QUDA_CMAKE_ARGS = [key + "=" + val for key, val in QUDA_CMAKE_ARGS.items()]
+print("QUDA options:\n", "\n".join(QUDA_CMAKE_ARGS))
+
 setup(
     "lyncs_quda",
     exclude=["*.config"],
@@ -42,7 +51,7 @@ setup(
         CMakeExtension(
             "lyncs_quda.lib",
             ".",
-            ["-DQUDA_CMAKE_ARGS='%s'" % ";".join(QUDA_CMAKE_ARGS)],
+            ["-DQUDA_CMAKE_ARGS='-D%s'" % ";-D".join(QUDA_CMAKE_ARGS)],
             post_build=patch_include,
         )
     ],

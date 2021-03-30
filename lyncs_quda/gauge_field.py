@@ -153,6 +153,7 @@ class GaugeField(LatticeField):
     @property
     def quda_field(self):
         "Returns and instance of quda::GaugeField"
+        self.activate()
         return lib.GaugeField.Create(self.quda_params)
 
     def new(self):

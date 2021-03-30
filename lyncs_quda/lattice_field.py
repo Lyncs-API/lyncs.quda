@@ -15,8 +15,14 @@ from .lib import lib
 class LatticeField:
     "Mimics the quda::LatticeField object"
 
-    def __init__(self, field):
+    def __init__(self, field, comm=None):
         self.field = field
+        self.comm = comm
+        self.activate()
+
+    def activate(self):
+        "Activates the current field. To be called before using the object in quda"
+        lib.set_comm(self.comm)
 
     @property
     def field(self):
