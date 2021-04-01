@@ -118,7 +118,10 @@ class QudaLib(Lib):
             comm = self.MPI.COMM_SELF.Create_cart((1, 1, 1, 1))
         if not isinstance(comm, self.MPI.Cartcomm):
             raise TypeError("comm expected to be a Cartcomm")
-        if self._comm is not None and self.MPI.Comm.Compare(comm, self._comm) <= self.MPI.CONGRUENT:
+        if (
+            self._comm is not None
+            and self.MPI.Comm.Compare(comm, self._comm) <= self.MPI.CONGRUENT
+        ):
             return
         if comm.ndim != 4:
             raise ValueError("comm expected to be a 4D Cartcomm")
