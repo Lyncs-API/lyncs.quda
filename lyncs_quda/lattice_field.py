@@ -124,3 +124,8 @@ class LatticeField:
         return lib.LatticeFieldParam(
             self.ndims, self.quda_dims, self.pad, self.quda_precision
         )
+
+    def reduce(self, val, local=False, opr="SUM"):
+        if self.comm is None or local:
+            return val
+        return self.comm.allreduce(val, getattr(lib.MPI, opr))

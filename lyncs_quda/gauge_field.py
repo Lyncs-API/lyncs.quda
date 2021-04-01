@@ -249,37 +249,37 @@ class GaugeField(LatticeField):
             out = numpy.zeros(4, dtype="double")
         return lib.computeQCharge(out[:3], out[3:], self.quda_field)
 
-    def norm1(self, link_dir=-1):
+    def norm1(self, link_dir=-1, local=False):
         "Computes the L1 norm of the field"
         if not -1 <= link_dir < self.ndims:
             raise ValueError(
                 f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
             )
-        return self.quda_field.norm1(link_dir)
+        return self.reduce(self.quda_field.norm1(link_dir), local=local)
 
-    def norm2(self, link_dir=-1):
+    def norm2(self, link_dir=-1, local=False):
         "Computes the L2 norm of the field"
         if not -1 <= link_dir < self.ndims:
             raise ValueError(
                 f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
             )
-        return self.quda_field.norm2(link_dir)
+        return self.reduce(self.quda_field.norm2(link_dir), local=local)
 
-    def abs_max(self, link_dir=-1):
+    def abs_max(self, link_dir=-1, local=False):
         "Computes the absolute maximum of the field (Linfinity norm)"
         if not -1 <= link_dir < self.ndims:
             raise ValueError(
                 f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
             )
-        return self.quda_field.abs_max(link_dir)
+        return self.reduce(self.quda_field.abs_max(link_dir), local=local, opr="MAX")
 
-    def abs_min(self, link_dir=-1):
+    def abs_min(self, link_dir=-1, local=False):
         "Computes the absolute minimum of the field"
         if not -1 <= link_dir < self.ndims:
             raise ValueError(
                 f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
             )
-        return self.quda_field.abs_min(link_dir)
+        return self.reduce(self.quda_field.abs_min(link_dir), local=local, opr="MIN")
 
     def compute_paths(self, paths, coeffs=None, add_to=None, add_coeff=1):
         """
