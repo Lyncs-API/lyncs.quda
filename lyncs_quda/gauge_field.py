@@ -11,19 +11,20 @@ from functools import reduce
 from time import time
 import numpy
 import cupy
+from lyncs_cppyy import make_shared
 from lyncs_cppyy.ll import to_pointer, array_to_pointers
 from .lib import lib
 from .lattice_field import LatticeField
 from .time_profile import default_profiler
 
 
-def gauge(lattice, dtype=None, device=True):
+def gauge(lattice, dtype=None, device=True, **kwargs):
     "Constructs a new gauge field"
     shape = (4, 18) + tuple(lattice)
-    kwargs = dict(dtype=dtype)
+    field_kwargs = dict(dtype=dtype)
 
     if device is False or device is None:
-        return GaugeField(numpy.empty(shape, **kwargs))
+        return GaugeField(numpy.empty(shape, **field_kwargs), **kwargs)
 
     if device is True:
         device = lib.device_id
@@ -33,7 +34,7 @@ def gauge(lattice, dtype=None, device=True):
         raise TypeError(f"Unsupported type for device: {type(device)}")
 
     with cupy.cuda.Device(device):
-        return GaugeField(cupy.empty(shape, **kwargs))
+        return GaugeField(cupy.empty(shape, **field_kwargs), **kwargs)
 
 
 class GaugeField(LatticeField):
@@ -154,7 +155,24 @@ class GaugeField(LatticeField):
     def quda_field(self):
         "Returns and instance of quda::GaugeField"
         self.activate()
-        return lib.GaugeField.Create(self.quda_params)
+        return make_shared(lib.GaugeField.Create(self.quda_params))
+
+    def extended_field(self, sites=1):
+        if sites in (None, 0) or self.comm is None:
+            return self.quda_field
+
+        if isinstance(sites, int):
+            sites = [sites] * self.ndims
+
+        # self.check_shape(sites)
+
+        return make_shared(
+            lib.createExtendedGauge(
+                self.quda_field,
+                numpy.array(sites, dtype="int32"),
+                default_profiler().quda,
+            )
+        )
 
     def new(self):
         "Returns a new empy field based on the current"
@@ -208,7 +226,7 @@ class GaugeField(LatticeField):
         tuple(total, spatial, temporal) plaquette site averaged and
             normalized such that each plaquette is in the range [0,1]
         """
-        plaq = lib.plaquette(self.quda_field)
+        plaq = lib.plaquette(self.extended_field(1))
         return plaq.x, plaq.y, plaq.z
 
     def topological_charge(self):
