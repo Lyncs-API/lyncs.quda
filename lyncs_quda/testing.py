@@ -1,10 +1,18 @@
+"""
+Import this file only if in a testing environment
+"""
+
 __all__ = [
     "fixlib",
     "lattice_loop",
+    "device_loop",
+    "parallel_loop",
 ]
 
+from itertools import product
 from pytest import fixture, mark
-from .lib import lib
+from lyncs_utils import factors, prod
+from .lib import lib, QUDA_MPI
 
 
 @fixture(scope="session")
@@ -24,5 +32,22 @@ lattice_loop = mark.parametrize(
         # (3, 3, 3, 3),
         (4, 4, 4, 4),
         (8, 8, 8, 8),
+    ],
+)
+
+device_loop = mark.parametrize(
+    "device",
+    [
+        True,
+        # False,
+    ],
+)
+
+dtype_loop = mark.parametrize(
+    "dtype",
+    [
+        "float64",
+        "float32",
+        # "float16",
     ],
 )

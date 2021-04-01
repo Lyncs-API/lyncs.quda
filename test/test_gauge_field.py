@@ -1,7 +1,7 @@
 from lyncs_quda import gauge
 import numpy as np
 import cupy as cp
-from lyncs_quda.testing import fixlib as lib, lattice_loop
+from lyncs_quda.testing import fixlib as lib, lattice_loop, device_loop, dtype_loop
 
 
 @lattice_loop
@@ -12,9 +12,11 @@ def test_default(lattice):
     assert gf.geometry == "VECTOR"
 
 
-@lattice_loop
-def test_zero(lib, lattice):
-    gf = gauge(lattice)
+@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+def test_zero(lib, lattice, device, dtype):
+    gf = gauge(lattice, dtype=dtype, device=device)
     gf.zero()
     assert (gf.field == 0).all()
     assert gf.plaquette() == (0, 0, 0)
@@ -28,9 +30,11 @@ def test_zero(lib, lattice):
     gf.zero()
 
 
-@lattice_loop
-def test_unity(lib, lattice):
-    gf = gauge(lattice)
+@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+def test_unity(lib, lattice, device, dtype):
+    gf = gauge(lattice, dtype=dtype, device=device)
     gf.unity()
     assert gf.plaquette() == (1, 1, 1)
     topo = gf.topological_charge()
@@ -38,6 +42,8 @@ def test_unity(lib, lattice):
     assert topo[1] == (0, 0, 0)
     assert gf.norm1() == 3 * 4 * np.prod(lattice)
     assert gf.norm2() == 3 * 4 * np.prod(lattice)
+    assert gf.norm1(local=True) == 3 * 4 * np.prod(lattice)
+    assert gf.norm2(local=True) == 3 * 4 * np.prod(lattice)
     assert gf.abs_max() == 1
     assert gf.abs_min() == 0
     assert gf.project() == 0
