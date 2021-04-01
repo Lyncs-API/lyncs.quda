@@ -51,3 +51,30 @@ dtype_loop = mark.parametrize(
         # "float16",
     ],
 )
+
+
+def get_procs_list(comm_size=None, max_size=None):
+    if comm_size is None:
+        if not QUDA_MPI:
+            return [
+                None,
+            ]
+        comm_size = lib.MPI.COMM_WORLD.size
+    facts = {1} | set(factors(comm_size))
+    procs = list(
+        set(procs for procs in product(facts, repeat=4) if prod(procs) == comm_size)
+    )
+    if not max_size:
+        return procs
+    return procs[:max_size]
+
+
+def get_cart(procs=None, comm=None):
+    if not QUDA_MPI or procs is None:
+        return None
+    if comm is None:
+        comm = lib.MPI.COMM_WORLD
+    return comm.Create_cart(procs)
+
+
+parallel_loop = mark.parametrize("procs", get_procs_list(max_size=1))
