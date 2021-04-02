@@ -15,6 +15,24 @@ from .lib import lib
 class LatticeField:
     "Mimics the quda::LatticeField object"
 
+    @classmethod
+    def create(cls, lattice, dofs, dtype=None, device=True, comm=None):
+        "Constructs a new gauge field"
+        shape = tuple(dofs) + tuple(lattice)
+        field_kwargs = dict(dtype=dtype)
+        cls_kwargs = dict(comm=comm)
+
+        if device is False or device is None:
+            return cls(numpy.empty(shape, **field_kwargs), **cls_kwargs)
+
+        if device is True:
+            device = lib.device_id
+        else:
+            lib.device_id = device
+
+        with cupy.cuda.Device(device):
+            return cls(cupy.empty(shape, **field_kwargs), **cls_kwargs)
+
     def __init__(self, field, comm=None):
         self.field = field
         self.comm = comm
@@ -107,6 +125,26 @@ class LatticeField:
         return getattr(lib, f"QUDA_{self.precision}_PRECISION")
 
     @property
+    def order(self):
+        "Data order of the field"
+        return "FLOAT2"
+
+    @property
+    def quda_order(self):
+        "Quda enum for data order of the field"
+        return getattr(lib, f"QUDA_{self.order}_GAUGE_ORDER")
+
+    @property
+    def ghost_exchange(self):
+        "Ghost exchange"
+        return "NO"
+
+    @property
+    def quda_ghost_exchange(self):
+        "Quda enum for ghost exchange"
+        return getattr(lib, f"QUDA_GHOST_EXCHANGE_{self.ghost_exchange}")
+
+    @property
     def pad(self):
         "Memory padding"
         return 0
@@ -122,7 +160,11 @@ class LatticeField:
     def quda_params(self):
         "Returns and instance of quda::LatticeFieldParam"
         return lib.LatticeFieldParam(
-            self.ndims, self.quda_dims, self.pad, self.quda_precision
+            self.ndims,
+            self.quda_dims,
+            self.pad,
+            self.quda_precision,
+            self.quda_ghost_exchange,
         )
 
     def reduce(self, val, local=False, opr="SUM"):

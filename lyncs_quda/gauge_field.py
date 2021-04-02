@@ -1,7 +1,7 @@
 """
 Interface to gauge_field.h
 """
-# pylint: disable=C0303
+
 __all__ = [
     "gauge",
     "GaugeField",
@@ -18,23 +18,10 @@ from .lattice_field import LatticeField
 from .time_profile import default_profiler
 
 
-def gauge(lattice, dtype=None, device=True, **kwargs):
+def gauge(lattice, **kwargs):
     "Constructs a new gauge field"
-    shape = (4, 18) + tuple(lattice)
-    field_kwargs = dict(dtype=dtype)
-
-    if device is False or device is None:
-        return GaugeField(numpy.empty(shape, **field_kwargs), **kwargs)
-
-    if device is True:
-        device = lib.device_id
-    elif isinstance(device, int):
-        lib.device_id = device
-    else:
-        raise TypeError(f"Unsupported type for device: {type(device)}")
-
-    with cupy.cuda.Device(device):
-        return GaugeField(cupy.empty(shape, **field_kwargs), **kwargs)
+    # TODO add option to select field type -> dofs
+    return GaugeField.create(lattice, (4, 18), **kwargs)
 
 
 class GaugeField(LatticeField):
@@ -103,26 +90,6 @@ class GaugeField(LatticeField):
         return getattr(lib, f"QUDA_{self.geometry}_GEOMETRY")
 
     @property
-    def ghost_exchange(self):
-        "Ghost exchange"
-        return "NO"
-
-    @property
-    def quda_ghost_exchange(self):
-        "Quda enum for ghost exchange"
-        return getattr(lib, f"QUDA_GHOST_EXCHANGE_{self.ghost_exchange}")
-
-    @property
-    def order(self):
-        "Data order of the field"
-        return "FLOAT2"
-
-    @property
-    def quda_order(self):
-        "Quda enum for data order of the field"
-        return getattr(lib, f"QUDA_{self.order}_GAUGE_ORDER")
-
-    @property
     def t_boundary(self):
         "Boundary conditions in time"
         return "PERIODIC"
@@ -133,17 +100,23 @@ class GaugeField(LatticeField):
         return getattr(lib, f"QUDA_{self.t_boundary}_T")
 
     @property
+    def link_type(self):
+        "Type of the links"
+        return "SU3"
+
+    @property
+    def quda_link_type(self):
+        "Quda enum for link type"
+        return getattr(lib, f"QUDA_{self.link_type}_LINKS")
+
+    @property
     def quda_params(self):
         "Returns and instance of quda::GaugeFieldParams"
-        params = lib.GaugeFieldParam(
-            self.quda_dims,
-            self.quda_precision,
-            self.quda_reconstruct,
-            self.pad,
-            self.quda_geometry,
-            self.quda_ghost_exchange,
-        )
-        params.link_type = lib.QUDA_SU3_LINKS
+        params = lib.GaugeFieldParam()
+        lib.copy_struct(params, super().quda_params)
+        params.reconstruct = self.quda_reconstruct
+        params.geometry = self.quda_geometry
+        params.link_type = self.quda_link_type
         params.gauge = to_pointer(self.ptr)
         params.create = lib.QUDA_REFERENCE_FIELD_CREATE
         params.location = self.quda_location
@@ -165,8 +138,8 @@ class GaugeField(LatticeField):
             sites = [sites] * self.ndims
 
         # self.check_shape(sites)
-        sites = [site if dim>1 else 0 for site,dim in zip(sites,self.comm.dims)]
-        if sites == [0,0,0,0]:
+        sites = [site if dim > 1 else 0 for site, dim in zip(sites, self.comm.dims)]
+        if sites == [0, 0, 0, 0]:
             return self.quda_field
 
         return make_shared(
@@ -242,7 +215,7 @@ class GaugeField(LatticeField):
             and total, spatial, and temporal field energy
         """
         out = numpy.zeros(4, dtype="double")
-        lib.computeQCharge(out[:3], out[3:], self.quda_field)
+        lib.computeQCharge(out[:3], out[3:], self.extended_field(0))  # should be 1
         return out[3], tuple(out[:3])
 
     def topological_charge_density(self):
@@ -250,7 +223,7 @@ class GaugeField(LatticeField):
         out1 = numpy.zeros(4, dtype="double")
         if out is None:
             out = numpy.zeros(4, dtype="double")
-        return lib.computeQCharge(out[:3], out[3:], self.quda_field)
+        return lib.computeQCharge(out[:3], out[3:], self.extended_field(1))
 
     def norm1(self, link_dir=-1):
         "Computes the L1 norm of the field"

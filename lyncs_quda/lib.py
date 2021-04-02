@@ -85,6 +85,8 @@ class QudaLib(Lib):
             raise RuntimeError(
                 f"device_id cannot be changed: current={self.device_id}, given={value}"
             )
+        if not isinstance(value, int):
+            raise TypeError(f"Unsupported type for device: {type(device)}")
         self._device_id = value
 
     def get_current_device(self):
@@ -143,10 +145,10 @@ class QudaLib(Lib):
         except AttributeError:
             cppdef(
                 """
-            void * lyncs_quda_comm_ptr(MPI_Comm &comm) {
-              return &comm;
-            }
-            """
+                void * lyncs_quda_comm_ptr(MPI_Comm &comm) {
+                  return &comm;
+                }
+                """
             )
         return self.lyncs_quda_comm_ptr
 
@@ -157,15 +159,15 @@ class QudaLib(Lib):
         except AttributeError:
             cppdef(
                 """
-            int lyncs_quda_cart_comms_map(const int *coords, void *fdata) {
-              auto comm = *static_cast<MPI_Comm *>(fdata);
-              int rank;
-              MPI_Cart_rank(comm, coords, &rank);
-              // printf("coord=(%d,%d,%d,%d) -> rank=%d\\n",
-              //         coords[0],coords[1],coords[2],coords[3],rank);
-              return rank;
-            }
-            """
+                int lyncs_quda_cart_comms_map(const int *coords, void *fdata) {
+                  auto comm = *static_cast<MPI_Comm *>(fdata);
+                  int rank;
+                  MPI_Cart_rank(comm, coords, &rank);
+                  // printf("coord=(%d,%d,%d,%d) -> rank=%d\\n",
+                  //         coords[0],coords[1],coords[2],coords[3],rank);
+                  return rank;
+                }
+                """
             )
         return self.lyncs_quda_cart_comms_map
 
@@ -175,6 +177,21 @@ class QudaLib(Lib):
         return self._comm
 
     comm.setter(set_comm)
+
+    @property
+    def copy_struct(self):
+        try:
+            return self.lyncs_quda_copy_struct
+        except AttributeError:
+            cppdef(
+                """
+                template<typename T1, typename T2>
+                void lyncs_quda_copy_struct(T1 &out, T2 &in) {
+                  (T2 &) out = in;
+                }
+                """
+            )
+        return self.lyncs_quda_copy_struct
 
     def end_quda(self):
         if not self.initialized:
