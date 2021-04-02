@@ -165,6 +165,9 @@ class GaugeField(LatticeField):
             sites = [sites] * self.ndims
 
         # self.check_shape(sites)
+        sites = [site if dim>1 else 0 for site,dim in zip(sites,self.comm.dims)]
+        if sites == [0,0,0,0]:
+            return self.quda_field
 
         return make_shared(
             lib.createExtendedGauge(
@@ -249,37 +252,37 @@ class GaugeField(LatticeField):
             out = numpy.zeros(4, dtype="double")
         return lib.computeQCharge(out[:3], out[3:], self.quda_field)
 
-    def norm1(self, link_dir=-1, local=False):
+    def norm1(self, link_dir=-1):
         "Computes the L1 norm of the field"
         if not -1 <= link_dir < self.ndims:
             raise ValueError(
                 f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
             )
-        return self.reduce(self.quda_field.norm1(link_dir), local=local)
+        return self.quda_field.norm1(link_dir)
 
-    def norm2(self, link_dir=-1, local=False):
+    def norm2(self, link_dir=-1):
         "Computes the L2 norm of the field"
         if not -1 <= link_dir < self.ndims:
             raise ValueError(
                 f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
             )
-        return self.reduce(self.quda_field.norm2(link_dir), local=local)
+        return self.quda_field.norm2(link_dir)
 
-    def abs_max(self, link_dir=-1, local=False):
+    def abs_max(self, link_dir=-1):
         "Computes the absolute maximum of the field (Linfinity norm)"
         if not -1 <= link_dir < self.ndims:
             raise ValueError(
                 f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
             )
-        return self.reduce(self.quda_field.abs_max(link_dir), local=local, opr="MAX")
+        return self.quda_field.abs_max(link_dir)
 
-    def abs_min(self, link_dir=-1, local=False):
+    def abs_min(self, link_dir=-1):
         "Computes the absolute minimum of the field"
         if not -1 <= link_dir < self.ndims:
             raise ValueError(
                 f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
             )
-        return self.reduce(self.quda_field.abs_min(link_dir), local=local, opr="MIN")
+        return self.quda_field.abs_min(link_dir)
 
     def compute_paths(self, paths, coeffs=None, add_to=None, add_coeff=1):
         """
