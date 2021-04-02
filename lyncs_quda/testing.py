@@ -7,6 +7,7 @@ __all__ = [
     "lattice_loop",
     "device_loop",
     "parallel_loop",
+    "mark_mpi",
 ]
 
 from itertools import product
@@ -78,3 +79,5 @@ def get_cart(procs=None, comm=None):
 
 
 parallel_loop = mark.parametrize("procs", get_procs_list(max_size=1))
+
+mark_mpi = mark.mpi(min_size=1)

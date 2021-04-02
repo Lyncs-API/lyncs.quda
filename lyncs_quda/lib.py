@@ -99,8 +99,15 @@ class QudaLib(Lib):
         self._initialized = True
         if self.tune_dir:
             Path(self.tune_dir).mkdir(parents=True, exist_ok=True)
-        if QUDA_MPI and self._comm is None:
+        if QUDA_MPI and self.comm is None:
             self.set_comm()
+        if QUDA_MPI:
+            comm = cast["MPI_Comm"](self.MPI._handleof(self.comm))
+            comm_ptr = self._comm_ptr(comm)
+            self.setMPICommHandleQuda(comm_ptr)
+            dims = array("i", self.comm.dims)
+            self.initCommsGridQuda(4, dims, self._comms_map, comm_ptr)
+
         if dev is None:
             if QUDA_MPI:
                 dev = -1
@@ -125,13 +132,9 @@ class QudaLib(Lib):
             return
         if comm.ndim != 4:
             raise ValueError("comm expected to be a 4D Cartcomm")
-
-        _comm = cast["MPI_Comm"](self.MPI._handleof(comm))
-        self.setMPICommHandleQuda(self._comm_ptr(_comm))
-        dims = array("i", comm.dims)
-        self.initCommsGridQuda(4, dims, self._comms_map, self._comm_ptr(_comm))
+        if self._comm is not None:
+            self.end_quda()
         self._comm = comm
-        return
 
     @property
     def _comm_ptr(self):
