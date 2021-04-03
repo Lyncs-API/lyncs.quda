@@ -8,3 +8,4 @@ from . import config
 from .lib import *
 from .lattice_field import *
 from .gauge_field import *
+from .spinor_field import *

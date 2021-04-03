@@ -1,0 +1,39 @@
+from lyncs_quda import spinor
+import numpy as np
+import cupy as cp
+from lyncs_quda.testing import fixlib as lib, lattice_loop, device_loop, dtype_loop
+from lyncs_cppyy.ll import addressof
+
+
+@lattice_loop
+def test_default(lattice):
+    sf = spinor(lattice)
+    assert sf.location == "CUDA"
+    assert sf.ncolor == 3
+    assert sf.nspin == 4
+    assert sf.nvec == 1
+
+
+@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+def test_params(lib, lattice, device, dtype):
+    sf = spinor(lattice, dtype=dtype, device=device)
+    params = sf.quda_params
+    if dtype == "float64":  # single wants order float4
+        assert sf.is_native()
+    assert params.nColor == sf.ncolor
+    assert params.nSpin == sf.nspin
+    assert params.nVec == sf.nvec
+    assert params.gammaBasis == sf.quda_gamma_basis
+    assert params.pc_type == sf.quda_pc_type
+
+    assert params.location == sf.quda_location
+    assert params.fieldOrder == sf.quda_order
+    assert params.siteOrder == sf.quda_site_order
+    assert addressof(params.v) == sf.ptr
+    assert params.Precision() == sf.quda_precision
+    assert params.nDim == sf.ndims
+    assert tuple(params.x)[: sf.ndims] == sf.dims
+    assert params.pad == sf.pad
+    assert params.ghostExchange == sf.quda_ghost_exchange

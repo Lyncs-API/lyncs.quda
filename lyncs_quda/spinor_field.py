@@ -1,0 +1,158 @@
+"""
+Interface to gauge_field.h
+"""
+
+__all__ = [
+    "spinor",
+    "SpinorField",
+]
+
+from functools import reduce
+from time import time
+import numpy
+import cupy
+from lyncs_cppyy import make_shared
+from lyncs_cppyy.ll import to_pointer, array_to_pointers
+from .lib import lib
+from .lattice_field import LatticeField
+
+
+def spinor(lattice, **kwargs):
+    "Constructs a new gauge field"
+    # TODO add option to select field type -> dofs
+    return SpinorField.create(lattice, (4, 3,), **kwargs)
+
+
+class SpinorField(LatticeField):
+    "Mimics the quda::ColorSpinorField object"
+
+    gammas = ["DEGRAND_ROSSI", "UKQCD", "CHIRAL"]
+
+    def __init__(self, *args, gamma_basis=None, site_order=None, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.gamma_basis = gamma_basis
+        self.site_order = site_order
+
+    @property
+    def ncolor(self):
+        "Number of colors of the field"
+        return self.dofs[-1]
+
+    @property
+    def nspin(self):
+        "Number of spin component. 1 for staggered, 2 for coarse Dslash, 4 for 4d spinor"
+        return self.dofs[-2]
+
+    @property
+    def nvec(self):
+        "Number of packed vectors"
+        if len(self.dofs) == 3:
+            return self.dofs[0]
+        return 1
+
+    @property
+    def gamma_basis(self):
+        "Gamma basis in use"
+        return self._gamma_basis
+
+    @gamma_basis.setter
+    def gamma_basis(self, value):
+        if value is None:
+            value = "UKQCD"
+        values = f"Possible values are {SpinorField.gammas}"
+        if not isinstance(value, str):
+            raise TypeError("Expected a string. " + values)
+        if not value.upper() in values:
+            raise ValueError("Invalid gamma. " + values)
+        self._gamma_basis = value.upper()
+
+    @property
+    def quda_gamma_basis(self):
+        "Quda enum for gamma basis in use"
+        return getattr(lib, f"QUDA_{self.gamma_basis}_GAMMA_BASIS")
+
+    @property
+    def site_order(self):
+        "Site order in use"
+        return self._site_order
+
+    @site_order.setter
+    def site_order(self, value):
+        if value is None:
+            value = "NONE"
+        values = f"Possible values are NONE, EVEN_ODD, ODD_EVEN"
+        if not isinstance(value, str):
+            raise TypeError("Expected a string. " + values)
+        value = value.upper()
+        if value in ["NONE", "LEX", "LEXICOGRAPHIC"]:
+            value = "LEXICOGRAPHIC"
+        elif value in ["EO", "EVEN_ODD"]:
+            value = "EVEN_ODD"
+        elif value in ["OE", "ODD_EVEN"]:
+            value = "ODD_EVEN"
+        else:
+            raise ValueError("Invalid site_order. " + values)
+        self._site_order = value
+
+    @property
+    def quda_site_order(self):
+        "Quda enum for site order in use"
+        return getattr(lib, f"QUDA_{self.site_order}_SITE_ORDER")
+
+    @property
+    def quda_pc_type(self):
+        "Select checkerboard preconditioning method"
+        return getattr(lib, f"QUDA_{self.ndims}D_PC")
+
+    @property
+    def quda_pc_type(self):
+        "Select checkerboard preconditioning method"
+        return getattr(lib, f"QUDA_{self.ndims}D_PC")
+
+    @property
+    def quda_params(self):
+        "Returns and instance of quda::ColorSpinorParams"
+        params = lib.ColorSpinorParam()
+        lib.copy_struct(params, super().quda_params)
+        params.nColor = self.ncolor
+        params.nSpin = self.nspin
+        params.nVec = self.nvec
+        params.gammaBasis = self.quda_gamma_basis
+        params.pc_type = self.quda_pc_type
+
+        params.v = to_pointer(self.ptr)
+        params.create = lib.QUDA_REFERENCE_FIELD_CREATE
+        params.location = self.quda_location
+        params.fieldOrder = self.quda_order
+        params.siteOrder = self.quda_site_order
+        return params
+
+    @property
+    def quda_field(self):
+        "Returns and instance of quda::ColorSpinorField"
+        self.activate()
+        return make_shared(lib.ColorSpinorField.Create(self.quda_params))
+
+    def is_native(self):
+        "Whether the field is native for Quda"
+        return lib.colorspinor.isNative(
+            self.quda_order, self.quda_precision, self.nspin, self.ncolor
+        )
+
+    def new(self):
+        "Returns a new empy field based on the current"
+        return spinor(self.lattice, dtype=self.dtype, device=self.device)
+
+    def zero(self):
+        "Set all field elements to zero"
+        self.quda_field.zero()
+
+    def gaussian(self, seed=None):
+        "Generates a random gaussian noise spinor"
+        seed = seed or int(time() * 1e9)
+        lib.spinorNoise(self.quda_field, seed, lib.QUDA_NOISE_GAUSSIAN)
+
+    def uniform(self, seed=None):
+        "Generates a random uniform noise spinor"
+        seed = seed or int(time() * 1e9)
+        lib.spinorNoise(self.quda_field, seed, lib.QUDA_NOISE_UNIFORM)
