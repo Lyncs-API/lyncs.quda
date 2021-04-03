@@ -16,14 +16,13 @@ class LatticeField:
     "Mimics the quda::LatticeField object"
 
     @classmethod
-    def create(cls, lattice, dofs, dtype=None, device=True, comm=None):
+    def create(cls, lattice, dofs, dtype=None, device=True, **kwargs):
         "Constructs a new gauge field"
         shape = tuple(dofs) + tuple(lattice)
         field_kwargs = dict(dtype=dtype)
-        cls_kwargs = dict(comm=comm)
 
         if device is False or device is None:
-            return cls(numpy.empty(shape, **field_kwargs), **cls_kwargs)
+            return cls(numpy.empty(shape, **field_kwargs), **kwargs)
 
         if device is True:
             device = lib.device_id
@@ -31,7 +30,7 @@ class LatticeField:
             lib.device_id = device
 
         with cupy.cuda.Device(device):
-            return cls(cupy.empty(shape, **field_kwargs), **cls_kwargs)
+            return cls(cupy.empty(shape, **field_kwargs), **kwargs)
 
     def __init__(self, field, comm=None):
         self.field = field
