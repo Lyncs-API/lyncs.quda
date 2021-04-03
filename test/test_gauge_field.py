@@ -19,6 +19,7 @@ def test_default(lattice):
 def test_params(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     params = gf.quda_params
+    assert gf.is_native()
     assert params.nColor == 3
     assert params.nFace == 0
     assert params.reconstruct == gf.quda_reconstruct

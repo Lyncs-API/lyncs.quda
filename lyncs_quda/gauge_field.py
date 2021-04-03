@@ -130,6 +130,12 @@ class GaugeField(LatticeField):
         self.activate()
         return make_shared(lib.GaugeField.Create(self.quda_params))
 
+    def is_native(self):
+        "Whether the field is native for Quda"
+        return lib.gauge.isNative(
+            self.quda_order, self.quda_precision, self.quda_reconstruct
+        )
+
     def extended_field(self, sites=1):
         if sites in (None, 0) or self.comm is None:
             return self.quda_field
@@ -155,7 +161,7 @@ class GaugeField(LatticeField):
         return gauge(self.lattice, dtype=self.dtype, device=self.device)
 
     def zero(self):
-        "Set all field elements to zero"
+        "Sets all field elements to zero"
         self.quda_field.zero()
 
     def unity(self):
