@@ -173,6 +173,17 @@ class GaugeField(LatticeField):
         tmp[:, :, [0, 4, 8], :, 0] = 1
         self.field = tmp.reshape(self.shape)
 
+    def trace(self):
+        "Returns the trace in color of the field"
+        if self.reconstruct != "NO":
+            raise NotImplementedError
+        assert self.dtype == "float64"  # TODO improve
+        return (
+            self.field.reshape((2, 4, 3, 3, -1, 2))
+            .trace(axis1=2, axis2=3)
+            .view("complex128")
+        )
+
     def project(self, tol=None):
         """
         Project the gauge field onto the SU(3) group.  This
@@ -317,12 +328,9 @@ class GaugeField(LatticeField):
             add_to.zero()
 
         quda_paths_array = array_to_pointers(paths_array)
-        in_quda_field = lib.createExtendedGauge(
-            self.quda_field, numpy.ones(4, dtype="int32"), default_profiler().quda
-        )
         lib.gaugePath(
             add_to.quda_field,
-            self.quda_field,
+            self.extended_field(1),
             add_coeff,
             quda_paths_array.view,
             lengths,
