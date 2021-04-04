@@ -33,10 +33,34 @@ index d9b76d1..970b63b 100644
  
  
 diff --git a/lib/gauge_force.cu b/lib/gauge_force.cu
-index ad70533..924150b 100644
+index ad70533..0cc1dca 100644
 --- a/lib/gauge_force.cu
 +++ b/lib/gauge_force.cu
-@@ -50,7 +50,7 @@ namespace quda {
+@@ -14,7 +14,7 @@ namespace quda {
+     const double *path_coeff;
+     int count;
+ 
+-    paths(void *buffer, size_t bytes, int ***input_path, int *length_h, double *path_coeff_h, int num_paths, int max_length) :
++    paths(void *buffer, size_t bytes, int pad, int ***input_path, int *length_h, double *path_coeff_h, int num_paths, int max_length) :
+       num_paths(num_paths),
+       max_length(max_length),
+       count(0)
+@@ -37,7 +37,7 @@ namespace quda {
+       memcpy((char*)path_h + 4 * num_paths * max_length * sizeof(int), length_h, num_paths*sizeof(int));
+ 
+       // path_coeff array
+-      memcpy((char*)path_h + 4 * num_paths * max_length * sizeof(int) + num_paths*sizeof(int), path_coeff_h, num_paths*sizeof(double));
++      memcpy((char*)path_h + 4 * num_paths * max_length * sizeof(int) + num_paths*sizeof(int) + pad, path_coeff_h, num_paths*sizeof(double));
+ 
+       qudaMemcpy(buffer, path_h, bytes, cudaMemcpyHostToDevice);
+       host_free(path_h);
+@@ -45,12 +45,12 @@ namespace quda {
+       // finally set the pointers to the correct offsets in the buffer
+       for (int d=0; d < 4; d++) this->input_path[d] = (int*)((char*)buffer + d*num_paths*max_length*sizeof(int));
+       length = (int*)((char*)buffer + 4*num_paths*max_length*sizeof(int));
+-      path_coeff = (double*)((char*)buffer + 4 * num_paths * max_length * sizeof(int) + num_paths*sizeof(int));
++      path_coeff = (double*)((char*)buffer + 4 * num_paths * max_length * sizeof(int) + num_paths*sizeof(int) + pad);
+     }
    };
  
    template <typename Float_, int nColor_, QudaReconstructType recon_u, QudaReconstructType recon_m>
@@ -139,7 +163,21 @@ index ad70533..924150b 100644
    void gaugeForce(GaugeField& mom, const GaugeField& u, double epsilon, int ***input_path,
                    int *length_h, double *path_coeff_h, int num_paths, int path_max_length)
    {
-@@ -247,4 +255,25 @@ namespace quda {
+@@ -234,9 +242,11 @@ namespace quda {
+     if (mom.Reconstruct() != QUDA_RECONSTRUCT_10) errorQuda("Reconstruction type %d not supported", mom.Reconstruct());
+ 
+     // create path struct in a single allocation
+-    size_t bytes = 4 * num_paths * path_max_length * sizeof(int) + num_paths*sizeof(int) + num_paths*sizeof(double);
++    size_t bytes = 4 * num_paths * path_max_length * sizeof(int) + num_paths*sizeof(int);
++    int pad = (sizeof(double) - bytes % sizeof(double)) % sizeof(double);
++    bytes += pad + num_paths*sizeof(double);
+     void *buffer = pool_device_malloc(bytes);
+-    paths p(buffer, bytes, input_path, length_h, path_coeff_h, num_paths, path_max_length);
++    paths p(buffer, bytes, pad, input_path, length_h, path_coeff_h, num_paths, path_max_length);
+ 
+ #ifdef GPU_GAUGE_FORCE
+     // gauge field must be passed as first argument so we peel off its reconstruct type
+@@ -247,4 +257,27 @@ namespace quda {
      pool_device_free(buffer);
    }
  
@@ -151,9 +189,11 @@ index ad70533..924150b 100644
 +    checkReconstruct(out, u);
 +
 +    // create path struct in a single allocation
-+    size_t bytes = 4 * num_paths * path_max_length * sizeof(int) + num_paths*sizeof(int) + num_paths*sizeof(double);
++    size_t bytes = 4 * num_paths * path_max_length * sizeof(int) + num_paths*sizeof(int);
++    int pad = (sizeof(double) - bytes % sizeof(double)) % sizeof(double);
++    bytes += pad + num_paths*sizeof(double);
 +    void *buffer = pool_device_malloc(bytes);
-+    paths p(buffer, bytes, input_path, length_h, path_coeff_h, num_paths, path_max_length);
++    paths p(buffer, bytes, pad, input_path, length_h, path_coeff_h, num_paths, path_max_length);
 +
 +#ifdef GPU_GAUGE_FORCE
 +    // gauge field must be passed as first argument so we peel off its reconstruct type

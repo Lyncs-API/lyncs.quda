@@ -71,5 +71,5 @@ def test_unity(lib, lattice, device, dtype):
     assert gf.abs_max() == 1
     assert gf.abs_min() == 0
     assert gf.project() == 0
-    # assert (gf.plaquette_field() == 1).all()
-    # assert (gf.rectangle_field() == 1).all()
+    assert np.allclose(gf.plaquette_field().trace(), 3)
+    assert np.allclose(gf.rectangle_field().trace(), 3)
