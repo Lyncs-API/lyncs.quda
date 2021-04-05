@@ -37,3 +37,16 @@ def test_params(lib, lattice, device, dtype):
     assert tuple(params.x)[: sf.ndims] == sf.dims
     assert params.pad == sf.pad
     assert params.ghostExchange == sf.quda_ghost_exchange
+
+
+@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+def test_init(lib, lattice, device, dtype):
+    sf = spinor(lattice, dtype=dtype, device=device)
+    sf.zero()
+    assert (sf.field == 0).all()
+    sf.uniform()
+    assert np.isclose(sf.field.mean(), 0.5 + 0.5j, atol=0.1)
+    sf.gaussian()
+    assert np.isclose(sf.field.mean(), 0.0, atol=0.1)

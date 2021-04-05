@@ -20,7 +20,7 @@ from .lattice_field import LatticeField
 def spinor(lattice, **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
-    return SpinorField.create(lattice, (4, 3,), **kwargs)
+    return SpinorField.create(lattice, dofs=(4, 3,), **kwargs)
 
 
 class SpinorField(LatticeField):
@@ -28,7 +28,18 @@ class SpinorField(LatticeField):
 
     gammas = ["DEGRAND_ROSSI", "UKQCD", "CHIRAL"]
 
-    def __init__(self, *args, gamma_basis=None, site_order=None, **kwargs):
+    @classmethod
+    def get_dtype(cls, dtype):
+        dtype = super().get_dtype(dtype)
+        if dtype in ["float64", "complex128"]:
+            return "complex128"
+        if dtype in ["float32", "complex64"]:
+            return "complex64"
+        if dtype in ["float16", "complex32"]:
+            return "complex32"
+        raise TypeError("Unsupported dtype for spinor")
+
+    def __init__(self, *args, gamma_basis=None, site_order="EO", **kwargs):
         super().__init__(*args, **kwargs)
         self.gamma_basis = gamma_basis
         self.site_order = site_order
@@ -70,6 +81,16 @@ class SpinorField(LatticeField):
     def quda_gamma_basis(self):
         "Quda enum for gamma basis in use"
         return getattr(lib, f"QUDA_{self.gamma_basis}_GAMMA_BASIS")
+
+    @property
+    def order(self):
+        "Data order of the field"
+        return "FLOAT2"
+
+    @property
+    def quda_order(self):
+        "Quda enum for data order of the field"
+        return getattr(lib, f"QUDA_{self.order}_FIELD_ORDER")
 
     @property
     def site_order(self):
@@ -150,7 +171,7 @@ class SpinorField(LatticeField):
     def gaussian(self, seed=None):
         "Generates a random gaussian noise spinor"
         seed = seed or int(time() * 1e9)
-        lib.spinorNoise(self.quda_field, seed, lib.QUDA_NOISE_GAUSSIAN)
+        lib.spinorNoise(self.quda_field, seed, lib.QUDA_NOISE_GAUSS)
 
     def uniform(self, seed=None):
         "Generates a random uniform noise spinor"

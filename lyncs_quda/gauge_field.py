@@ -21,6 +21,7 @@ from .time_profile import default_profiler
 def gauge(lattice, **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
+    # TODO reshape/shuffle to native order
     return GaugeField.create(lattice, (4, 18), **kwargs)
 
 
@@ -65,6 +66,16 @@ class GaugeField(LatticeField):
     def quda_reconstruct(self):
         "Quda enum for reconstruct type of the field"
         return getattr(lib, f"QUDA_RECONSTRUCT_{self.reconstruct}")
+
+    @property
+    def order(self):
+        "Data order of the field"
+        return "FLOAT2"
+
+    @property
+    def quda_order(self):
+        "Quda enum for data order of the field"
+        return getattr(lib, f"QUDA_{self.order}_GAUGE_ORDER")
 
     @property
     def geometry(self):

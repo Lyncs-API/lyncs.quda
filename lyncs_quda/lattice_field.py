@@ -16,10 +16,14 @@ class LatticeField:
     "Mimics the quda::LatticeField object"
 
     @classmethod
+    def get_dtype(cls, dtype):
+        return numpy.dtype(dtype)
+
+    @classmethod
     def create(cls, lattice, dofs, dtype=None, device=True, **kwargs):
         "Constructs a new gauge field"
         shape = tuple(dofs) + tuple(lattice)
-        field_kwargs = dict(dtype=dtype)
+        field_kwargs = dict(dtype=cls.get_dtype(dtype))
 
         if device is False or device is None:
             return cls(numpy.empty(shape, **field_kwargs), **kwargs)
@@ -108,13 +112,11 @@ class LatticeField:
     @property
     def precision(self):
         "Field data type precision"
-        if not str(self.dtype).startswith("float"):
-            return "INVALID"
-        if str(self.dtype).endswith("64"):
+        if self.dtype in ["float64", "complex128"]:
             return "DOUBLE"
-        if str(self.dtype).endswith("32"):
+        if self.dtype in ["float32", "complex64"]:
             return "SINGLE"
-        if str(self.dtype).endswith("16"):
+        if self.dtype in ["float16", "complex32"]:
             return "HALF"
         return "INVALID"
 
@@ -122,16 +124,6 @@ class LatticeField:
     def quda_precision(self):
         "Quda enum for field data type precision"
         return getattr(lib, f"QUDA_{self.precision}_PRECISION")
-
-    @property
-    def order(self):
-        "Data order of the field"
-        return "FLOAT2"
-
-    @property
-    def quda_order(self):
-        "Quda enum for data order of the field"
-        return getattr(lib, f"QUDA_{self.order}_GAUGE_ORDER")
 
     @property
     def ghost_exchange(self):
