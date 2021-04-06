@@ -224,11 +224,11 @@ PATHS = list(__path__)
 
 headers = [
     "quda.h",
-    "color_spinor_field.h",
     "gauge_field.h",
     "gauge_tools.h",
     "gauge_force_quda.h",
     "gauge_update_quda.h",
+    "dirac_quda.h",
 ]
 
 
