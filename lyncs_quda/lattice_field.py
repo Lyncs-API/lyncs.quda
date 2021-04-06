@@ -20,8 +20,10 @@ class LatticeField:
         return numpy.dtype(dtype)
 
     @classmethod
-    def create(cls, lattice, dofs, dtype=None, device=True, **kwargs):
+    def create(cls, lattice, dofs=None, dtype=None, device=True, **kwargs):
         "Constructs a new gauge field"
+        if isinstance(lattice, cls):
+            return lattice
         shape = tuple(dofs) + tuple(lattice)
         field_kwargs = dict(dtype=cls.get_dtype(dtype))
 
