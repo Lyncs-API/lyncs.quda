@@ -1,4 +1,5 @@
 import sys
+import os
 from pathlib import Path
 import fileinput
 from lyncs_setuptools import setup, CMakeExtension, find_package
@@ -12,7 +13,7 @@ QUDA_CMAKE_ARGS = {
     "CMAKE_BUILD_TYPE": "RELEASE",
     "QUDA_BUILD_SHAREDLIB": "ON",
     "QUDA_BUILD_ALL_TESTS": "OFF",
-    "QUDA_GPU_ARCH": "sm_60",
+    "QUDA_GPU_ARCH": os.environ.get("QUDA_GPU_ARCH", "sm_60"),
     "QUDA_FORCE_GAUGE": "ON",
     "QUDA_MPI": "OFF",
 }
