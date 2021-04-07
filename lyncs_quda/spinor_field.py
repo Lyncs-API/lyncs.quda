@@ -93,6 +93,16 @@ class SpinorField(LatticeField):
         return getattr(lib, f"QUDA_{self.order}_FIELD_ORDER")
 
     @property
+    def twist_flavor(self):
+        "Twist flavor of the field"
+        return "SINGLET"
+
+    @property
+    def quda_twist_flavor(self):
+        "Quda enum for twist flavor of the field"
+        return getattr(lib, f"QUDA_TWIST_{self.twist_flavor}")
+
+    @property
     def site_order(self):
         "Site order in use"
         return self._site_order
@@ -126,11 +136,6 @@ class SpinorField(LatticeField):
         return getattr(lib, f"QUDA_{self.ndims}D_PC")
 
     @property
-    def quda_pc_type(self):
-        "Select checkerboard preconditioning method"
-        return getattr(lib, f"QUDA_{self.ndims}D_PC")
-
-    @property
     def quda_params(self):
         "Returns and instance of quda::ColorSpinorParams"
         params = lib.ColorSpinorParam()
@@ -140,6 +145,7 @@ class SpinorField(LatticeField):
         params.nVec = self.nvec
         params.gammaBasis = self.quda_gamma_basis
         params.pc_type = self.quda_pc_type
+        params.twistFlavor = self.quda_twist_flavor
 
         params.v = to_pointer(self.ptr)
         params.create = lib.QUDA_REFERENCE_FIELD_CREATE
@@ -177,3 +183,9 @@ class SpinorField(LatticeField):
         "Generates a random uniform noise spinor"
         seed = seed or int(time() * 1e9)
         lib.spinorNoise(self.quda_field, seed, lib.QUDA_NOISE_UNIFORM)
+
+    def gamma5(self):
+        "Returns a vector transformed by g5"
+        out = self.new()
+        lib.gamma5(out.quda_field, self.quda_field)
+        return out

@@ -36,7 +36,7 @@ class Dirac:
     @property
     def quda_type(self):
         "Quda enum for quda dslash type"
-        return getattr(lib, f"QUDA_{self.type}_DSLASH")
+        return getattr(lib, f"QUDA_{self.type}_DIRAC")
 
     @property
     def dagger(self):

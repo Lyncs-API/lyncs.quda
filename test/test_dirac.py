@@ -1,3 +1,5 @@
+from random import random
+import numpy as np
 from lyncs_quda import gauge, spinor
 from lyncs_quda.testing import fixlib as lib, lattice_loop, device_loop, dtype_loop
 
@@ -25,9 +27,18 @@ def test_zero(lib, lattice, device, dtype=None):
     gf.zero()
     sf = spinor(lattice, dtype=dtype, device=device)
     sf.uniform()
-    dirac = gf.Dirac(kappa=1)
-    Dsf = dirac.M(sf)
+    kappa = random()
+    dirac = gf.Dirac(kappa=kappa)
     assert (dirac.M(sf).field == sf.field).all()
     assert (dirac.Mdag(sf).field == sf.field).all()
     assert (dirac.MdagM(sf).field == sf.field).all()
     assert (dirac.MMdag(sf).field == sf.field).all()
+
+    mu = random()
+    dirac = gf.Dirac(kappa=kappa, mu=mu)
+    sfmu = (2*kappa*mu)*1j*sf.gamma5().field
+    assert np.allclose(dirac.M(sf).field, sf.field+sfmu)
+    assert np.allclose(dirac.Mdag(sf).field, sf.field-sfmu)
+    assert np.allclose(dirac.MdagM(sf).field, (1+(2*kappa*mu)**2)*sf.field)
+    assert np.allclose(dirac.MMdag(sf).field, (1+(2*kappa*mu)**2)*sf.field)
+
