@@ -190,7 +190,7 @@ class SpinorField(LatticeField):
             out = self.new()
         lib.gamma5(out.quda_field, self.quda_field)
         return out
-    
+
     def apply_gamma5(self):
         "Applies gamma5 to the field itself"
         return self.gamma5(self)

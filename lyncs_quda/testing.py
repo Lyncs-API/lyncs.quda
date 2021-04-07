@@ -16,6 +16,7 @@ from lyncs_utils import factors, prod
 from .lib import lib, QUDA_MPI
 from .spinor_field import SpinorField
 
+
 @fixture(scope="session")
 def fixlib():
     "A fixture to guarantee that in pytest lib is finalized at the end"
@@ -53,8 +54,7 @@ dtype_loop = mark.parametrize(
     ],
 )
 
-gamma_loop = mark.parametrize(
-    "gamma", SpinorField.gammas)
+gamma_loop = mark.parametrize("gamma", SpinorField.gammas)
 
 
 def get_procs_list(comm_size=None, max_size=None):

@@ -1,7 +1,13 @@
 from random import random
 import numpy as np
 from lyncs_quda import gauge, spinor
-from lyncs_quda.testing import fixlib as lib, lattice_loop, device_loop, dtype_loop, gamma_loop
+from lyncs_quda.testing import (
+    fixlib as lib,
+    lattice_loop,
+    device_loop,
+    dtype_loop,
+    gamma_loop,
+)
 
 
 @dtype_loop  # enables dtype
@@ -22,7 +28,7 @@ def test_params(lib, lattice, device, dtype):
 # @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
-@gamma_loop # enables gamma
+@gamma_loop  # enables gamma
 def test_zero(lib, lattice, device, gamma, dtype=None):
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.zero()
@@ -37,9 +43,8 @@ def test_zero(lib, lattice, device, gamma, dtype=None):
 
     mu = random()
     dirac = gf.Dirac(kappa=kappa, mu=mu)
-    sfmu = (2*kappa*mu)*1j*sf.gamma5().field
-    assert np.allclose(dirac.M(sf).field, sf.field+sfmu)
-    assert np.allclose(dirac.Mdag(sf).field, sf.field-sfmu)
-    assert np.allclose(dirac.MdagM(sf).field, (1+(2*kappa*mu)**2)*sf.field)
-    assert np.allclose(dirac.MMdag(sf).field, (1+(2*kappa*mu)**2)*sf.field)
-
+    sfmu = (2 * kappa * mu) * 1j * sf.gamma5().field
+    assert np.allclose(dirac.M(sf).field, sf.field + sfmu)
+    assert np.allclose(dirac.Mdag(sf).field, sf.field - sfmu)
+    assert np.allclose(dirac.MdagM(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
+    assert np.allclose(dirac.MMdag(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
