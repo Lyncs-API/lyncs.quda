@@ -14,7 +14,7 @@ from itertools import product
 from pytest import fixture, mark
 from lyncs_utils import factors, prod
 from .lib import lib, QUDA_MPI
-
+from .spinor_field import SpinorField
 
 @fixture(scope="session")
 def fixlib():
@@ -52,6 +52,9 @@ dtype_loop = mark.parametrize(
         # "float16",
     ],
 )
+
+gamma_loop = mark.parametrize(
+    "gamma", SpinorField.gammas)
 
 
 def get_procs_list(comm_size=None, max_size=None):

@@ -1,7 +1,7 @@
 from lyncs_quda import spinor
 import numpy as np
 import cupy as cp
-from lyncs_quda.testing import fixlib as lib, lattice_loop, device_loop, dtype_loop
+from lyncs_quda.testing import fixlib as lib, lattice_loop, device_loop, dtype_loop, gamma_loop
 from lyncs_cppyy.ll import addressof
 
 
@@ -50,3 +50,14 @@ def test_init(lib, lattice, device, dtype):
     assert np.isclose(sf.field.mean(), 0.5 + 0.5j, atol=0.1)
     sf.gaussian()
     assert np.isclose(sf.field.mean(), 0.0, atol=0.1)
+
+
+#@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+@gamma_loop # enables gamma
+def test_gamma5(lib, lattice, device, gamma, dtype=None):
+    sf = spinor(lattice, dtype=dtype, device=device, gamma_basis=gamma)
+    sf.uniform()
+    sf2 = sf.gamma5().apply_gamma5()
+    assert (sf.field == sf2.field).all()

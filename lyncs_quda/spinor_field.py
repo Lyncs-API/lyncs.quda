@@ -184,8 +184,13 @@ class SpinorField(LatticeField):
         seed = seed or int(time() * 1e9)
         lib.spinorNoise(self.quda_field, seed, lib.QUDA_NOISE_UNIFORM)
 
-    def gamma5(self):
-        "Returns a vector transformed by g5"
-        out = self.new()
+    def gamma5(self, out=None):
+        "Returns the vector transformed by gamma5"
+        if out is None:
+            out = self.new()
         lib.gamma5(out.quda_field, self.quda_field)
         return out
+    
+    def apply_gamma5(self):
+        "Applies gamma5 to the field itself"
+        return self.gamma5(self)
