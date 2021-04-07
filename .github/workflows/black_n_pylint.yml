@@ -1,0 +1,59 @@
+# This workflow runs pylint and updates badge
+
+name: pylint
+
+on:
+  pull_request:
+    branches:
+      - "main"
+      - "develop"
+  push:
+    branches:
+      - "main"
+      - "develop"
+
+jobs:
+  black-n-pylint:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v2
+        with:
+          ref: ${{ github.head_ref }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v1
+        with:
+          python-version: "3.x"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install black lyncs_setuptools[pylint]
+
+      - name: Applying black formatting
+        run: |
+          black --diff .
+          black .
+
+      - name: Pushing changes if any
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Applying black formatting (from Github Action)
+          commit_user_name: sbacchio
+          commit_user_email: s.bacchio@gmail.com
+          commit_author: Simone Bacchio <s.bacchio@gmail.com>
+
+      - name: Pylint output
+        run: |
+          badge=$(lyncs_pylint_badge --disable=import-error . | sed "s/\&/\\\&/g")
+          badge_line=$(awk '/!\[pylint\]/ {print FNR}' README.md)
+          sed -i "${badge_line}s#.*#${badge}#" README.md
+
+      - name: Pushing changes if any
+        uses: stefanzweifel/git-auto-commit-action@v4
+        with:
+          commit_message: Updating pylint score (from Github Action)
+          commit_user_name: sbacchio
+          commit_user_email: s.bacchio@gmail.com
+          commit_author: Simone Bacchio <s.bacchio@gmail.com>
