@@ -80,7 +80,7 @@ class GaugeField(LatticeField):
     @property
     def geometry(self):
         """
-        Geometry of the field 
+        Geometry of the field
             VECTOR = all links
             SCALAR = one link
             TENSOR = Fmunu antisymmetric (upper triangle)
@@ -209,7 +209,7 @@ class GaugeField(LatticeField):
 
     def gaussian(self, epsilon=1, seed=None):
         """
-        Generates Gaussian distributed su(N) or SU(N) fields.  
+        Generates Gaussian distributed su(N) or SU(N) fields.
         If U is a momentum field, then generates a random Gaussian distributed
         field in the Lie algebra using the anti-Hermitation convention.
         If U is in the group then we create a Gaussian distributed su(n)
@@ -223,8 +223,8 @@ class GaugeField(LatticeField):
 
     def plaquette(self):
         """
-        Computes the plaquette of the gauge field 
-        
+        Computes the plaquette of the gauge field
+
         Returns
         -------
         tuple(total, spatial, temporal) plaquette site averaged and
@@ -288,10 +288,10 @@ class GaugeField(LatticeField):
     def compute_paths(self, paths, coeffs=None, add_to=None, add_coeff=1):
         """
         Computes the gauge paths on the lattice.
-        
+
         The same paths are computed for every direction.
 
-        - The paths are given with respect to direction "1" and 
+        - The paths are given with respect to direction "1" and
           this must be the first number of every path list.
         - Directions go from 1 to self.ndims
         - Negative value (-1,...) means backward movement in the direction

@@ -58,5 +58,11 @@ setup(
     ],
     data_files=[(".", ["config.py.in"])],
     install_requires=requirements,
-    keywords=["Lyncs", "quda", "Lattice QCD", "python", "interface",],
+    keywords=[
+        "Lyncs",
+        "quda",
+        "Lattice QCD",
+        "python",
+        "interface",
+    ],
 )

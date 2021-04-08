@@ -20,7 +20,14 @@ from .lattice_field import LatticeField
 def spinor(lattice, **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
-    return SpinorField.create(lattice, dofs=(4, 3,), **kwargs)
+    return SpinorField.create(
+        lattice,
+        dofs=(
+            4,
+            3,
+        ),
+        **kwargs,
+    )
 
 
 class SpinorField(LatticeField):
