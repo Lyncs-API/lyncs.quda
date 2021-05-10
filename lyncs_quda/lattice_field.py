@@ -7,9 +7,26 @@ __all__ = [
 ]
 
 from array import array
+from contextlib import contextmanager
 import numpy
 import cupy
 from .lib import lib
+
+
+@contextmanager
+def backend(device=True):
+    if device is False or device is None:
+        yield numpy
+    else:
+        if device is True:
+            device = lib.device_id
+
+        if not isinstance(device, int):
+            raise TypeError("Expected device to be an integer or None/True/False")
+
+        lib.device_id = device
+        with cupy.cuda.Device(device):
+            yield cupy
 
 
 class LatticeField:
@@ -24,19 +41,13 @@ class LatticeField:
         "Constructs a new gauge field"
         if isinstance(lattice, cls):
             return lattice
-        shape = tuple(dofs) + tuple(lattice)
-        field_kwargs = dict(dtype=cls.get_dtype(dtype))
 
-        if device is False or device is None:
-            return cls(numpy.empty(shape, **field_kwargs), **kwargs)
+        with backend(device) as bck:
+            if isinstance(lattice, (numpy.ndarray, cupy.ndarray)):
+                return cls(bck.array(lattice), **kwargs)
 
-        if device is True:
-            device = lib.device_id
-        else:
-            lib.device_id = device
-
-        with cupy.cuda.Device(device):
-            return cls(cupy.empty(shape, **field_kwargs), **kwargs)
+            shape = tuple(dofs) + tuple(lattice)
+            return cls(bck.empty(shape, dtype=cls.get_dtype(dtype)), **kwargs)
 
     def __init__(self, field, comm=None):
         self.field = field
@@ -61,6 +72,13 @@ class LatticeField:
         if len(field.shape) < 4:
             raise ValueError("A lattice field should not have shape smaller than 4")
         self._field = field
+
+    @property
+    def backend(self):
+        "The backend of the field: cupy or numpy"
+        if isinstance(self.field, cupy.ndarray):
+            return cupy
+        return numpy
 
     @property
     def device(self):
@@ -110,6 +128,16 @@ class LatticeField:
     def dtype(self):
         "Field data type"
         return self.field.dtype
+
+    @property
+    def iscomplex(self):
+        "Whether the field dtype is complex"
+        return self.backend.iscomplexobj(self.field)
+
+    @property
+    def isreal(self):
+        "Whether the field dtype is complex"
+        return self.backend.isrealobj(self.field)
 
     @property
     def precision(self):
