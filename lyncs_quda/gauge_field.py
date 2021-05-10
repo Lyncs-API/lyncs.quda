@@ -18,11 +18,11 @@ from .lattice_field import LatticeField
 from .time_profile import default_profiler
 
 
-def gauge(lattice, **kwargs):
+def gauge(lattice, dofs=(4, 18), **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
     # TODO reshape/shuffle to native order
-    return GaugeField.create(lattice, (4, 18), **kwargs)
+    return GaugeField.create(lattice, dofs, **kwargs)
 
 
 class GaugeField(LatticeField):
@@ -31,15 +31,14 @@ class GaugeField(LatticeField):
     @LatticeField.field.setter
     def field(self, field):
         LatticeField.field.fset(self, field)
-        if not str(self.dtype).startswith("float"):
-            raise TypeError("GaugeField support only float type")
         if self.reconstruct == "INVALID":
             raise TypeError(f"Unrecognized field dofs {self.dofs}")
 
-    @staticmethod
-    def get_reconstruct(dofs):
+    def get_reconstruct(self, dofs):
         "Returns the reconstruct type of dofs"
         dofs = reduce((lambda x, y: x * y), dofs)
+        if self.iscomplex:
+            dofs *= 2
         if dofs == 18:
             return "NO"
         if dofs == 12:
@@ -80,7 +79,7 @@ class GaugeField(LatticeField):
     @property
     def geometry(self):
         """
-        Geometry of the field 
+        Geometry of the field
             VECTOR = all links
             SCALAR = one link
             TENSOR = Fmunu antisymmetric (upper triangle)
@@ -169,7 +168,7 @@ class GaugeField(LatticeField):
 
     def new(self):
         "Returns a new empy field based on the current"
-        return gauge(self.lattice, dtype=self.dtype, device=self.device)
+        return gauge(self.lattice, dofs=self.dofs, dtype=self.dtype, device=self.device)
 
     def zero(self):
         "Sets all field elements to zero"
@@ -188,12 +187,14 @@ class GaugeField(LatticeField):
         "Returns the trace in color of the field"
         if self.reconstruct != "NO":
             raise NotImplementedError
-        assert self.dtype == "float64"  # TODO improve
-        return (
-            self.field.reshape((2, 4, 3, 3, -1, 2))
-            .trace(axis1=2, axis2=3)
-            .view("complex128")
-        )
+        field = self.field
+        if self.dtype == "float64":
+            field = field.view("complex128")
+        elif self.dtype == "float32":
+            field = field.view("complex64")
+        else:
+            assert self.iscomplex
+        return field.reshape((2, 4, 3, 3, -1)).trace(axis1=2, axis2=3)
 
     def project(self, tol=None):
         """
@@ -209,7 +210,7 @@ class GaugeField(LatticeField):
 
     def gaussian(self, epsilon=1, seed=None):
         """
-        Generates Gaussian distributed su(N) or SU(N) fields.  
+        Generates Gaussian distributed su(N) or SU(N) fields.
         If U is a momentum field, then generates a random Gaussian distributed
         field in the Lie algebra using the anti-Hermitation convention.
         If U is in the group then we create a Gaussian distributed su(n)
@@ -223,8 +224,8 @@ class GaugeField(LatticeField):
 
     def plaquette(self):
         """
-        Computes the plaquette of the gauge field 
-        
+        Computes the plaquette of the gauge field
+
         Returns
         -------
         tuple(total, spatial, temporal) plaquette site averaged and
@@ -288,10 +289,10 @@ class GaugeField(LatticeField):
     def compute_paths(self, paths, coeffs=None, add_to=None, add_coeff=1):
         """
         Computes the gauge paths on the lattice.
-        
+
         The same paths are computed for every direction.
 
-        - The paths are given with respect to direction "1" and 
+        - The paths are given with respect to direction "1" and
           this must be the first number of every path list.
         - Directions go from 1 to self.ndims
         - Negative value (-1,...) means backward movement in the direction
