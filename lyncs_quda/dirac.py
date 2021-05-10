@@ -6,7 +6,6 @@ __all__ = [
     "Dirac",
 ]
 
-from contextlib import contextmanager
 from functools import wraps
 from dataclasses import dataclass
 from lyncs_cppyy import make_shared
@@ -72,40 +71,55 @@ class Dirac:
     def quda_dirac(self):
         return make_shared(lib.Dirac.create(self.quda_params))
 
-    @contextmanager
-    def get_mat(self, key="M"):
-        "Returns the low-level quda matrix."
-        tmp = self.quda_dirac
-        yield getattr(tmp, key)
+    def get_matrix(self, key="M"):
+        "Returns the respective quda matrix."
+        return DiracMatrix(self, key)
 
-    def _apply(self, key, _in, _out=None):
-        _in = spinor(_in)
-        if _out is None:
-            _out = _in.new()
-        _out = spinor(_out)
-        with self.get_mat(key) as mat:
-            mat(_out.quda_field, _in.quda_field)
-        return _out
+    def __call__(self, spinor_in, spinor_out=None, key="M"):
+        return self.get_matrix(key)(spinor_in, spinor_out)
 
-    def M(self, spinor_in, spinor_out=None):
-        "Applies M to the spinor field"
-        return self._apply("M", spinor_in, _out=spinor_out)
+    @property
+    def M(self):
+        "Returns the matrix M"
+        return self.get_matrix("M")
 
-    def MdagM(self, spinor_in, spinor_out=None):
-        "Applies MdagM to the spinor field"
-        return self._apply("MdagM", spinor_in, _out=spinor_out)
+    @property
+    def MdagM(self):
+        "Returns the matrix MdagM"
+        return self.get_matrix("MdagM")
 
-    def MdagMLocal(self, spinor_in, spinor_out=None):
-        "Applies MdagMLocal to the spinor field"
-        return self._apply("MdagMLocal", spinor_in, _out=spinor_out)
+    @property
+    def MdagMLocal(self):
+        "Returns the matrix MdagMLocal"
+        return self.get_matrix("MdagMLocal")
 
-    def Mdag(self, spinor_in, spinor_out=None):
-        "Applies Mdag to the spinor field"
-        return self._apply("Mdag", spinor_in, _out=spinor_out)
+    @property
+    def Mdag(self):
+        "Returns the matrix Mdag"
+        return self.get_matrix("Mdag")
 
-    def MMdag(self, spinor_in, spinor_out=None):
-        "Applies MMdag to the spinor field"
-        return self._apply("MMdag", spinor_in, _out=spinor_out)
+    @property
+    def MMdag(self):
+        "Returns the matrix MMdag"
+        return self.get_matrix("MMdag")
 
 
 GaugeField.Dirac = wraps(Dirac)(lambda *args, **kwargs: Dirac(*args, **kwargs))
+
+
+class DiracMatrix:
+    __slots__ = ["_dirac", "_gauge", "_matrix"]
+
+    def __init__(self, dirac, key="M"):
+        self._dirac = dirac.quda_dirac
+        self._matrix = getattr(self._dirac, key)
+        self._gauge = dirac.quda_gauge
+        del dirac.quda_gauge
+
+    def __call__(self, spinor_in, spinor_out=None):
+        spinor_in = spinor(spinor_in)
+        if spinor_out is None:
+            spinor_out = spinor_in.new()
+        spinor_out = spinor(spinor_out)
+        self._matrix(spinor_out.quda_field, spinor_in.quda_field)
+        return spinor_out
