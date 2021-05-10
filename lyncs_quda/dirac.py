@@ -6,21 +6,24 @@ __all__ = [
     "Dirac",
 ]
 
+from contextlib import contextmanager
+from functools import wraps
+from dataclasses import dataclass
 from lyncs_cppyy import make_shared
 from .gauge_field import gauge, GaugeField
 from .spinor_field import spinor
 from .lib import lib
 
 
+@dataclass
 class Dirac:
-    def __init__(self, gauge, kappa=1, m5=0, Ls=0, csw=0, mu=0, epsilon=0):
-        self.gauge = gauge
-        self.kappa = kappa
-        self.m5 = m5
-        self.Ls = Ls
-        self.csw = csw
-        self.mu = mu
-        self.epsilon = epsilon
+    gauge: GaugeField
+    kappa: float = 1
+    m5: float = 0
+    Ls: int = 0
+    csw: float = 0
+    mu: float = 0
+    epsilon: float = 0
 
     @property
     def type(self):
@@ -69,12 +72,19 @@ class Dirac:
     def quda_dirac(self):
         return make_shared(lib.Dirac.create(self.quda_params))
 
+    @contextmanager
+    def get_mat(self, key="M"):
+        "Returns the low-level quda matrix."
+        tmp = self.quda_dirac
+        yield getattr(tmp, key)
+
     def _apply(self, key, _in, _out=None):
         _in = spinor(_in)
         if _out is None:
             _out = _in.new()
         _out = spinor(_out)
-        getattr(self.quda_dirac, key)(_out.quda_field, _in.quda_field)
+        with self.get_mat(key) as mat:
+            mat(_out.quda_field, _in.quda_field)
         return _out
 
     def M(self, spinor_in, spinor_out=None):
@@ -98,4 +108,4 @@ class Dirac:
         return self._apply("MMdag", spinor_in, _out=spinor_out)
 
 
-GaugeField.Dirac = lambda self, *args, **kwargs: Dirac(self, *args, **kwargs)
+GaugeField.Dirac = wraps(Dirac)(lambda *args, **kwargs: Dirac(*args, **kwargs))
