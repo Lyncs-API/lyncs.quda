@@ -20,7 +20,7 @@ from .lattice_field import LatticeField
 def spinor(lattice, **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
-    return SpinorField.create(lattice, dofs=(4, 3,), **kwargs)
+    return SpinorField.create(lattice, dofs=(4, 3), **kwargs)
 
 
 class SpinorField(LatticeField):
@@ -165,10 +165,6 @@ class SpinorField(LatticeField):
         return lib.colorspinor.isNative(
             self.quda_order, self.quda_precision, self.nspin, self.ncolor
         )
-
-    def new(self):
-        "Returns a new empy field based on the current"
-        return spinor(self.lattice, dtype=self.dtype, device=self.device)
 
     def zero(self):
         "Set all field elements to zero"

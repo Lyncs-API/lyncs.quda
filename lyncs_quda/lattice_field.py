@@ -49,6 +49,12 @@ class LatticeField:
             shape = tuple(dofs) + tuple(lattice)
             return cls(bck.empty(shape, dtype=cls.get_dtype(dtype)), **kwargs)
 
+    def new(self):
+        "Returns a new empty field based on the current"
+        return self.create(
+            self.lattice, dofs=self.dofs, dtype=self.dtype, device=self.device
+        )
+
     def __init__(self, field, comm=None):
         self.field = field
         self.comm = comm
@@ -146,7 +152,7 @@ class LatticeField:
             return "DOUBLE"
         if self.dtype in ["float32", "complex64"]:
             return "SINGLE"
-        if self.dtype in ["float16", "complex32"]:
+        if self.dtype in ["float16"]:  # , "complex32"
             return "HALF"
         return "INVALID"
 

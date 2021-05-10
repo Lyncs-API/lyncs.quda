@@ -166,10 +166,6 @@ class GaugeField(LatticeField):
             )
         )
 
-    def new(self):
-        "Returns a new empy field based on the current"
-        return gauge(self.lattice, dofs=self.dofs, dtype=self.dtype, device=self.device)
-
     def zero(self):
         "Sets all field elements to zero"
         self.quda_field.zero()
