@@ -182,8 +182,7 @@ class SpinorField(LatticeField):
 
     def gamma5(self, out=None):
         "Returns the vector transformed by gamma5"
-        if out is None:
-            out = self.new()
+        out = self.prepare(out)
         lib.gamma5(out.quda_field, self.quda_field)
         return out
 

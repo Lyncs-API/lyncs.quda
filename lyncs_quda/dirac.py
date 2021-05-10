@@ -116,10 +116,8 @@ class DiracMatrix:
         self._gauge = dirac.quda_gauge
         del dirac.quda_gauge
 
-    def __call__(self, spinor_in, spinor_out=None):
-        spinor_in = spinor(spinor_in)
-        if spinor_out is None:
-            spinor_out = spinor_in.new()
-        spinor_out = spinor(spinor_out)
-        self._matrix(spinor_out.quda_field, spinor_in.quda_field)
-        return spinor_out
+    def __call__(self, rhs, out=None):
+        rhs = spinor(rhs)
+        out = rhs.prepare(out)
+        self._matrix(out.quda_field, rhs.quda_field)
+        return out

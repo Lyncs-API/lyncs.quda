@@ -37,7 +37,7 @@ class LatticeField:
         return numpy.dtype(dtype)
 
     @classmethod
-    def create(cls, lattice, dofs=None, dtype=None, device=True, **kwargs):
+    def create(cls, lattice, dofs=None, dtype=None, device=True, empty=True, **kwargs):
         "Constructs a new gauge field"
         if isinstance(lattice, cls):
             return lattice
@@ -46,14 +46,34 @@ class LatticeField:
             if isinstance(lattice, (numpy.ndarray, cupy.ndarray)):
                 return cls(bck.array(lattice), **kwargs)
 
+            new = bck.empty if empty else bck.zeros
             shape = tuple(dofs) + tuple(lattice)
-            return cls(bck.empty(shape, dtype=cls.get_dtype(dtype)), **kwargs)
+            return cls(new(shape, dtype=cls.get_dtype(dtype)), **kwargs)
 
-    def new(self):
+    def new(self, empty=True):
         "Returns a new empty field based on the current"
         return self.create(
-            self.lattice, dofs=self.dofs, dtype=self.dtype, device=self.device
+            self.lattice, dofs=self.dofs, dtype=self.dtype, device=self.device, empty=empty
         )
+
+    def cast(self, other):
+        "Cast a field into its type and check for compatibility"
+        cls = type(self)
+        if not isinstance(other, cls):
+            other = cls(other)
+        # TODO: check compatibility
+        return other
+
+    def prepare(self, *fields, empty=True):
+        "Prepares the fields by creating new one (None) or making them compatible"
+        if not fields:
+            return self  # Needed? or raise error
+        if len(fields) == 1:
+            field = fields[0]
+            if field is None:
+                return self.new(empty)
+            return self.cast(field)
+        return tuple(self.prepare(field) for field in fields)
 
     def __init__(self, field, comm=None):
         self.field = field

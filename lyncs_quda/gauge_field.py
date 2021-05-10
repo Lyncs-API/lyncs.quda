@@ -331,9 +331,7 @@ class GaugeField(LatticeField):
                     else:
                         paths_array[dim, i, j] = 7 - (-step - 1 + dim) % self.ndims
 
-        if add_to is None:
-            add_to = self.new()
-            add_to.zero()
+        add_to = self.prepare(add_to, empty=False)
 
         quda_paths_array = array_to_pointers(paths_array)
         lib.gaugePath(
