@@ -73,3 +73,12 @@ def test_unity(lib, lattice, device, dtype):
     assert gf.project() == 0
     assert np.allclose(gf.plaquette_field().trace(), 3)
     assert np.allclose(gf.rectangle_field().trace(), 3)
+
+
+@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+def test_random(lib, lattice, device, dtype):
+    gf = gauge(lattice, dtype=dtype, device=device)
+    gf.gaussian()
+    assert np.allclose(gf.plaquette()[0], gf.plaquette_field().trace().mean() / 3)
