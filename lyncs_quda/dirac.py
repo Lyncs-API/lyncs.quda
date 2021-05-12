@@ -12,6 +12,7 @@ from lyncs_cppyy import make_shared
 from .gauge_field import gauge, GaugeField
 from .spinor_field import spinor
 from .lib import lib
+from .enums import get_precision
 
 
 @dataclass
@@ -39,6 +40,10 @@ class Dirac:
     def quda_type(self):
         "Quda enum for quda dslash type"
         return getattr(lib, f"QUDA_{self.type}_DIRAC")
+
+    @property
+    def precision(self):
+        return self.gauge.precision
 
     @property
     def dagger(self):
@@ -119,5 +124,13 @@ class DiracMatrix:
     def __call__(self, rhs, out=None):
         rhs = spinor(rhs)
         out = rhs.prepare(out)
-        self._matrix(out.quda_field, rhs.quda_field)
+        self.quda(out.quda_field, rhs.quda_field)
         return out
+
+    @property
+    def precision(self):
+        return get_precision(self._gauge.Precision())
+
+    @property
+    def quda(self):
+        return self._matrix

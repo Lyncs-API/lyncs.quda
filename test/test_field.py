@@ -1,4 +1,5 @@
 from lyncs_quda import LatticeField
+from pytest import raises
 import numpy as np
 import cupy as cp
 
@@ -12,10 +13,11 @@ def test_precision():
         ("float64", "DOUBLE"),
         ("float32", "SINGLE"),
         ("float16", "HALF"),
-        ("int", "INVALID"),
     ):
         field = LatticeField(np.zeros(shape, dtype=dtype))
         assert field.precision == prec
+    with raises(ValueError):
+        LatticeField(np.zeros(shape, dtype=int)).precision
 
 
 def test_numpy():

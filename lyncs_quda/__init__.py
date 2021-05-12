@@ -6,6 +6,7 @@ __version__ = "0.0.0"
 
 from . import config
 from .lib import *
+from .enums import *
 from .lattice_field import *
 from .gauge_field import *
 from .spinor_field import *

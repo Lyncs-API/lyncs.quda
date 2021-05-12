@@ -17,6 +17,8 @@ def test_params(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     dirac = gf.Dirac()
     params = dirac.quda_params
+    assert dirac.precision == gf.precision
+    assert dirac.precision == dirac.M.precision
     assert params.type == dirac.quda_type
     assert params.kappa == dirac.kappa
     assert params.m5 == dirac.m5

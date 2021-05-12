@@ -10,6 +10,7 @@ from array import array
 from contextlib import contextmanager
 import numpy
 import cupy
+from .enums import get_precision, get_precision_quda
 from .lib import lib
 
 
@@ -53,7 +54,11 @@ class LatticeField:
     def new(self, empty=True):
         "Returns a new empty field based on the current"
         return self.create(
-            self.lattice, dofs=self.dofs, dtype=self.dtype, device=self.device, empty=empty
+            self.lattice,
+            dofs=self.dofs,
+            dtype=self.dtype,
+            device=self.device,
+            empty=empty,
         )
 
     def cast(self, other):
@@ -168,18 +173,12 @@ class LatticeField:
     @property
     def precision(self):
         "Field data type precision"
-        if self.dtype in ["float64", "complex128"]:
-            return "DOUBLE"
-        if self.dtype in ["float32", "complex64"]:
-            return "SINGLE"
-        if self.dtype in ["float16"]:  # , "complex32"
-            return "HALF"
-        return "INVALID"
+        return get_precision(self.dtype)
 
     @property
     def quda_precision(self):
         "Quda enum for field data type precision"
-        return getattr(lib, f"QUDA_{self.precision}_PRECISION")
+        return get_precision_quda(self.dtype)
 
     @property
     def ghost_exchange(self):
