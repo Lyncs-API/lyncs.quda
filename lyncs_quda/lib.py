@@ -13,7 +13,7 @@ from pathlib import Path
 from array import array
 from appdirs import user_data_dir
 from lyncs_cppyy import Lib, nullptr, cppdef
-from lyncs_cppyy.ll import addressof, to_pointer, cast
+from lyncs_cppyy.ll import addressof, to_pointer
 from lyncs_utils import static_property
 from . import __path__
 from .config import QUDA_MPI, GITVERSION, CUDA_INCLUDE
@@ -40,9 +40,7 @@ class QudaLib(Lib):
     def MPI():
         if not QUDA_MPI:
             raise RuntimeError("Quda has not been compiled with MPI")
-        from mpi4py import MPI
-
-        return MPI
+        return MPI()
 
     @property
     def initialized(self):
@@ -99,12 +97,14 @@ class QudaLib(Lib):
             raise RuntimeError("Quda already initialized")
         # As first we set initialized to True to avoid recursion
         self._initialized = True
+        if not self.loaded:
+            self.load()
         if self.tune_dir:
             Path(self.tune_dir).mkdir(parents=True, exist_ok=True)
         if QUDA_MPI and self.comm is None:
             self.set_comm()
         if QUDA_MPI:
-            comm = cast["MPI_Comm"](self.MPI._handleof(self.comm))
+            comm = get_comm(self.comm)
             comm_ptr = self._comm_ptr(comm)
             self.setMPICommHandleQuda(comm_ptr)
             dims = array("i", self.comm.dims)
@@ -216,7 +216,7 @@ class QudaLib(Lib):
 
 libs = []
 if QUDA_MPI:
-    from lyncs_mpi import lib as libmpi
+    from lyncs_mpi import lib as libmpi, get_comm, MPI
 
     libs.append(libmpi)
 
