@@ -1,6 +1,6 @@
 from random import random
 import numpy as np
-from lyncs_quda import gauge, spinor
+from lyncs_quda import gauge, spinor, get_precision
 from lyncs_quda.testing import (
     fixlib as lib,
     lattice_loop,
@@ -18,13 +18,31 @@ def test_params(lib, lattice, device, dtype):
     dirac = gf.Dirac()
     params = dirac.quda_params
     assert dirac.precision == gf.precision
-    assert dirac.precision == dirac.M.precision
     assert params.type == dirac.quda_type
     assert params.kappa == dirac.kappa
     assert params.m5 == dirac.m5
     assert params.Ls == dirac.Ls
     assert params.mu == dirac.mu
     assert params.epsilon == dirac.epsilon
+
+
+@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+def test_matrix(lib, lattice, device, dtype):
+    gf = gauge(lattice, dtype=dtype, device=device)
+    dirac = gf.Dirac()
+    matrix = dirac.M
+    assert matrix.key == "M"
+    assert "Wilson" in matrix.name
+    assert matrix.shift == 0
+    assert matrix.precision == get_precision(dtype)
+    assert matrix.flops == 0
+    assert matrix.hermitian == False
+    assert matrix.is_wilson == True
+    assert matrix.is_staggered == False
+    assert matrix.is_dwf == False
+    assert matrix.is_coarse == False
 
 
 # @dtype_loop  # enables dtype

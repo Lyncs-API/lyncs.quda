@@ -113,12 +113,13 @@ GaugeField.Dirac = wraps(Dirac)(lambda *args, **kwargs: Dirac(*args, **kwargs))
 
 
 class DiracMatrix:
-    __slots__ = ["_dirac", "_gauge", "_matrix"]
+    __slots__ = ["_dirac", "_gauge", "_matrix", "_key"]
 
     def __init__(self, dirac, key="M"):
         self._dirac = dirac.quda_dirac
-        self._matrix = getattr(self._dirac, key)
+        self._matrix = getattr(lib, "Dirac" + key)(self._dirac)
         self._gauge = dirac.quda_gauge
+        self._key = key
         del dirac.quda_gauge
 
     def __call__(self, rhs, out=None):
@@ -128,8 +129,58 @@ class DiracMatrix:
         return out
 
     @property
+    def key(self):
+        "The name of the natrix"
+        return self._key
+
+    @property
+    def name(self):
+        "The name of the operator"
+        return self.quda.Type()
+
+    @property
+    def shift(self):
+        "Shift to be added to the result"
+        return self.quda.shift
+
+    @shift.setter
+    def shift(self, value):
+        self.quda.shift = value
+
+    @property
     def precision(self):
+        "The precision of the operator (same as the gauge field)"
         return get_precision(self._gauge.Precision())
+
+    @property
+    def flops(self):
+        "The flops of the operator"
+        return self.quda.flops()
+
+    @property
+    def hermitian(self):
+        "Whether is an hermitian operator"
+        return bool(self.quda.hermitian())
+
+    @property
+    def is_wilson(self):
+        "Whether is a Wilson-like operator"
+        return bool(self.quda.isWilsonType())
+
+    @property
+    def is_staggered(self):
+        "Whether is a staggered operator"
+        return bool(self.quda.isStaggered())
+
+    @property
+    def is_dwf(self):
+        "Whether is a domain wall fermions operator"
+        return bool(self.quda.isDwf())
+
+    @property
+    def is_coarse(self):
+        "Whether is a coarse operator"
+        return bool(self.quda.isCoarse())
 
     @property
     def quda(self):
