@@ -229,6 +229,7 @@ headers = [
     "gauge_force_quda.h",
     "gauge_update_quda.h",
     "dirac_quda.h",
+    "invert_quda.h",
 ]
 
 

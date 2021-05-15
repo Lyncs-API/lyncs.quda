@@ -3,6 +3,7 @@
 
 __all__ = [
     "get_precision",
+    "get_inverter_type",
 ]
 
 import re
@@ -100,3 +101,53 @@ def get_precision(key):
 
 def get_precision_quda(key):
     return getattr(lib, f"QUDA_{get_precision(key)}_PRECISION")
+
+
+@cache
+def inverter_types():
+    return {
+        int(getattr(lib, key)): strip(key, "_INVERTER")
+        for key in ENUMS["QudaInverterType"]
+    }
+
+
+def get_inverter_type(key):
+    if isinstance(key, str):
+        key = strip(key.upper(), "_INVERTER")
+        if key not in inverter_types().values():
+            raise ValueError
+        return key
+    if isinstance(key, int):
+        if key not in inverter_types():
+            raise ValueError
+        return inverter_types()[key]
+    raise TypeError
+
+
+def get_inverter_type_quda(key):
+    return getattr(lib, f"QUDA_{get_inverter_type(key)}_INVERTER")
+
+
+@cache
+def residual_types():
+    return {
+        int(getattr(lib, key)): strip(key, "_RESIDUAL")
+        for key in ENUMS["QudaResidualType"]
+    }
+
+
+def get_residual_type(key):
+    if isinstance(key, str):
+        key = strip(key.upper(), "_RESIDUAL")
+        if key not in residual_types().values():
+            raise ValueError(f"{key} not in {residual_types().values()}")
+        return key
+    if isinstance(key, int):
+        if key not in residual_types():
+            raise ValueError
+        return residual_types()[key]
+    raise TypeError
+
+
+def get_residual_type_quda(key):
+    return getattr(lib, f"QUDA_{get_residual_type(key)}_RESIDUAL")
