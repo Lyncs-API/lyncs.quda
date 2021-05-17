@@ -189,3 +189,13 @@ class SpinorField(LatticeField):
     def apply_gamma5(self):
         "Applies gamma5 to the field itself"
         return self.gamma5(self)
+
+    def norm1(self):
+        "L1 norm of the field"
+        return lib.blas.norm1(self.quda_field)
+
+    def norm2(self):
+        "L2 norm of the field"
+        return lib.blas.norm2(self.quda_field)
+
+    norm = norm2

@@ -52,6 +52,8 @@ def test_init(lib, lattice, device, dtype):
     sf = spinor(lattice, dtype=dtype, device=device)
     sf.zero()
     assert (sf.field == 0).all()
+    assert sf.norm1() == 0
+    assert sf.norm2() == 0
     sf.uniform()
     assert np.isclose(sf.field.mean(), 0.5 + 0.5j, atol=0.1)
     sf.gaussian()

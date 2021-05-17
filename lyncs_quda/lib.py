@@ -230,6 +230,7 @@ headers = [
     "gauge_update_quda.h",
     "dirac_quda.h",
     "invert_quda.h",
+    "blas_quda.h",
 ]
 
 
