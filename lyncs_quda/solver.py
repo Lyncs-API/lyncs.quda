@@ -8,6 +8,7 @@ __all__ = [
 ]
 
 from functools import wraps
+from warnings import warn
 from lyncs_cppyy import nullptr, make_shared
 from .dirac import Dirac, DiracMatrix
 from .enums import (
@@ -40,7 +41,7 @@ class Solver:
     ]
 
     default_params = {
-        "inv_type": "GCR",
+        "inv_type": "bicgstab",
         "preconditioner": None,
         # "precondition_cycle":
         # "tol_precondition":
@@ -255,14 +256,20 @@ class Solver:
                 del params[key]
         return params
 
-    def __call__(self, rhs, out=None, warning=False, **kwargs):
+    def __call__(self, rhs, out=None, warning=True, **kwargs):
         rhs = spinor(rhs)
         out = rhs.prepare(out)
         kwargs = self.swap(**kwargs)
         self.quda(out.quda_field, rhs.quda_field)
         self.swap(**kwargs)
-        # TODO check
-        print(self.run_info)
+
+        if self.true_res > self.tol:
+            msg = f"Solver did not converge. Residual: {self.true_res}"
+            if warning:
+                warn(msg)
+            else:
+                raise RuntimeError(msg)
+
         return out
 
     @property
