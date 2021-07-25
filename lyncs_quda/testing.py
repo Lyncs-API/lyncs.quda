@@ -13,7 +13,7 @@ __all__ = [
 from itertools import product
 from pytest import fixture, mark
 from lyncs_utils import factors, prod
-from .lib import lib, QUDA_MPI
+from .lib import lib, QUDA_MPI, MPI
 from .spinor_field import SpinorField
 
 
@@ -63,7 +63,7 @@ def get_procs_list(comm_size=None, max_size=None):
             return [
                 None,
             ]
-        comm_size = lib.MPI.COMM_WORLD.size
+        comm_size = MPI.COMM_WORLD.size
     facts = {1} | set(factors(comm_size))
     procs = list(
         set(procs for procs in product(facts, repeat=4) if prod(procs) == comm_size)
@@ -77,7 +77,7 @@ def get_cart(procs=None, comm=None):
     if not QUDA_MPI or procs is None:
         return None
     if comm is None:
-        comm = lib.MPI.COMM_WORLD
+        comm = MPI.COMM_WORLD
     return comm.Create_cart(procs)
 
 

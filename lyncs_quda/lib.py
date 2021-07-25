@@ -37,12 +37,6 @@ class QudaLib(Lib):
             self.tune_dir = user_data_dir("quda", "lyncs") + "/" + GITVERSION
         super().__init__(*args, **kwargs)
 
-    @static_property
-    def MPI():
-        if not QUDA_MPI:
-            raise RuntimeError("Quda has not been compiled with MPI")
-        return MPI()
-
     @property
     def initialized(self):
         "Whether the QUDA library has been initialized"
@@ -126,12 +120,12 @@ class QudaLib(Lib):
         if comm is None and not QUDA_MPI:
             return
         if comm is None:
-            comm = self.MPI.COMM_SELF.Create_cart((1, 1, 1, 1))
-        if not isinstance(comm, self.MPI.Cartcomm):
+            comm = MPI.COMM_SELF.Create_cart((1, 1, 1, 1))
+        if not isinstance(comm, MPI.Cartcomm):
             raise TypeError("comm expected to be a Cartcomm")
         if (
             self._comm is not None
-            and self.MPI.Comm.Compare(comm, self._comm) <= self.MPI.CONGRUENT
+            and MPI.Comm.Compare(comm, self._comm) <= MPI.CONGRUENT
         ):
             return
         if comm.ndim != 4:
@@ -221,6 +215,8 @@ if QUDA_MPI:
     from lyncs_mpi import lib as libmpi, get_comm, MPI
 
     libs.append(libmpi)
+else:
+    MPI=None
 
 PATHS = list(__path__)
 
