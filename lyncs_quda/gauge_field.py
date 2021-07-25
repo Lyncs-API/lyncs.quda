@@ -10,10 +10,9 @@ __all__ = [
 from functools import reduce
 from time import time
 import numpy
-import cupy
 from lyncs_cppyy import make_shared
 from lyncs_cppyy.ll import to_pointer, array_to_pointers
-from .lib import lib
+from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .time_profile import default_profiler
 
