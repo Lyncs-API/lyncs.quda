@@ -92,6 +92,11 @@ class QudaLib(Lib):
         super().__getattr__("cudaGetDevice")(dev)
         return dev[0]
 
+    def get_device_count(self):
+        dev = array("i", [0])
+        super().__getattr__("cudaGetDeviceCount")(dev)
+        return dev[0]
+
     def init_quda(self, dev=None):
         if self.initialized:
             raise RuntimeError("Quda already initialized")
