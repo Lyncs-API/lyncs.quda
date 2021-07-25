@@ -9,9 +9,18 @@ __all__ = [
 from array import array
 from contextlib import contextmanager
 import numpy
-import cupy
-from .enums import get_precision, get_precision_quda
-from .lib import lib
+from .enums import QudaPrecision
+from .lib import lib, cupy
+
+
+def get_precision(dtype):
+    if dtype in ["float64", "complex128"]:
+        return "double"
+    if dtype in ["float32", "complex64"]:
+        return "single"
+    if dtype in ["float16"]:  # , "complex32"
+        return "half"
+    raise ValueError
 
 
 @contextmanager
@@ -39,7 +48,7 @@ class LatticeField:
 
     @classmethod
     def create(cls, lattice, dofs=None, dtype=None, device=True, empty=True, **kwargs):
-        "Constructs a new gauge field"
+        "Constructs a new lattice field"
         if isinstance(lattice, cls):
             return lattice
 
@@ -178,7 +187,7 @@ class LatticeField:
     @property
     def quda_precision(self):
         "Quda enum for field data type precision"
-        return get_precision_quda(self.dtype)
+        return int(QudaPrecision[get_precision(self.dtype)])
 
     @property
     def ghost_exchange(self):

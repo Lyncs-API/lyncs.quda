@@ -12,7 +12,7 @@ from lyncs_cppyy import make_shared
 from .gauge_field import gauge, GaugeField
 from .spinor_field import spinor
 from .lib import lib
-from .enums import get_precision
+from .enums import QudaPrecision
 
 
 @dataclass
@@ -150,7 +150,7 @@ class DiracMatrix:
     @property
     def precision(self):
         "The precision of the operator (same as the gauge field)"
-        return get_precision(self._gauge.Precision())
+        return QudaPrecision[self._gauge.Precision()]
 
     @property
     def flops(self):

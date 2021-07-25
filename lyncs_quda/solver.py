@@ -11,14 +11,7 @@ from functools import wraps
 from warnings import warn
 from lyncs_cppyy import nullptr, make_shared
 from .dirac import Dirac, DiracMatrix
-from .enums import (
-    get_inverter_type,
-    get_inverter_type_quda,
-    get_precision,
-    get_precision_quda,
-    get_residual_type,
-    get_residual_type_quda,
-)
+from .enums import QudaInverterType, QudaPrecision, QudaResidualType, QudaBoolean
 from .lib import lib
 from .spinor_field import spinor
 from .time_profile import default_profiler, TimeProfile
@@ -82,8 +75,12 @@ class Solver:
         # "schwarz_type":,
     }
 
+    @staticmethod
+    def _init_params():
+        return lib.SolverParam()
+
     def __init__(self, mat, **kwargs):
-        self._params = lib.SolverParam()
+        self._params = self._init_params()
         self._solver = None
         self._profiler = None
         self._precon = None
@@ -110,7 +107,7 @@ class Solver:
         if not isinstance(mat, DiracMatrix):
             raise TypeError("mat should be an instance of Dirac or DiracMatrix")
         self._mat = mat
-        self._params.precision = get_precision_quda(mat.precision)
+        self._params.precision = int(QudaPrecision[mat.precision])
         self._mat_sloppy = None
         self._mat_precon = None
         self._mat_eig = None
@@ -132,43 +129,25 @@ class Solver:
     def mat_sloppy(self):
         return self._get_mat("_mat_sloppy", self.precision_sloppy)
 
-    @property
-    def precision_sloppy(self):
-        return get_precision(self._params.precision_sloppy)
-
-    @precision_sloppy.setter
-    def precision_sloppy(self, value):
-        if value is None:
-            value = self.precision
-        self._params.precision_sloppy = get_precision_quda(value)
+    precision_sloppy = QudaPrecision(
+        "_params.precision_sloppy", default=lambda self: self.precision
+    )
 
     @property
     def mat_precon(self):
         return self._get_mat("_mat_precon", self.precision_precondition)
 
-    @property
-    def precision_precondition(self):
-        return get_precision(self._params.precision_precondition)
-
-    @precision_precondition.setter
-    def precision_precondition(self, value):
-        if value is None:
-            value = self.precision
-        self._params.precision_precondition = get_precision_quda(value)
+    precision_precondition = QudaPrecision(
+        "_params.precision_precondition", default=lambda self: self.precision
+    )
 
     @property
     def mat_eig(self):
         return self._get_mat("_mat_eig", self.precision_eigensolver)
 
-    @property
-    def precision_eigensolver(self):
-        return get_precision(self._params.precision_eigensolver)
-
-    @precision_eigensolver.setter
-    def precision_eigensolver(self, value):
-        if value is None:
-            value = self.precision
-        self._params.precision_eigensolver = get_precision_quda(value)
+    precision_eigensolver = QudaPrecision(
+        "_params.precision_eigensolver", default=lambda self: self.precision
+    )
 
     @property
     def profiler(self):
@@ -182,19 +161,8 @@ class Solver:
             raise TypeError
         self._profiler = value
 
-    @property
-    def inv_type(self):
-        "Quda enum for inverter type"
-        return get_inverter_type(self._params.inv_type)
-
-    @inv_type.setter
-    def inv_type(self, value):
-        self._params.inv_type = get_inverter_type_quda(value)
-
-    @property
-    def inv_type_precondition(self):
-        "Quda enum for inverter type"
-        return get_inverter_type(self._params.inv_type_precondition)
+    inv_type = QudaInverterType("_params.inv_type")
+    inv_type_precondition = QudaInverterType("_params.inv_type_precondition")
 
     @property
     def preconditioner(self):
@@ -209,26 +177,16 @@ class Solver:
         else:
             raise NotImplementedError
 
-    @property
-    def return_residual(self):
-        return bool(self._params.return_residual)
+    def _update_return_residual(self, old, new):
+        assert self._params.return_residual == new
+        self._params.compute_true_res = new
+        self._params.preserve_source = not new
 
-    @return_residual.setter
-    def return_residual(self, value):
-        value = bool(value)
-        self._params.return_residual = value
-        self._params.compute_true_res = value
-        self._params.preserve_source = not value
+    return_residual = QudaBoolean(
+        "_params.return_residual", callback=_update_return_residual
+    )
 
-    @property
-    def residual_type(self):
-        return get_residual_type(self._params.residual_type)
-
-    @residual_type.setter
-    def residual_type(self, value):
-        if value is None:
-            value = "L2_RELATIVE"
-        self._params.residual_type = get_residual_type_quda(value)
+    residual_type = QudaResidualType("_params.residual_type", default="L2_RELATIVE")
 
     @property
     def quda(self):
