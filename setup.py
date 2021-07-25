@@ -7,6 +7,7 @@ from lyncs_setuptools import setup, CMakeExtension, find_package
 requirements = [
     "cupy",
     "lyncs-cppyy",
+    "lyncs-utils>=0.2.2",
 ]
 
 QUDA_CMAKE_ARGS = {
@@ -43,7 +44,7 @@ def patch_include(builder, ext):
 
 
 QUDA_CMAKE_ARGS = [key + "=" + val for key, val in QUDA_CMAKE_ARGS.items()]
-print("QUDA options:\n", "\n".join(QUDA_CMAKE_ARGS))
+print("QUDA options:", *QUDA_CMAKE_ARGS, sep="\n")
 
 setup(
     "lyncs_quda",

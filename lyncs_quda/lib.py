@@ -14,10 +14,11 @@ from array import array
 from appdirs import user_data_dir
 from lyncs_cppyy import Lib, nullptr, cppdef
 from lyncs_cppyy.ll import addressof, to_pointer
-from lyncs_utils import static_property
+from lyncs_utils import static_property, lazy_import
 from . import __path__
 from .config import QUDA_MPI, GITVERSION, CUDA_INCLUDE
 
+cupy = lazy_import("cupy")
 
 class QudaLib(Lib):
     "Adds additional enviromental control required by QUDA"
@@ -88,14 +89,10 @@ class QudaLib(Lib):
         self._device_id = value
 
     def get_current_device(self):
-        dev = array("i", [0])
-        super().__getattr__("cudaGetDevice")(dev)
-        return dev[0]
+        return cupy.cuda.runtime.getDevice()
 
     def get_device_count(self):
-        dev = array("i", [0])
-        super().__getattr__("cudaGetDeviceCount")(dev)
-        return dev[0]
+        return cupy.cuda.runtime.getDeviceCount()
 
     def init_quda(self, dev=None):
         if self.initialized:
