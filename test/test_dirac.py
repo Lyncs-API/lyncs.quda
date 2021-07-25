@@ -1,6 +1,7 @@
 from random import random
 import numpy as np
-from lyncs_quda import gauge, spinor, get_precision
+from lyncs_quda import gauge, spinor
+from lyncs_quda.lattice_field import get_precision
 from lyncs_quda.testing import (
     fixlib as lib,
     lattice_loop,

@@ -11,7 +11,7 @@ from lyncs_quda.testing import (
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 @gamma_loop  # enables gamma
-def test_zero(lib, lattice, device, gamma, dtype=None):
+def test_solve_random(lib, lattice, device, gamma, dtype=None):
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.gaussian()
     dirac = gf.Dirac(kappa=0.01)
