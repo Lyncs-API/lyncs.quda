@@ -1,8 +1,7 @@
 import sys
 import os
-from pathlib import Path
-import fileinput
 from lyncs_setuptools import setup, CMakeExtension, find_package
+from post_build import post_build
 
 requirements = [
     "cupy",
@@ -26,23 +25,6 @@ if findMPI["cxx_found"]:
     QUDA_CMAKE_ARGS["QUDA_MPI"] = "ON"
 
 
-def patch_include(builder, ext):
-    'Replaces #include instances in header files that use <> with "" for relative includes'
-    install_dir = builder.get_install_dir(ext) + "/include"
-    for path in Path(install_dir).rglob("*.h"):
-        with fileinput.FileInput(str(path), inplace=True, backup=".bak") as fp:
-            for fline in fp:
-                line = str(fline)
-                if line.strip().startswith("#include"):
-                    include = line.split()[1]
-                    if include[0] == "<" and include[-1] == ">":
-                        include = include[1:-1]
-                        if (path.parents[0] / include).exists():
-                            print(line.replace(f"<{include}>", f'"{include}"'), end="")
-                            continue
-                print(line, end="")
-
-
 QUDA_CMAKE_ARGS = [key + "=" + val for key, val in QUDA_CMAKE_ARGS.items()]
 print("QUDA options:", *QUDA_CMAKE_ARGS, sep="\n")
 
@@ -54,7 +36,7 @@ setup(
             "lyncs_quda.lib",
             ".",
             ["-DQUDA_CMAKE_ARGS='-D%s'" % ";-D".join(QUDA_CMAKE_ARGS)],
-            post_build=patch_include,
+            post_build=post_build,
         )
     ],
     data_files=[(".", ["config.py.in"])],
