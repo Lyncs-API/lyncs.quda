@@ -56,7 +56,7 @@ def commonsuffix(words):
 
 def parse_enum(lines):
     from cppyy import gbl
-    
+
     assert lines[0].startswith("typedef enum")
 
     # getting comments:
@@ -127,7 +127,7 @@ def generate_enums(builder, ext):
 
     # packing groups of enums and then calling parse_enum
     pack = []
-    out=OUTPUT
+    out = OUTPUT
     for line in lines:
         line = line.strip()
         if line.startswith("typedef enum"):
@@ -143,4 +143,5 @@ def generate_enums(builder, ext):
         fp.write(out)
 
     from black import format_file_in_place, Mode, Path, WriteBack
+
     format_file_in_place(Path(filename), False, Mode(), write_back=WriteBack.YES)
