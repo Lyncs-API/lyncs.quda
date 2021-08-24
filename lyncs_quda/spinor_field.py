@@ -10,7 +10,7 @@ __all__ = [
 from functools import reduce
 from time import time
 from lyncs_cppyy import make_shared
-from lyncs_cppyy.ll import to_pointer, array_to_pointers
+from lyncs_cppyy.ll import to_pointer
 from .lib import lib
 from .lattice_field import LatticeField
 

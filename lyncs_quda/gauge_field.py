@@ -10,8 +10,9 @@ __all__ = [
 from functools import reduce
 from time import time
 import numpy
-from lyncs_cppyy import make_shared
-from lyncs_cppyy.ll import to_pointer, array_to_pointers
+from lyncs_cppyy import make_shared, lib as tmp
+from lyncs_cppyy.ll import to_pointer
+from lyncs_cppyy.numpy import array_to_pointers
 from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .time_profile import default_profiler
@@ -337,7 +338,7 @@ class GaugeField(LatticeField):
             add_to.quda_field,
             self.extended_field(1),
             add_coeff,
-            quda_paths_array.view,
+            quda_paths_array,
             lengths,
             coeffs,
             num_paths,
