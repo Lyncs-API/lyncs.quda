@@ -7,6 +7,7 @@ requirements = [
     "cupy",
     "lyncs-cppyy",
     "lyncs-utils>=0.2.2",
+    "appdirs",
 ]
 
 QUDA_CMAKE_ARGS = {
@@ -16,6 +17,7 @@ QUDA_CMAKE_ARGS = {
     "QUDA_GPU_ARCH": os.environ.get("QUDA_GPU_ARCH", "sm_60"),
     "QUDA_FORCE_GAUGE": "ON",
     "QUDA_MPI": "OFF",
+    "QUDA_MULTIGRID": "ON",
 }
 
 
