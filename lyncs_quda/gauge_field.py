@@ -121,7 +121,7 @@ class GaugeField(LatticeField):
 
     @property
     def quda_params(self):
-        "Returns and instance of quda::GaugeFieldParams"
+        "Returns an instance of quda::GaugeFieldParams"
         params = lib.GaugeFieldParam()
         lib.copy_struct(params, super().quda_params)
         params.reconstruct = self.quda_reconstruct
@@ -136,7 +136,7 @@ class GaugeField(LatticeField):
 
     @property
     def quda_field(self):
-        "Returns and instance of quda::GaugeField"
+        "Returns an instance of quda::GaugeField"
         self.activate()
         return make_shared(lib.GaugeField.Create(self.quda_params))
 
@@ -366,6 +366,13 @@ class GaugeField(LatticeField):
             coeffs=1 / 6,
         )
 
+    def rectangles(self):
+        "Returns the average over rectangles"
+        # Suboptimal implementation based on rectangle_field
+        local = self.rectangle_field().trace().mean().real / 3
+        # TODO: global reduction
+        return float(local)
+
     def exponentiate(self, coeff=1, mul_to=None, out=None, conj=False, exact=False):
         """
         Exponentiates a momentum field
@@ -380,3 +387,32 @@ class GaugeField(LatticeField):
             out.quda_field, coeff, mul_to.quda_field, self.quda_field, conj, exact
         )
         return out
+
+    def gauge_action(self, plaq_coeff=0, rect_coeff=0):
+        """
+        Returns the gauge action.
+
+        The coefficients are use as follows
+
+            (1-8*c1) ((1+c0) P_time + (1-c0) P_space) + c1*R
+
+        where P is the sum over plaquette, R over the rectangles,
+        c0 is the plaq_coeff (see volume_plaquette) and c1 the rect_coeff
+        """
+        plaq, time, space = self.plaquette()
+        if plaq_coeff != 0:
+            plaq = (1 + plaq_coeff) * time + (1 - plaq_coeff) * space
+
+        if rect_coeff == 0:
+            return plaq
+
+        rect = self.rectangles()
+        return (1 - 8 * rect_coeff) * plaq + rect_coeff * rect
+
+    def symanzik_gauge_action(self, plaq_coeff=0):
+        "Returns the tree-level Symanzik improved gauge action"
+        return self.gauge_action(plaq_coeff, -1 / 12)
+
+    def iwasaki_gauge_action(self, plaq_coeff=0):
+        "Returns the Iwasaki gauge action"
+        return self.gauge_action(plaq_coeff, -0.331)

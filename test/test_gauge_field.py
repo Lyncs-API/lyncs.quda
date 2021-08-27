@@ -73,6 +73,10 @@ def test_unity(lib, lattice, device, dtype):
     assert gf.project() == 0
     assert np.allclose(gf.plaquette_field().trace(), 3)
     assert np.allclose(gf.rectangle_field().trace(), 3)
+    assert np.isclose(gf.rectangles(), 1)
+    assert np.isclose(gf.gauge_action(), 1)
+    assert np.isclose(gf.symanzik_gauge_action(), 1 + 7 / 12)
+    assert np.isclose(gf.iwasaki_gauge_action(), 1 + 7 * 0.331)
 
 
 @dtype_loop  # enables dtype
