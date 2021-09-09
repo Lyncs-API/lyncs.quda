@@ -282,7 +282,7 @@ class GaugeField(LatticeField):
             )
         return self.quda_field.abs_min(link_dir)
 
-    def compute_paths(self, paths, coeffs=None, add_to=None, add_coeff=1):
+    def compute_paths(self, paths, coeffs=None, out=None, add_coeff=1, force=False):
         """
         Computes the gauge paths on the lattice.
 
@@ -331,11 +331,21 @@ class GaugeField(LatticeField):
                     else:
                         paths_array[dim, i, j] = 7 - (-step - 1 + dim) % self.ndims
 
-        add_to = self.prepare(add_to, empty=False)
-
         quda_paths_array = array_to_pointers(paths_array)
-        lib.gaugePath(
-            add_to.quda_field,
+
+        kwargs = dict(empty=False)
+        fnc = lib.gaugePath
+        if force:
+            fnc = lib.gaugeForce
+            if self.iscomplex:
+                kwargs["dofs"] = (4, 5)
+            else:
+                kwargs["dofs"] = (4, 10)
+
+        out = self.prepare(out, **kwargs)
+
+        fnc(
+            out.quda_field,
             self.extended_field(1),
             add_coeff,
             quda_paths_array,
@@ -344,15 +354,15 @@ class GaugeField(LatticeField):
             num_paths,
             max_length,
         )
-        return add_to
+        return out
 
-    def plaquette_field(self):
+    def plaquette_field(self, force=False):
         "Computes the plaquette field"
         return self.compute_paths(
-            [[1, 2, -1, -2], [1, 3, -1, -3], [1, 4, -1, -4]], coeffs=1 / 3
+            [[1, 2, -1, -2], [1, 3, -1, -3], [1, 4, -1, -4]], coeffs=1 / 3, force=force
         )
 
-    def rectangle_field(self):
+    def rectangle_field(self, force=False):
         "Computes the rectangle field"
         return self.compute_paths(
             [
@@ -364,6 +374,7 @@ class GaugeField(LatticeField):
                 [1, 1, 4, -1, -1, -4],
             ],
             coeffs=1 / 6,
+            force=force,
         )
 
     def rectangles(self):
