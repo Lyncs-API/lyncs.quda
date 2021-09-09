@@ -60,34 +60,40 @@ class LatticeField:
             shape = tuple(dofs) + tuple(lattice)
             return cls(new(shape, dtype=cls.get_dtype(dtype)), **kwargs)
 
-    def new(self, empty=True):
+    def new(self, empty=True, **kwargs):
         "Returns a new empty field based on the current"
         return self.create(
             self.lattice,
-            dofs=self.dofs,
-            dtype=self.dtype,
-            device=self.device,
+            dofs=kwargs.get("dofs", self.dofs),
+            dtype=kwargs.get("dtype", self.dtype),
+            device=kwargs.get("device", self.device),
             empty=empty,
         )
 
-    def cast(self, other):
+    def cast(self, other, **kwargs):
         "Cast a field into its type and check for compatibility"
         cls = type(self)
         if not isinstance(other, cls):
             other = cls(other)
-        # TODO: check compatibility
+        # TODO: check compatibility using also kwargs
+        dofs = (kwargs.get("dofs", self.dofs),)
+        assert other.dofs == dofs
+        dtype = (kwargs.get("dtype", self.dtype),)
+        assert other.dtype == dtype
+        device = (kwargs.get("device", self.device),)
+        assert other.device == device
         return other
 
-    def prepare(self, *fields, empty=True):
+    def prepare(self, *fields, **kwargs):
         "Prepares the fields by creating new one (None) or making them compatible"
         if not fields:
             return self  # Needed? or raise error
         if len(fields) == 1:
             field = fields[0]
             if field is None:
-                return self.new(empty)
-            return self.cast(field)
-        return tuple(self.prepare(field) for field in fields)
+                return self.new(**kwargs)
+            return self.cast(field, **kwargs)
+        return tuple(self.prepare(field, **kwargs) for field in fields)
 
     def __init__(self, field, comm=None):
         self.field = field
@@ -112,6 +118,12 @@ class LatticeField:
         if len(field.shape) < 4:
             raise ValueError("A lattice field should not have shape smaller than 4")
         self._field = field
+
+    def __array__(self, *args, **kwargs):
+        out = self.field
+        if self.device is not None:
+            out = out.get()
+        return out.__array__(*args, **kwargs)
 
     @property
     def backend(self):
