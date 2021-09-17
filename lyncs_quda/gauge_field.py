@@ -9,21 +9,34 @@ __all__ = [
 
 from functools import reduce
 from time import time
+from math import sqrt
 import numpy
-from lyncs_cppyy import make_shared, lib as tmp
-from lyncs_cppyy.ll import to_pointer
-from lyncs_cppyy.numpy import array_to_pointers
+from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
+from lyncs_utils import prod
 from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .time_profile import default_profiler
 
 
-def gauge(lattice, dofs=(4, 18), **kwargs):
+def gauge_field(lattice, dofs=(4,18), **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
     # TODO reshape/shuffle to native order
-    return GaugeField.create(lattice, dofs, **kwargs)
+    return GaugeField.create(lattice, dofs=dofs, **kwargs)
 
+def gauge_links(lattice, dofs=18, **kwargs):
+    "Constructs a new gauge field of links"
+    return gauge_field(lattice, dofs=(4,dofs), **kwargs)
+
+gauge = gauge_links
+
+def gauge_tensor(lattice, dofs=18, **kwargs):
+    "Constructs a new gauge field with tensor structure"
+    return gauge_field(lattice, dofs=(6,dofs), **kwargs)
+
+def gauge_coarse(lattice, dofs=18, **kwargs):
+    "Constructs a new coarse gauge field"
+    return gauge_field(lattice, dofs=(8,dofs), **kwargs)
 
 class GaugeField(LatticeField):
     "Mimics the quda::LatticeField object"
@@ -36,35 +49,48 @@ class GaugeField(LatticeField):
 
     def get_reconstruct(self, dofs):
         "Returns the reconstruct type of dofs"
-        dofs = reduce((lambda x, y: x * y), dofs)
+        dofs = prod(dofs)
         if self.iscomplex:
             dofs *= 2
-        if dofs == 18:
-            return "NO"
+
+    @property
+    def dofs_per_link(self):
+        if self.geometry == "SCALAR":
+            dofs = prod(self.dofs)
+        else:
+            dofs = prod(self.dofs[1:])
+        if self.iscomplex:
+            return dofs * 2
+        return dofs
+        
+    @property
+    def reconstruct(self):
+        "Reconstruct type of the field"
+        dofs = self.dofs_per_link
         if dofs == 12:
             return "12"
         if dofs == 8:
             return "8"
         if dofs == 10:
             return "10"
+        if sqrt(dofs/2).is_integer():
+            return "NO"
         return "INVALID"
-
-    @property
-    def reconstruct(self):
-        "Reconstruct type of the field"
-        geo = self.geometry
-        if geo == "INVALID":
-            return "INVALID"
-        if geo == "SCALAR" and self.dofs[0] == 1:
-            return self.get_reconstruct(self.dofs[1:])
-        if geo != "SCALAR":
-            return self.get_reconstruct(self.dofs[1:])
-        return self.get_reconstruct(self.dofs)
-
+    
     @property
     def quda_reconstruct(self):
         "Quda enum for reconstruct type of the field"
         return getattr(lib, f"QUDA_RECONSTRUCT_{self.reconstruct}")
+
+    @property
+    def ncol(self):
+        "Number of colors"
+        if self.reconstruct == "NO":
+            dofs = self.dofs_per_link
+            ncol = sqrt(dofs/2)
+            assert ncol.is_integer()
+            return int(ncol)
+        return 3    
 
     @property
     def order(self):
@@ -83,16 +109,15 @@ class GaugeField(LatticeField):
             VECTOR = all links
             SCALAR = one link
             TENSOR = Fmunu antisymmetric (upper triangle)
+            COARSE = all links, both directions
         """
         if self.dofs[0] == self.ndims:
             return "VECTOR"
-        if self.dofs[0] == 1:
-            return "SCALAR"
         if self.dofs[0] == self.ndims * (self.ndims - 1) / 2:
             return "TENSOR"
-        if self.get_reconstruct(self.dofs) != "INVALID":
-            return "SCALAR"
-        return "INVALID"
+        if self.dofs[0] == self.ndims*2:
+            return "COARSE"
+        return "SCALAR"
 
     @property
     def quda_geometry(self):
@@ -112,6 +137,8 @@ class GaugeField(LatticeField):
     @property
     def link_type(self):
         "Type of the links"
+        if self.geometry == "COARSE":
+            return "COARSE"
         return "SU3"
 
     @property
@@ -132,6 +159,7 @@ class GaugeField(LatticeField):
         params.location = self.quda_location
         params.t_boundary = self.quda_t_boundary
         params.order = self.quda_order
+        params.nColor = self.ncol
         return params
 
     @property
@@ -230,6 +258,12 @@ class GaugeField(LatticeField):
         plaq = lib.plaquette(self.extended_field(1))
         return plaq.x, plaq.y, plaq.z
 
+    def compute_fmunu(self, out=None):
+        if out is None:
+            out = self.new(dofs=(6,18))
+        lib.computeFmunu(out.quda_field, self.extended_field(1))
+        return out
+
     def topological_charge(self):
         """
         Computes the topological charge
@@ -239,12 +273,16 @@ class GaugeField(LatticeField):
         charge, (total, spatial, temporal): The total topological charge
             and total, spatial, and temporal field energy
         """
+        if self.geometry != "TENSOR":
+            self = self.compute_fmunu()
         out = numpy.zeros(4, dtype="double")
         lib.computeQCharge(out[:3], out[3:], self.extended_field(0))  # should be 1
         return out[3], tuple(out[:3])
 
     def topological_charge_density(self):
         "Computes the topological charge density"
+        if self.geometry != "TENSOR":
+            self = self.compute_fmunu()
         out1 = numpy.zeros(4, dtype="double")
         if out is None:
             out = numpy.zeros(4, dtype="double")
