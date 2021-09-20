@@ -9,6 +9,7 @@ __all__ = [
 from array import array
 from contextlib import contextmanager
 import numpy
+from lyncs_cppyy import nullptr
 from .enums import QudaPrecision
 from .lib import lib, cupy
 
@@ -238,3 +239,22 @@ class LatticeField:
         if self.comm is None or local:
             return val
         return self.comm.allreduce(val, getattr(lib.MPI, opr))
+
+    @property
+    def quda_field(self):
+        "Returns an instance of a quda class"
+        raise NotImplementedError("Creating a LatticeField")
+
+    @property
+    def cpu_field(self):
+        "Returns a cpuField class if possible, otherwise nullptr"
+        if self.device is None:
+            return self.quda_field
+        return nullprt
+
+    @property
+    def gpu_field(self):
+        "Returns a gpuField class if possible, otherwise nullptr"
+        if self.device is not None:
+            return self.quda_field
+        return nullprt
