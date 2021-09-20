@@ -18,25 +18,30 @@ from .lattice_field import LatticeField
 from .time_profile import default_profiler
 
 
-def gauge_field(lattice, dofs=(4,18), **kwargs):
+def gauge_field(lattice, dofs=(4, 18), **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
     # TODO reshape/shuffle to native order
     return GaugeField.create(lattice, dofs=dofs, **kwargs)
 
+
 def gauge_links(lattice, dofs=18, **kwargs):
     "Constructs a new gauge field of links"
-    return gauge_field(lattice, dofs=(4,dofs), **kwargs)
+    return gauge_field(lattice, dofs=(4, dofs), **kwargs)
+
 
 gauge = gauge_links
 
+
 def gauge_tensor(lattice, dofs=18, **kwargs):
     "Constructs a new gauge field with tensor structure"
-    return gauge_field(lattice, dofs=(6,dofs), **kwargs)
+    return gauge_field(lattice, dofs=(6, dofs), **kwargs)
+
 
 def gauge_coarse(lattice, dofs=18, **kwargs):
     "Constructs a new coarse gauge field"
-    return gauge_field(lattice, dofs=(8,dofs), **kwargs)
+    return gauge_field(lattice, dofs=(8, dofs), **kwargs)
+
 
 class GaugeField(LatticeField):
     "Mimics the quda::LatticeField object"
@@ -62,7 +67,7 @@ class GaugeField(LatticeField):
         if self.iscomplex:
             return dofs * 2
         return dofs
-        
+
     @property
     def reconstruct(self):
         "Reconstruct type of the field"
@@ -73,10 +78,10 @@ class GaugeField(LatticeField):
             return "8"
         if dofs == 10:
             return "10"
-        if sqrt(dofs/2).is_integer():
+        if sqrt(dofs / 2).is_integer():
             return "NO"
         return "INVALID"
-    
+
     @property
     def quda_reconstruct(self):
         "Quda enum for reconstruct type of the field"
@@ -87,10 +92,10 @@ class GaugeField(LatticeField):
         "Number of colors"
         if self.reconstruct == "NO":
             dofs = self.dofs_per_link
-            ncol = sqrt(dofs/2)
+            ncol = sqrt(dofs / 2)
             assert ncol.is_integer()
             return int(ncol)
-        return 3    
+        return 3
 
     @property
     def order(self):
@@ -115,7 +120,7 @@ class GaugeField(LatticeField):
             return "VECTOR"
         if self.dofs[0] == self.ndims * (self.ndims - 1) / 2:
             return "TENSOR"
-        if self.dofs[0] == self.ndims*2:
+        if self.dofs[0] == self.ndims * 2:
             return "COARSE"
         return "SCALAR"
 
@@ -123,6 +128,11 @@ class GaugeField(LatticeField):
     def quda_geometry(self):
         "Quda enum for geometry of the field"
         return getattr(lib, f"QUDA_{self.geometry}_GEOMETRY")
+
+    @property
+    def is_coarse(self):
+        "Whether is a coarse gauge field"
+        return self.geometry == "COARSE"
 
     @property
     def t_boundary(self):
@@ -260,7 +270,7 @@ class GaugeField(LatticeField):
 
     def compute_fmunu(self, out=None):
         if out is None:
-            out = self.new(dofs=(6,18))
+            out = self.new(dofs=(6, 18))
         lib.computeFmunu(out.quda_field, self.extended_field(1))
         return out
 
