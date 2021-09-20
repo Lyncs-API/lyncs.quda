@@ -99,6 +99,7 @@ class LatticeField:
     def __init__(self, field, comm=None):
         self.field = field
         self.comm = comm
+        self._quda = None
         self.activate()
 
     def activate(self):
@@ -125,6 +126,20 @@ class LatticeField:
         if self.device is not None:
             out = out.get()
         return out.__array__(*args, **kwargs)
+
+    def complex_view(self):
+        "Returns a complex view of the field"
+        if self.iscomplex:
+            return self.field
+        if self.dtype == "float64":
+            return self.field.view("complex128")
+        elif self.dtype == "float32":
+            return self.field.view("complex64")
+        raise TypeError(f"Cannot convert {self.dtype} to complex")
+
+    def default_view(self):
+        "Returns the default view of the field including reshaping"
+        return self.complex_view()
 
     @property
     def backend(self):
@@ -250,11 +265,11 @@ class LatticeField:
         "Returns a cpuField class if possible, otherwise nullptr"
         if self.device is None:
             return self.quda_field
-        return nullprt
+        return nullptr
 
     @property
     def gpu_field(self):
         "Returns a gpuField class if possible, otherwise nullptr"
         if self.device is not None:
             return self.quda_field
-        return nullprt
+        return nullptr
