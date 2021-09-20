@@ -4,6 +4,11 @@ Interface to gauge_field.h
 
 __all__ = [
     "gauge",
+    "gauge_field",
+    "gauge_scalar",
+    "gauge_links",
+    "gauge_tensor",
+    "gauge_coarse",
     "GaugeField",
 ]
 
@@ -25,6 +30,11 @@ def gauge_field(lattice, dofs=(4, 18), **kwargs):
     return GaugeField.create(lattice, dofs=dofs, **kwargs)
 
 
+def gauge_scalar(lattice, dofs=18, **kwargs):
+    "Constructs a new scalar gauge field"
+    return gauge_field(lattice, dofs=(1, dofs), **kwargs)
+
+
 def gauge_links(lattice, dofs=18, **kwargs):
     "Constructs a new gauge field of links"
     return gauge_field(lattice, dofs=(4, dofs), **kwargs)
@@ -38,7 +48,7 @@ def gauge_tensor(lattice, dofs=18, **kwargs):
     return gauge_field(lattice, dofs=(6, dofs), **kwargs)
 
 
-def gauge_coarse(lattice, dofs=18, **kwargs):
+def gauge_coarse(lattice, dofs=2 * 48 ** 2, **kwargs):
     "Constructs a new coarse gauge field"
     return gauge_field(lattice, dofs=(8, dofs), **kwargs)
 
@@ -132,7 +142,9 @@ class GaugeField(LatticeField):
     @property
     def is_coarse(self):
         "Whether is a coarse gauge field"
-        return self.geometry == "COARSE"
+        return self.geometry == "COARSE" or (
+            self.geometry == "SCALAR" and self.ncol != 3
+        )
 
     @property
     def t_boundary(self):
@@ -147,7 +159,7 @@ class GaugeField(LatticeField):
     @property
     def link_type(self):
         "Type of the links"
-        if self.geometry == "COARSE":
+        if self.is_coarse:
             return "COARSE"
         return "SU3"
 
@@ -176,7 +188,9 @@ class GaugeField(LatticeField):
     def quda_field(self):
         "Returns an instance of quda::GaugeField"
         self.activate()
-        return make_shared(lib.GaugeField.Create(self.quda_params))
+        if self._quda is None:
+            self._quda = make_shared(lib.GaugeField.Create(self.quda_params))
+        return self._quda
 
     def is_native(self):
         "Whether the field is native for Quda"
@@ -208,27 +222,37 @@ class GaugeField(LatticeField):
         "Sets all field elements to zero"
         self.quda_field.zero()
 
+    def default_view(self, split_col=True):
+        "Returns the default view of the field including reshaping"
+        shape = (2,)  # even-odd
+        # geometry
+        if len(self.dofs) == 1:
+            shape += (1,)
+        else:
+            shape += (self.dofs[0],)
+        # matrix
+        if self.reconstruct == "NO" and split_col:
+            shape += (self.ncol, self.ncol)
+        else:
+            shape += (self.dofs_per_link // 2,)
+        # lattice
+        shape += (-1,)
+        return super().complex_view().reshape(shape)
+
     def unity(self):
         "Set all field elements to unity"
         if self.reconstruct != "NO":
             raise NotImplementedError
-        tmp = self.field.reshape((2, 4, 9, -1, 2))
-        tmp[:] = 0
-        tmp[:, :, [0, 4, 8], :, 0] = 1
-        self.field = tmp.reshape(self.shape)
+        field = self.default_view(split_col=False)
+        field[:] = 0
+        diag = [i * self.ncol + i for i in range(self.ncol)]
+        field[:, :, diag, ...] = 1
 
     def trace(self):
         "Returns the trace in color of the field"
         if self.reconstruct != "NO":
             raise NotImplementedError
-        field = self.field
-        if self.dtype == "float64":
-            field = field.view("complex128")
-        elif self.dtype == "float32":
-            field = field.view("complex64")
-        else:
-            assert self.iscomplex
-        return field.reshape((2, 4, 3, 3, -1)).trace(axis1=2, axis2=3)
+        return self.default_view().trace(axis1=2, axis2=3)
 
     def project(self, tol=None):
         """
