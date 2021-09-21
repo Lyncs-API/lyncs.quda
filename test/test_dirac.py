@@ -1,6 +1,6 @@
 from random import random
 import numpy as np
-from lyncs_quda import gauge, spinor
+from lyncs_quda import gauge, spinor, gauge_coarse, gauge_scalar, spinor_coarse
 from lyncs_quda.lattice_field import get_precision
 from lyncs_quda.testing import (
     fixlib as lib,
@@ -69,3 +69,22 @@ def test_zero(lib, lattice, device, gamma, dtype=None):
     assert np.allclose(dirac.Mdag(sf).field, sf.field - sfmu)
     assert np.allclose(dirac.MdagM(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
     assert np.allclose(dirac.MMdag(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
+
+
+# @dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+def test_coarse_zero(lib, lattice, device, dtype=None):
+    dtype = "float32"
+    gf = gauge_coarse(lattice, dtype=dtype, device=device)
+    gf.zero()
+    gf2 = gauge_scalar(lattice, dtype=dtype, dofs=2 * 48 ** 2, device=device)
+    gf2.unity()
+    sf = spinor_coarse(lattice, dtype=dtype, device=device)
+    sf.uniform()
+    dirac = gf.Dirac(clover=gf2)
+
+    assert (dirac.M(sf).field == sf.field).all()
+    assert (dirac.Mdag(sf).field == sf.field).all()
+    assert (dirac.MdagM(sf).field == sf.field).all()
+    assert (dirac.MMdag(sf).field == sf.field).all()
