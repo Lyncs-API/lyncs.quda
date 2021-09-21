@@ -20,6 +20,7 @@ from .config import QUDA_MPI, GITVERSION, CUDA_INCLUDE
 
 cupy = lazy_import("cupy")
 
+
 class QudaLib(Lib):
     "Adds additional enviromental control required by QUDA"
 
@@ -216,7 +217,7 @@ if QUDA_MPI:
 
     libs.append(libmpi)
 else:
-    MPI=None
+    MPI = None
 
 PATHS = list(__path__)
 
@@ -229,6 +230,7 @@ headers = [
     "dirac_quda.h",
     "invert_quda.h",
     "blas_quda.h",
+    "multigrid.h",
 ]
 
 
