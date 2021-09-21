@@ -8,7 +8,7 @@ __all__ = [
 
 from functools import wraps
 from dataclasses import dataclass
-from lyncs_cppyy import make_shared
+from lyncs_cppyy import make_shared, nullptr
 from .gauge_field import gauge, GaugeField
 from .spinor_field import spinor
 from .lib import lib
@@ -18,6 +18,9 @@ from .enums import QudaPrecision
 @dataclass
 class Dirac:
     gauge: GaugeField
+    clover: GaugeField = None
+    clover_inv: GaugeField = None
+    precond: GaugeField = None
     kappa: float = 1
     m5: float = 0
     Ls: int = 0
@@ -28,6 +31,8 @@ class Dirac:
     @property
     def type(self):
         "Type of the operator"
+        if self.gauge.is_coarse:
+            return "COARSE"
         if self.csw == 0:
             if self.mu == 0:
                 return "WILSON"
@@ -40,6 +45,11 @@ class Dirac:
     def quda_type(self):
         "Quda enum for quda dslash type"
         return getattr(lib, f"QUDA_{self.type}_DIRAC")
+
+    @property
+    def is_coarse(self):
+        "Whether is a coarse operator"
+        return self.type == "COARSE"
 
     @property
     def precision(self):
@@ -74,7 +84,20 @@ class Dirac:
 
     @property
     def quda_dirac(self):
-        return make_shared(lib.Dirac.create(self.quda_params))
+        if not self.is_coarse:
+            return make_shared(lib.Dirac.create(self.quda_params))
+        # Creating coarse operator
+        return lib.DiracCoarse(
+            self.quda_params,
+            self.gauge.cpu_field,
+            self.clover.cpu_field,
+            self.clover_inv.cpu_field if self.clover_inv else nullptr,
+            self.precond.cpu_field if self.precond else nullptr,
+            self.gauge.gpu_field,
+            self.clover.gpu_field,
+            self.clover_inv.gpu_field if self.clover_inv else nullptr,
+            self.precond.gpu_field if self.precond else nullptr,
+        )
 
     def get_matrix(self, key="M"):
         "Returns the respective quda matrix."
@@ -130,7 +153,7 @@ class DiracMatrix:
 
     @property
     def key(self):
-        "The name of the natrix"
+        "The name of the matrix"
         return self._key
 
     @property
