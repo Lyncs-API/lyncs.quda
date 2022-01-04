@@ -17,7 +17,8 @@ from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .time_profile import default_profiler
 
-
+#? so order is FLOAT2, which means double *gauge
+#? is real/complex the fastest running index in self.field?
 def gauge_field(lattice, dofs=(4,18), **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
@@ -39,19 +40,13 @@ def gauge_coarse(lattice, dofs=18, **kwargs):
     return gauge_field(lattice, dofs=(8,dofs), **kwargs)
 
 class GaugeField(LatticeField):
-    "Mimics the quda::LatticeField object"
+    "Mimics the quda::GaugeField object"
 
     @LatticeField.field.setter
     def field(self, field):
         LatticeField.field.fset(self, field)
         if self.reconstruct == "INVALID":
             raise TypeError(f"Unrecognized field dofs {self.dofs}")
-
-    def get_reconstruct(self, dofs):
-        "Returns the reconstruct type of dofs"
-        dofs = prod(dofs)
-        if self.iscomplex:
-            dofs *= 2
 
     @property
     def dofs_per_link(self):
@@ -175,24 +170,52 @@ class GaugeField(LatticeField):
         )
 
     def extended_field(self, sites=1):
+        "Extends the gauge field in each direction by sites (i.e., width of the halo shell) on each MPI rank"
+        #? to which geometry is this applicable?
         if sites in (None, 0) or self.comm is None:
             return self.quda_field
 
         if isinstance(sites, int):
             sites = [sites] * self.ndims
 
-        # self.check_shape(sites)
         sites = [site if dim > 1 else 0 for site, dim in zip(sites, self.comm.dims)]
         if sites == [0, 0, 0, 0]:
             return self.quda_field
 
-        return make_shared(
-            lib.createExtendedGauge(
-                self.quda_field,
-                numpy.array(sites, dtype="int32"),
-                default_profiler().quda,
+        if self.location is "CPU":
+            # Returns cpuGaugeField
+            """
+              Remark:
+                * createExtendedGaug takes (void **) as its first argument
+                * However, it is used to set (void *gauge) in GaugeFieldParam
+                * (void **gauge) is defined as a private member in cpuGaugeField
+                * This private member does not seem relevant in createExtendedGauge as it sets
+                   'create' to QUDA_ZERO_FIELD_CREATE for the returned cpuGaugeField,
+                   which is copied from the input gauge with halo via  copyExtendedGauge,
+                   which in turn takes GaugeField
+                * So in copyExtendedGauge for cpuGaugeField, (void *gauge) is copied into
+                   (void * gauge) in the returned cpuGaugeField with halo, and this (void *gauge)
+                   is what we want in the end so that upcasting is justified
+            """
+            return make_shared(
+                lib.createExtendedGauge(
+                    self.ptr, 
+                    self.quda_params,
+                    numpy.array(sites, dtype="int32")
+                )
             )
-        )
+        elif self.location is "CUDA":
+            # Returns cudaGaugeField
+            return make_shared(
+                lib.createExtendedGauge(
+                    self.quda_field, #? implicit downcasting?
+                    numpy.array(sites, dtype="int32"),
+                    default_profiler().quda,
+                )
+            )
+        else:
+            raise ValueError("Something is wrong!") # just for debugging
+                
 
     def zero(self):
         "Sets all field elements to zero"
@@ -200,6 +223,7 @@ class GaugeField(LatticeField):
 
     def unity(self):
         "Set all field elements to unity"
+        #? This applies only when geometry == "VECOTR"?
         if self.reconstruct != "NO":
             raise NotImplementedError
         tmp = self.field.reshape((2, 4, 9, -1, 2))
@@ -226,10 +250,18 @@ class GaugeField(LatticeField):
         is a destructive operation.  The number of link failures is
         reported so appropriate action can be taken.
         """
+        if self.location is "CPU":
+            raise NotImplementedError("This method currently works only when running on GPUs")
+        
         if tol is None:
             tol = numpy.finfo(self.dtype).eps
-        fails = cupy.zeros((1,), dtype="int32")
-        lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
+
+        #? is this correct?  lib.projectSU3 is a host function...
+        fails = numpy.zeros((1,), dtype="int32")
+        with cupy.cuda.Device(self.device):
+            dfails = cupy.zeros((1,), dtype="int32")
+            lib.projectSU3(self.quda_field, tol, to_pointer(dfails.data.ptr, "int *"))
+            fails += dfails.get()
         return fails[0]
 
     def gaussian(self, epsilon=1, seed=None):
@@ -243,6 +275,8 @@ class GaugeField(LatticeField):
         distribution (sigma = 0 results in a free field, and sigma = 1 has
         maximum disorder).
         """
+        #? I would think this overwrite self.field
+        #? Also, what is the required geometry?
         seed = seed or int(time() * 1e9)
         lib.gaugeGauss(self.quda_field, seed, epsilon)
 
@@ -255,10 +289,19 @@ class GaugeField(LatticeField):
         tuple(total, spatial, temporal) plaquette site averaged and
             normalized such that each plaquette is in the range [0,1]
         """
+        if self.location is "CPU":
+            raise NotImplementedError("The underlying QUDA function will not work without GPU") # I don't think double3 is defined without CUDA
+        
+        if self.geometry != "VECTOR":
+            raise TypeError("This gauge object needs to have VECTOR geometry")
         plaq = lib.plaquette(self.extended_field(1))
         return plaq.x, plaq.y, plaq.z
 
     def compute_fmunu(self, out=None):
+        if self.geometry == "TENSOR":
+            return self
+        if self.geometry != "VECTOR":
+           raise TypeError("This gauge object needs to have VECTOR geometry")
         if out is None:
             out = self.new(dofs=(6,18))
         lib.computeFmunu(out.quda_field, self.extended_field(1))
@@ -276,17 +319,26 @@ class GaugeField(LatticeField):
         if self.geometry != "TENSOR":
             self = self.compute_fmunu()
         out = numpy.zeros(4, dtype="double")
-        lib.computeQCharge(out[:3], out[3:], self.extended_field(0))  # should be 1
+        lib.computeQCharge(out[:3], out[3:], self.quda_field)
         return out[3], tuple(out[:3])
 
-    def topological_charge_density(self):
-        "Computes the topological charge density"
+    def topological_charge_density(self, density=None):
+        """
+        Computes the topological charge and density
+        
+        Returns
+        -------
+        charge, (total, spatial, temporal), density:
+          The total topological charge, (total, spatial, temporal) field energy, and
+          topological charge density 
+        """
         if self.geometry != "TENSOR":
             self = self.compute_fmunu()
-        out1 = numpy.zeros(4, dtype="double")
-        if out is None:
-            out = numpy.zeros(4, dtype="double")
-        return lib.computeQCharge(out[:3], out[3:], self.extended_field(1))
+        charge  = numpy.zeros(4, dtype="double")
+        if density is None:
+            density = self.new(dofs=(1,),dtype=self.precision)
+        lib.computeQChargeDensity(charge[:3], charge[3:], density.ptr, self.quda_field)
+        return charge[3], tuple(charge[:3]), density
 
     def norm1(self, link_dir=-1):
         "Computes the L1 norm of the field"
@@ -332,6 +384,8 @@ class GaugeField(LatticeField):
         - Negative value (-1,...) means backward movement in the direction
         - Paths are then rotated for every direction.
         """
+        if self.geometry != "VECTOR":
+            raise TypeError("This gauge object needs to have VECTOR geometry") #? True?
 
         if coeffs is None:
             coeffs = [1] * len(paths)
@@ -426,6 +480,7 @@ class GaugeField(LatticeField):
         """
         Exponentiates a momentum field
         """
+        #? no restriction on geometry of self?
         if out is None:
             out = self.new()
         if mul_to is None:

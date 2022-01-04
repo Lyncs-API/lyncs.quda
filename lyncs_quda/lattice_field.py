@@ -22,6 +22,11 @@ def get_precision(dtype):
         return "half"
     raise ValueError
 
+def get_ptr(array):
+    "Memory pointer"
+    if isinstance(array, numpy.ndarray):
+        return array.__array_interface__["data"][0]
+    return array.data.ptr
 
 @contextmanager
 def backend(device=True):
@@ -188,7 +193,7 @@ class LatticeField:
 
     @property
     def isreal(self):
-        "Whether the field dtype is complex"
+        "Whether the field dtype is real"
         return self.backend.isrealobj(self.field)
 
     @property
@@ -225,7 +230,7 @@ class LatticeField:
 
     @property
     def quda_params(self):
-        "Returns and instance of quda::LatticeFieldParam"
+        "Returns an instance of quda::LatticeFieldParam"
         return lib.LatticeFieldParam(
             self.ndims,
             self.quda_dims,
@@ -233,7 +238,9 @@ class LatticeField:
             self.quda_precision,
             self.quda_ghost_exchange,
         )
-
+    #? this assumes: mem_type(QUDA_MEMORY_DEVICE),
+    # siteSubset(QUDA_FULL_SITE_SUBSET) => volumeCB =  volume / 2 = stride (as pad==0)
+    
     def reduce(self, val, local=False, opr="SUM"):
         if self.comm is None or local:
             return val

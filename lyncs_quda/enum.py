@@ -53,17 +53,17 @@ class EnumMeta(type):
                 key = key[: -len(cls._suffix)]
         return key
 
-    def to_string(cls, key):
+    def to_string(cls, rep):
         "Returns the key representative of the given enum value"
-        key = cls.clean(key)
-        if key not in cls:
-            raise ValueError(f"Unknown enum '{key}' for {cls.__name__}")
+        rep = cls.clean(rep)
+        if rep not in cls:
+            raise ValueError(f"Unknown enum '{rep}' for {cls.__name__}")
 
-        if isinstance(key, str):
-            return key
+        if isinstance(rep, str):
+            return rep
 
-        assert isinstance(key, int)
-        return list(cls.keys())[list(cls.values()).index(key)]
+        assert isinstance(rep, int)
+        return list(cls.keys())[list(cls.values()).index(rep)]
 
     def to_int(cls, key):
         "Returns the value representative of the given enum value"
