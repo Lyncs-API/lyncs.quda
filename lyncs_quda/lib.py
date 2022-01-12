@@ -16,7 +16,7 @@ from lyncs_cppyy import Lib, nullptr, cppdef
 from lyncs_cppyy.ll import addressof, to_pointer
 from lyncs_utils import static_property, lazy_import
 from . import __path__
-from .config import QUDA_MPI, GITVERSION, CUDA_INCLUDE
+from .config import QUDA_MPI, GITVERSION
 
 cupy = lazy_import("cupy")
 
@@ -239,7 +239,6 @@ lib = QudaLib(
     header=headers,
     library=["libquda.so"] + libs,
     check="initQuda",
-    include=CUDA_INCLUDE.split(";"),
     namespace="quda",
 )
 
