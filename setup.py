@@ -1,7 +1,9 @@
 import sys
 import os
 from lyncs_setuptools import setup, CMakeExtension, find_package
-from post_build import post_build
+#from post_build import post_build
+
+exec(open("post_build.py").read())
 
 requirements = [
     "cupy",
@@ -41,7 +43,7 @@ setup(
             post_build=post_build,
         )
     ],
-    data_files=[(".", ["config.py.in"])],
+    data_files=[(".", ["post_build.py"])],
     install_requires=requirements,
     keywords=[
         "Lyncs",

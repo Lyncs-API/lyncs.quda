@@ -17,7 +17,7 @@
 ### Installation
 
 This package at the moment is not distrubuted via pip!
-(Mostly because we do not have a CI/CD for GPUs)
+(because we do not have a CI/CD for GPUs in place)
 
 For installing the packages from source code, follow the following steps:
 
@@ -28,5 +28,5 @@ export QUDA_GPU_ARCH=sm_60
 # Clone and install
 git clone https://github.com/Lyncs-API/lyncs.quda
 cd lyncs.quda
-python setup.py develop
+pip install -e .
 ```
