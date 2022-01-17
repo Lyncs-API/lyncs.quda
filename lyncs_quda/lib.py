@@ -255,6 +255,5 @@ try:
         if lib.initialized:
             lib.end_quda()
 
-
 except ImportError:
     pass

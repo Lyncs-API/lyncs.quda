@@ -420,7 +420,7 @@ class GaugeField(LatticeField):
             out.quda_field,
             self.extended_field(1),
             add_coeff,
-            quda_paths_array,
+            quda_paths_array.get(),
             lengths,
             coeffs,
             num_paths,
