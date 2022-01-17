@@ -53,6 +53,10 @@ def test_zero(lib, lattice, device, dtype):
     assert gf.project() == 4 * np.prod(lattice)
     gf.zero()
 
+    gf2 = gf.new()
+    gf2.gaussian()
+    assert (gf.dot(gf2).field == 0).all()
+
 
 @dtype_loop  # enables dtype
 @device_loop  # enables device
@@ -79,6 +83,10 @@ def test_unity(lib, lattice, device, dtype):
     assert np.isclose(gf.gauge_action(), 1)
     assert np.isclose(gf.symanzik_gauge_action(), 1 + 7 / 12)
     assert np.isclose(gf.iwasaki_gauge_action(), 1 + 7 * 0.331)
+
+    gf2 = gf.new()
+    gf2.gaussian()
+    assert (gf.dot(gf2).field == gf2.field).all()
 
 
 @dtype_loop  # enables dtype

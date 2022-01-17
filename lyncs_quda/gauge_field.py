@@ -254,6 +254,21 @@ class GaugeField(LatticeField):
             raise NotImplementedError
         return self.default_view().trace(axis1=2, axis2=3)
 
+    def dot(self, other):
+        "Matrix product between two gauge fields"
+        if not isinstance(other, GaugeField):
+            raise ValueError
+        if self.reconstruct != "NO" or other.reconstruct != "NO":
+            raise NotImplementedError
+        out = self.new()
+        self.backend.matmul(
+            self.default_view(),
+            other.default_view(),
+            out=out.default_view(),
+            axes=[(2, 3)] * 3,
+        )
+        return out
+
     def project(self, tol=None):
         """
         Project the gauge field onto the SU(3) group.  This
@@ -374,15 +389,14 @@ class GaugeField(LatticeField):
         "Create all paths needed for force"
         out = []
         for path in paths:
-            for i,move in enumerate(path):
+            for i, move in enumerate(path):
                 if move == 1:
-                    out.append(path[i:]+path[:i])
+                    out.append(path[i:] + path[:i])
                 elif move == -1:
-                    tmp = list(reversed(path[:i+1])) + list(reversed(path[i+1:]))
+                    tmp = list(reversed(path[: i + 1])) + list(reversed(path[i + 1 :]))
                     out.append([-m for m in tmp])
-        return out           
-            
-    
+        return out
+
     def compute_paths(self, paths, coeffs=None, out=None, add_coeff=1, force=False):
         """
         Computes the gauge paths on the lattice.
