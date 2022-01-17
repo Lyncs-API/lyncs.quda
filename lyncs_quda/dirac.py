@@ -23,7 +23,7 @@ class Dirac:
     precond: GaugeField = None
     kappa: float = 1
     m5: float = 0
-    Ls: int = 0
+    Ls: int = 1
     csw: float = 0
     mu: float = 0
     epsilon: float = 0
