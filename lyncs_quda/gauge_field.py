@@ -354,6 +354,35 @@ class GaugeField(LatticeField):
             )
         return self.quda_field.abs_min(link_dir)
 
+    def _check_paths(self, paths):
+        "Check if all paths are valid"
+        for i, path in enumerate(paths):
+            if min(path) < -self.ndims:
+                raise ValueError(
+                    f"Path {i} = {path} has direction smaller than {-self.ndims}"
+                )
+            if max(path) > self.ndims:
+                raise ValueError(
+                    f"Path {i} = {path} has direction larger than {self.ndims}"
+                )
+            if path[0] != 1:
+                raise ValueError(f"Path {i} = {path} does not start with 1")
+            if 0 in path:
+                raise ValueError(f"Path {i} = {path} has zeros")
+
+    def _paths_for_force(self, paths):
+        "Create all paths needed for force"
+        out = []
+        for path in paths:
+            for i,move in enumerate(path):
+                if move == 1:
+                    out.append(path[i:]+path[:i])
+                elif move == -1:
+                    tmp = list(reversed(path[:i+1])) + list(reversed(path[i+1:]))
+                    out.append([-m for m in tmp])
+        return out           
+            
+    
     def compute_paths(self, paths, coeffs=None, out=None, add_coeff=1, force=False):
         """
         Computes the gauge paths on the lattice.
@@ -366,6 +395,11 @@ class GaugeField(LatticeField):
         - Negative value (-1,...) means backward movement in the direction
         - Paths are then rotated for every direction.
         """
+
+        self._check_paths(paths)
+        if force:
+            paths = self._paths_for_force(paths)
+            self._check_paths(paths)
 
         if coeffs is None:
             coeffs = [1] * len(paths)
@@ -383,19 +417,6 @@ class GaugeField(LatticeField):
         paths_array = numpy.zeros((self.ndims, num_paths, max_length), dtype="int32")
 
         for i, path in enumerate(paths):
-            if min(path) < -self.ndims:
-                raise ValueError(
-                    f"Path {i} = {path} has direction smaller than {-self.ndims}"
-                )
-            if max(path) > self.ndims:
-                raise ValueError(
-                    f"Path {i} = {path} has direction larger than {self.ndims}"
-                )
-            if path[0] != 1:
-                raise ValueError(f"Path {i} = {path} does not start with 1")
-            if 0 in path:
-                raise ValueError(f"Path {i} = {path} has zeros")
-
             for dim in range(self.ndims):
                 for j, step in enumerate(path[1:]):
                     if step > 0:
@@ -451,7 +472,6 @@ class GaugeField(LatticeField):
 
     def rectangles(self):
         "Returns the average over rectangles"
-        # Suboptimal implementation based on rectangle_field
         local = self.rectangle_field().trace().mean().real / 3
         # TODO: global reduction
         return float(local)
