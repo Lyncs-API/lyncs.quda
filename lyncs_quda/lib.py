@@ -238,7 +238,6 @@ lib = QudaLib(
     path=PATHS,
     header=headers,
     library=["libquda.so"] + libs,
-    check="initQuda",
     namespace="quda",
 )
 
