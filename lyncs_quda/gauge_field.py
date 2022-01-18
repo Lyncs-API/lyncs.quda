@@ -154,7 +154,11 @@ class GaugeField(LatticeField):
     @property
     def is_momentum(self):
         "Whether is a momentum field"
-        return self.reconstruct == "10"
+        return getattr(self, "_is_momentum", False) or self.reconstruct == "10"
+
+    @is_momentum.setter
+    def is_momentum(self, value):
+        self._is_momentum = value
 
     @property
     def t_boundary(self):
@@ -234,6 +238,14 @@ class GaugeField(LatticeField):
         "Sets all field elements to zero"
         self.quda_field.zero()
 
+    def copy(self, out=None):
+        "Returns a copy of the field"
+        if out is None:
+            out = self.new()
+        out.is_momentum = self.is_momentum
+        out.quda_field.copy(self.quda_field)
+        return out
+
     def default_view(self, split_col=True):
         "Returns the default view of the field including reshaping"
         shape = (2,)  # even-odd
@@ -265,6 +277,15 @@ class GaugeField(LatticeField):
         if self.reconstruct != "NO":
             raise NotImplementedError
         return self.default_view().trace(axis1=2, axis2=3) / self.ncol
+
+    def dagger(self, out=None):
+        "Returns the complex conjugate transpose of the field"
+        if out is None:
+            out = self.new()
+        self.backend.conj(
+            self.default_view().transpose((0, 1, 3, 2, 4)), out=out.default_view()
+        )
+        return out
 
     def reduce(self, local=False, only_real=True, split=False):
         "Reduction of a gauge field (real of mean of trace)"

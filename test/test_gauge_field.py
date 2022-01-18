@@ -110,16 +110,22 @@ def test_random(lib, lattice, device, dtype):
     assert np.isclose(plaq[1], split[1])
     assert np.isclose(plaq[2], split[2])
 
+    gf2 = gf.copy()
+    assert (gf.field == gf2.field).all()
+
 
 @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 def test_exponential(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
-    gf.unity()
-
     mom = momentum(lattice, dtype=dtype, device=device)
     mom.zero()
+
+    mom.copy(out=gf)
+    assert (gf.field == 0).all()
+
+    gf.unity()
     gf2 = mom.exponentiate()
     assert (gf2.field == gf.field).all()
 
@@ -138,6 +144,25 @@ def test_exponential(lib, lattice, device, dtype):
 @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
+def test_mom_to_full(lib, lattice, device, dtype):
+    gf = gauge(lattice, dtype=dtype, device=device)
+    mom = momentum(lattice, dtype=dtype, device=device)
+    mom.zero()
+    mom.copy(out=gf)
+
+    assert (gf.field == 0).all()
+    assert (gf.trace() == 0).all()
+
+    mom.gaussian()
+    mom.copy(out=gf)
+
+    assert (gf.dagger().field == -gf.field).all()
+    assert np.allclose(gf.trace().real, 0, atol=1e-9)
+
+
+@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
 @epsilon_loop  # enables epsilon
 def test_force(lib, lattice, device, dtype, epsilon):
     gf = gauge(lattice, dtype=dtype, device=device)
@@ -151,3 +176,7 @@ def test_force(lib, lattice, device, dtype, epsilon):
     plaq2 = gf2.plaquette()[0]
     rel_tol = epsilon * prod(lattice)
     assert isclose(plaq, plaq2, rel_tol=rel_tol)
+
+    dplaq = gf.plaquette_field().dot(mom).reduce()
+    dplaq2 = plaq2 - plaq
+    assert isclose(dplaq, dplaq2, rel_tol=rel_tol)
