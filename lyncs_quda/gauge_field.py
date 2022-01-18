@@ -522,7 +522,7 @@ class GaugeField(LatticeField):
         Updates a gauge field with momentum field
         """
         return mom.exponentiate(
-            coeff=coeff, mul_to=self, out=out, conj=conj, exact=exct
+            coeff=coeff, mul_to=self, out=out, conj=conj, exact=exact
         )
 
     def gauge_action(self, plaq_coeff=0, rect_coeff=0):
