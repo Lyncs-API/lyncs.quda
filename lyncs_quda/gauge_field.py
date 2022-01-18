@@ -264,7 +264,22 @@ class GaugeField(LatticeField):
         "Returns the trace in color of the field"
         if self.reconstruct != "NO":
             raise NotImplementedError
-        return self.default_view().trace(axis1=2, axis2=3)
+        return self.default_view().trace(axis1=2, axis2=3) / self.ncol
+
+    def reduce(self, local=False, only_real=True, split=False):
+        "Reduction of a gauge field (real of mean of trace)"
+        out = self.trace()
+        if only_real:
+            out = out.real
+        if split:
+            out = (out[:, :-1].mean(), out[:, -1].mean())
+            out = ((3 * out[0] + out[1]) / 4, (3 * out[0] - out[1]) / 2, out[1])
+        else:
+            out = out.mean()
+        if not local and self.comm is not None:
+            # TODO: global reduction
+            raise NotImplementedError
+        return out
 
     def dot(self, other):
         "Matrix product between two gauge fields"
@@ -496,11 +511,13 @@ class GaugeField(LatticeField):
             force=force,
         )
 
-    def rectangles(self):
+    def plaquettes(self, **kwargs):
+        "Returns the average over plaquettes (Note: plaquette should performs better)"
+        return self.plaquette_field().reduce(**kwargs)
+
+    def rectangles(self, **kwargs):
         "Returns the average over rectangles"
-        local = self.rectangle_field().trace().mean().real / 3
-        # TODO: global reduction
-        return float(local)
+        return self.rectangle_field().reduce(**kwargs)
 
     def exponentiate(self, coeff=1, mul_to=None, out=None, conj=False, exact=False):
         """

@@ -82,9 +82,9 @@ def test_unity(lib, lattice, device, dtype):
     assert gf.abs_max() == 1
     assert gf.abs_min() == 0
     assert gf.project() == 0
-    assert np.allclose(gf.plaquette_field().trace(), 3)
+    assert np.allclose(gf.plaquette_field().trace(), 1)
     assert np.allclose(gf.plaquette_field(force=True), 0)
-    assert np.allclose(gf.rectangle_field().trace(), 3)
+    assert np.allclose(gf.rectangle_field().trace(), 1)
     assert np.allclose(gf.rectangle_field(force=True), 0)
     assert np.isclose(gf.rectangles(), 1)
     assert np.isclose(gf.gauge_action(), 1)
@@ -102,7 +102,13 @@ def test_unity(lib, lattice, device, dtype):
 def test_random(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.gaussian()
-    assert np.allclose(gf.plaquette()[0], gf.plaquette_field().trace().mean() / 3)
+    plaq = gf.plaquette()
+    total = gf.plaquettes()
+    assert np.isclose(plaq[0], total)
+    split = gf.plaquettes(split=True)
+    assert np.isclose(plaq[0], split[0])
+    assert np.isclose(plaq[1], split[1])
+    assert np.isclose(plaq[2], split[2])
 
 
 @dtype_loop  # enables dtype
