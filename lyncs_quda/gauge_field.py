@@ -9,6 +9,7 @@ __all__ = [
     "gauge_links",
     "gauge_tensor",
     "gauge_coarse",
+    "momentum",
     "GaugeField",
 ]
 
@@ -51,6 +52,10 @@ def gauge_tensor(lattice, dofs=18, **kwargs):
 def gauge_coarse(lattice, dofs=2 * 48 ** 2, **kwargs):
     "Constructs a new coarse gauge field"
     return gauge_field(lattice, dofs=(8, dofs), **kwargs)
+
+
+def momentum(lattice, **kwargs):
+    return gauge_field(lattice, dofs=(4, 10), **kwargs)
 
 
 class GaugeField(LatticeField):
@@ -147,6 +152,11 @@ class GaugeField(LatticeField):
         )
 
     @property
+    def is_momentum(self):
+        "Whether is a momentum field"
+        return self.reconstruct == "10"
+
+    @property
     def t_boundary(self):
         "Boundary conditions in time"
         return "PERIODIC"
@@ -161,6 +171,8 @@ class GaugeField(LatticeField):
         "Type of the links"
         if self.is_coarse:
             return "COARSE"
+        if self.is_momentum:
+            return "MOMENTUM"
         return "SU3"
 
     @property
@@ -495,15 +507,23 @@ class GaugeField(LatticeField):
         Exponentiates a momentum field
         """
         if out is None:
-            out = self.new()
+            out = mul_to.new() if mul_to is not None else self.new(dofs=(4, 18))
         if mul_to is None:
-            mul_to = self.new()
+            mul_to = out.new()
             mul_to.unity()
 
         lib.updateGaugeField(
             out.quda_field, coeff, mul_to.quda_field, self.quda_field, conj, exact
         )
         return out
+
+    def update_gauge(self, mom, coeff=1, out=None, conj=False, exact=False):
+        """
+        Updates a gauge field with momentum field
+        """
+        return mom.exponentiate(
+            coeff=coeff, mul_to=self, out=out, conj=conj, exact=exct
+        )
 
     def gauge_action(self, plaq_coeff=0, rect_coeff=0):
         """

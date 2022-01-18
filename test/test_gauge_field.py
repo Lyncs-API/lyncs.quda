@@ -1,8 +1,15 @@
-from lyncs_quda import gauge
+from lyncs_quda import gauge, momentum
 import numpy as np
 import cupy as cp
-from lyncs_quda.testing import fixlib as lib, lattice_loop, device_loop, dtype_loop
+from lyncs_quda.testing import (
+    fixlib as lib,
+    lattice_loop,
+    device_loop,
+    dtype_loop,
+    epsilon_loop,
+)
 from lyncs_cppyy.ll import addressof
+from math import prod, isclose
 
 
 @lattice_loop
@@ -96,3 +103,45 @@ def test_random(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.gaussian()
     assert np.allclose(gf.plaquette()[0], gf.plaquette_field().trace().mean() / 3)
+
+
+@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+def test_exponential(lib, lattice, device, dtype):
+    gf = gauge(lattice, dtype=dtype, device=device)
+    gf.unity()
+
+    mom = momentum(lattice, dtype=dtype, device=device)
+    mom.zero()
+    gf2 = mom.exponentiate()
+    assert (gf2.field == gf.field).all()
+
+    mom.gaussian(epsilon=0)
+    gf2 = mom.exponentiate()
+    assert (gf2.field == gf.field).all()
+
+    gf.gaussian()
+    gf2 = mom.exponentiate(mul_to=gf)
+    assert (gf2.field == gf.field).all()
+
+    gf2 = gf.update_gauge(mom)
+    assert (gf2.field == gf.field).all()
+
+
+@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+@epsilon_loop  # enables epsilon
+def test_force(lib, lattice, device, dtype, epsilon):
+    gf = gauge(lattice, dtype=dtype, device=device)
+    gf.gaussian()
+    mom = momentum(lattice, dtype=dtype, device=device)
+    mom.gaussian(epsilon=epsilon)
+
+    gf2 = mom.exponentiate(mul_to=gf)
+
+    plaq = gf.plaquette()[0]
+    plaq2 = gf2.plaquette()[0]
+    rel_tol = epsilon * prod(lattice)
+    assert isclose(plaq, plaq2, rel_tol=rel_tol)

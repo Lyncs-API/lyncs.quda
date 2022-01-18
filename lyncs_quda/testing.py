@@ -56,6 +56,8 @@ dtype_loop = mark.parametrize(
 
 gamma_loop = mark.parametrize("gamma", SpinorField.gammas)
 
+epsilon_loop = mark.parametrize("epsilon", [1e-5, 1e-4, 1e-3])
+
 
 def get_procs_list(comm_size=None, max_size=None):
     if comm_size is None:
