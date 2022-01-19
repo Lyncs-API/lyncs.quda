@@ -67,6 +67,17 @@ class GaugeField(LatticeField):
         if self.reconstruct == "INVALID":
             raise TypeError(f"Unrecognized field dofs {self.dofs}")
 
+    def new(self, reconstruct=None, **kwargs):
+        "Returns a new empty field based on the current"
+        if reconstruct is None:
+            pass
+        elif reconstruct == self.reconstruct:
+            pass
+        elif reconstruct == "NO":
+            kwargs["dofs"] = (self.geometry_size, 9 if self.iscomplex else 18)
+        out = super().new(**kwargs)
+        return out
+
     def get_reconstruct(self, dofs):
         "Returns the reconstruct type of dofs"
         dofs = prod(dofs)
@@ -123,6 +134,13 @@ class GaugeField(LatticeField):
         return getattr(lib, f"QUDA_{self.order}_GAUGE_ORDER")
 
     @property
+    def _geometry_values(self):
+        return (
+            ("SCALAR", "VECTOR", "TENSOR", "COARSE"),
+            (1, self.ndims, self.ndims * (self.ndims - 1) / 2, self.ndims * 2),
+        )
+
+    @property
     def geometry(self):
         """
         Geometry of the field
@@ -131,13 +149,18 @@ class GaugeField(LatticeField):
             TENSOR = Fmunu antisymmetric (upper triangle)
             COARSE = all links, both directions
         """
-        if self.dofs[0] == self.ndims:
-            return "VECTOR"
-        if self.dofs[0] == self.ndims * (self.ndims - 1) / 2:
-            return "TENSOR"
-        if self.dofs[0] == self.ndims * 2:
-            return "COARSE"
+        keys, vals = self._geometry_values
+        if self.dofs[0] in vals:
+            return keys[vals.index(self.dofs[0])]
         return "SCALAR"
+
+    @property
+    def geometry_size(self):
+        "Size of the geometry index"
+        keys, vals = self._geometry_values
+        if self.dofs[0] in vals:
+            return self.dofs[0]
+        return 1
 
     @property
     def quda_geometry(self):
@@ -244,6 +267,14 @@ class GaugeField(LatticeField):
             out = self.new()
         out.is_momentum = self.is_momentum
         out.quda_field.copy(self.quda_field)
+        return out
+
+    def full(self):
+        "Returns a full matrix version of the field (with reconstruct=NO)"
+        if self.reconstruct == "NO":
+            return self
+        out = self.new(reconstruct="NO")
+        self.copy(out=out)
         return out
 
     def default_view(self, split_col=True):

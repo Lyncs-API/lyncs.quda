@@ -159,6 +159,9 @@ def test_mom_to_full(lib, lattice, device, dtype):
     assert (gf.dagger().field == -gf.field).all()
     assert np.allclose(gf.trace().real, 0, atol=1e-9)
 
+    gf2 = mom.full()
+    assert (gf2.field == gf.field).all()
+
 
 @dtype_loop  # enables dtype
 @device_loop  # enables device
@@ -177,6 +180,6 @@ def test_force(lib, lattice, device, dtype, epsilon):
     rel_tol = epsilon * prod(lattice)
     assert isclose(plaq, plaq2, rel_tol=rel_tol)
 
-    dplaq = gf.plaquette_field().dot(mom).reduce()
+    dplaq = -2 * gf.plaquette_field(force=True).full().dot(mom.full()).reduce()
     dplaq2 = plaq2 - plaq
     assert isclose(dplaq, dplaq2, rel_tol=rel_tol)
