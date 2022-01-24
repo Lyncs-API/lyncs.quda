@@ -1,10 +1,10 @@
 diff --git a/QUDAConfig.cmake.in b/QUDAConfig.cmake.in
-index 7902f47..7b980d1 100644
+index 289c235..ba699d7 100644
 --- a/QUDAConfig.cmake.in
 +++ b/QUDAConfig.cmake.in
-@@ -7,6 +7,8 @@ set(QUDA_MPI @QUDA_MPI@)
+@@ -6,6 +6,8 @@ set(QUDA_QMP @QUDA_QMP@)
+ set(QUDA_MPI @QUDA_MPI@)
  set(QUDA_QIO @QUDA_QIO@)
- set(QUDA_MAGMA @QUDA_MAGMA@)
  set(QUDA_OPENMP @QUDA_OPENMP@)
 +set(QUDA_VERSION @CMAKE_PROJECT_VERSION@)
 +set(GITVERSION @GITVERSION@)
