@@ -83,10 +83,10 @@ def test_unity(lib, lattice, device, dtype):
     assert gf.abs_min() == 0
     assert gf.project() == 0
     assert np.isclose(gf.plaquettes(), 1)
-    assert np.allclose(gf.plaquette_field().trace(), 1)
+    assert np.allclose(gf.plaquette_field().trace().mean(axis=1), 1)
     assert np.allclose(gf.plaquette_field(force=True), 0)
     assert np.isclose(gf.rectangles(), 1)
-    assert np.allclose(gf.rectangle_field().trace(), 1)
+    assert np.allclose(gf.rectangle_field().trace().mean(axis=1), 1)
     assert np.allclose(gf.rectangle_field(force=True), 0)
     assert np.isclose(gf.gauge_action(), 1)
     assert np.isclose(gf.symanzik_gauge_action(), 1 + 7 / 12)
@@ -106,10 +106,6 @@ def test_random(lib, lattice, device, dtype):
     plaq = gf.plaquette()
     total = gf.plaquettes()
     assert np.isclose(plaq[0], total)
-    split = gf.plaquettes(split=True)
-    assert np.isclose(plaq[0], split[0])
-    assert np.isclose(plaq[1], split[1])
-    assert np.isclose(plaq[2], split[2])
 
     gf2 = gf.copy()
     assert (gf.field == gf2.field).all()
@@ -179,7 +175,7 @@ def test_force(lib, lattice, device, dtype, epsilon):
 
     gf2 = mom.exponentiate(mul_to=gf)
 
-    for path in "plaquette", "rectangle", "chair", "twisted_chair":
+    for path in "plaquette", "rectangle":
         action = getattr(gf, path + "s")()
         action2 = getattr(gf2, path + "s")()
         rel_tol = epsilon * prod(lattice)

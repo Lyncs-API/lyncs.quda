@@ -13,9 +13,9 @@ __all__ = [
     "GaugeField",
 ]
 
-from functools import reduce
 from time import time
 from math import sqrt
+from collections import defaultdict
 import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
 from lyncs_utils import prod
@@ -329,16 +329,12 @@ class GaugeField(LatticeField):
         )
         return out
 
-    def reduce(self, local=False, only_real=True, split=False):
+    def reduce(self, local=False, only_real=True):
         "Reduction of a gauge field (real of mean of trace)"
         out = self.trace()
         if only_real:
             out = out.real
-        if split:
-            out = (out[:, :-1].mean(), out[:, -1].mean())
-            out = ((3 * out[0] + out[1]) / 4, (3 * out[0] - out[1]) / 2, out[1])
-        else:
-            out = out.mean()
+        out = out.mean(dtype="float64" if only_real else "complex128")
         if not local and self.comm is not None:
             # TODO: global reduction
             raise NotImplementedError
@@ -469,22 +465,36 @@ class GaugeField(LatticeField):
                 raise ValueError(
                     f"Path {i} = {path} has direction larger than {self.ndims}"
                 )
-            if path[0] != 1:
-                raise ValueError(f"Path {i} = {path} does not start with 1")
             if 0 in path:
                 raise ValueError(f"Path {i} = {path} has zeros")
 
-    def _paths_for_force(self, paths):
+    def _paths_to_array(self, paths):
+        "Returns array of paths and their length"
+
+        lengths = numpy.array(list(map(len, paths)), dtype="int32")
+        max_length = lengths.max()
+        paths_array = numpy.empty((1, len(paths), max_length), dtype="int32")
+
+        convert = lambda step: (step - 1) if step > 0 else (8 + step)
+
+        for i, path in enumerate(paths):
+            for j, step in enumerate(path):
+                paths_array[0, i, j] = convert(step)
+
+        return paths_array, lengths
+
+    def _paths_for_force(self, paths, coeffs):
         "Create all paths needed for force"
-        out = []
-        for path in paths:
-            for i, move in enumerate(path):
-                if move == 1:
-                    out.append(path[i:] + path[:i])
-                elif move == -1:
-                    tmp = list(reversed(path[: i + 1])) + list(reversed(path[i + 1 :]))
-                    out.append(tuple(-m for m in tmp))
-        return out
+        out = defaultdict(int)
+        shift = lambda path, i: path if i in (0, len(path)) else (path[i:] + path[:i])
+        for path, coeff in zip(paths, coeffs):
+            for i in range(len(path)):
+                if path[i] > 0:
+                    tmp = shift(path, i)
+                else:
+                    tmp = tuple(-_ for _ in reversed(shift(path, i + 1)))
+                out[tmp] -= coeff
+        return tuple(out.keys()), tuple(out.values())
 
     def compute_paths(self, paths, coeffs=None, out=None, add_coeff=1, force=False):
         """
@@ -499,60 +509,50 @@ class GaugeField(LatticeField):
         - Paths are then rotated for every direction.
         """
 
+        # Checking paths for error
         self._check_paths(paths)
-        if coeffs is None:
-            coeffs = 1 / len(paths)
-        if force:
-            paths = self._paths_for_force(paths)
-            self._check_paths(paths)
 
+        # Preparing coeffs
+        if coeffs is None:
+            coeffs = self.ndims / len(paths)
         if isinstance(coeffs, (int, float)):
             coeffs = [coeffs] * len(paths)
         if not len(paths) == len(coeffs):
             raise ValueError("Paths and coeffs must have the same length")
+
+        # Preparing paths
+        if force:
+            paths, coeffs = self._paths_for_force(paths, coeffs)
+        paths, lengths = self._paths_to_array(paths)
+
+        # Calling Quda function
+        num_paths = paths.shape[1]
+        max_length = paths.shape[2]
+        quda_paths_array = array_to_pointers(paths)
         coeffs = numpy.array(coeffs, dtype="float64")
-        if force:
-            coeffs *= -2
-
-        num_paths = len(paths)
-        lengths = (
-            numpy.array(list(map(len, paths)), dtype="int32") - 1
-        )  # -1 because the first step is always 1 (the direction itself)
-        max_length = int(lengths.max())
-        paths_array = numpy.zeros((self.ndims, num_paths, max_length), dtype="int32")
-
-        for i, path in enumerate(paths):
-            for dim in range(self.ndims):
-                for j, step in enumerate(path[1:]):
-                    if step > 0:
-                        paths_array[dim, i, j] = (step - 1 + dim) % self.ndims
-                    else:
-                        paths_array[dim, i, j] = 7 - (-step - 1 + dim) % self.ndims
-        quda_paths_array = array_to_pointers(paths_array)
-
-        fnc = lib.gaugePath
-        kwargs = dict(empty=False)
-        if force:
-            fnc = lib.gaugeForce
-            kwargs["reconstruct"] = 10
-        out = self.prepare(out, **kwargs)
+        fnc = lib.gaugeForce if force else lib.gaugePath
+        out = self.prepare(out, empty=False, reconstruct=10 if force else None)
         fnc(
             out.quda_field,
-            self.extended_field(1),
+            self.extended_field(1),  # TODO: compute right extension (max distance)
             add_coeff,
             quda_paths_array.get(),
             lengths,
             coeffs,
             num_paths,
             max_length,
+            per_dir=False,
         )
-        print(out.field[0, 0, 0, 0])
         return out
 
     @property
     def plaquette_paths(self):
         "List of plaquette paths"
-        return tuple((1, mu, -1, -mu) for mu in range(2, self.ndims + 1))
+        return tuple(
+            (mu, nu, -mu, -nu)
+            for mu in range(1, self.ndims + 1)
+            for nu in range(mu + 1, self.ndims + 1)
+        )
 
     def plaquette_field(self, force=False):
         "Computes the plaquette field"
@@ -566,8 +566,10 @@ class GaugeField(LatticeField):
     def rectangle_paths(self):
         "List of rectangle paths"
         return tuple(
-            (1, mu, mu, -1, -mu, -mu) for mu in range(2, self.ndims + 1)
-        ) + tuple((1, 1, mu, -1, -1, -mu) for mu in range(2, self.ndims + 1))
+            (mu, nu, nu, -mu, -nu, -nu)
+            for mu in range(1, self.ndims + 1)
+            for nu in range(mu + 1, self.ndims + 1)
+        )
 
     def rectangle_field(self, force=False):
         "Computes the rectangle field"
@@ -576,76 +578,6 @@ class GaugeField(LatticeField):
     def rectangles(self, **kwargs):
         "Returns the average over rectangles"
         return self.rectangle_field().reduce(**kwargs)
-
-    @property
-    def chair_paths(self):
-        "List of chair paths"
-        return (
-            tuple(
-                (1, mu, nu, -1, -nu, -mu)
-                for mu in range(2, self.ndims + 1)
-                for nu in range(2, self.ndims + 1)
-                if mu != nu
-            )
-            + tuple(
-                (1, sgn * mu, -sgn * nu, -1, sgn * nu, -sgn * mu)
-                for mu in range(2, self.ndims + 1)
-                for nu in range(mu + 1, self.ndims + 1)
-                for sgn in (+1, -1)
-            )
-            + tuple(
-                (1, mu, -1, sgn * nu, -mu, -sgn * nu)
-                for mu in range(2, self.ndims + 1)
-                for nu in range(2, self.ndims + 1)
-                for sgn in (+1, -1)
-                if mu != nu
-            )
-            + tuple(
-                (1, sgn * nu, mu, -sgn * nu, -1, -mu)
-                for mu in range(2, self.ndims + 1)
-                for nu in range(2, self.ndims + 1)
-                for sgn in (+1, -1)
-                if mu != nu
-            )
-        )
-
-    def chair_field(self, force=False):
-        "Computes the chairs field"
-        return self.compute_paths(self.chair_paths, force=force)
-
-    def chairs(self, **kwargs):
-        "Returns the average over chairs"
-        return self.chair_field().reduce(**kwargs)
-
-    @property
-    def twisted_chair_paths(self):
-        "List of twisted chair paths"
-        return (
-            tuple(
-                (1, mu, nu, -1, -mu, -nu)
-                for mu in range(2, self.ndims + 1)
-                for nu in range(2, self.ndims + 1)
-                if mu != nu
-            )
-            + tuple(
-                (1, mu, -nu, -1, mu, -nu)
-                for mu in range(2, self.ndims + 1)
-                for nu in range(mu + 1, self.ndims + 1)
-            )
-            + tuple(
-                (1, -mu, nu, -1, -mu, nu)
-                for mu in range(2, self.ndims + 1)
-                for nu in range(mu + 1, self.ndims + 1)
-            )
-        )
-
-    def twisted_chair_field(self, force=False):
-        "Computes the twisted chairs field"
-        return self.compute_paths(self.twisted_chair_paths, force=force)
-
-    def twisted_chairs(self, **kwargs):
-        "Returns the average over twisted chairs"
-        return self.twisted_chair_field().reduce(**kwargs)
 
     def exponentiate(self, coeff=1, mul_to=None, out=None, conj=False, exact=False):
         """
