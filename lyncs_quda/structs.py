@@ -234,6 +234,9 @@ class QudaInvertParam(Struct):
     - ca_basis : Basis for CA algorithms
     - ca_lambda_min : Minimum eigenvalue for Chebyshev CA basis
     - ca_lambda_max : Maximum eigenvalue for Chebyshev CA basis
+    - ca_basis_precondition : Basis for CA algorithms in a preconditioned solver
+    - ca_lambda_min_precondition : Minimum eigenvalue for Chebyshev CA basis in a preconditioner solver
+    - ca_lambda_max_precondition : Maximum eigenvalue for Chebyshev CA basis in a preconditioner solver
     - precondition_cycle : Number of preconditioner cycles to perform per iteration
     - schwarz_type : Whether to use additive or multiplicative Schwarz preconditioning
     - residual_type : Whether to use the L2 relative residual, Fermilab heavy-quark
@@ -261,7 +264,7 @@ class QudaInvertParam(Struct):
     - chrono_max_dim : The maximum length of the chronological history to store
     - chrono_index : The index to indicate which chrono history we are augmenting
     - chrono_precision : Precision to store the chronological basis in
-    - extlib_type : Which external library to use in the linear solvers (MAGMA or Eigen)
+    - extlib_type : Which external library to use in the linear solvers (Eigen)
     - native_blas_lapack : Whether to use the platform native or generic BLAS / LAPACK
     - use_mobius_fused_kernel : Whether to use fused kernels for mobius
     """
@@ -373,6 +376,9 @@ class QudaInvertParam(Struct):
         "ca_basis": "QudaCABasis",
         "ca_lambda_min": "double",
         "ca_lambda_max": "double",
+        "ca_basis_precondition": "QudaCABasis",
+        "ca_lambda_min_precondition": "double",
+        "ca_lambda_max_precondition": "double",
         "precondition_cycle": "int",
         "schwarz_type": "QudaSchwarzType",
         "residual_type": "QudaResidualType",
@@ -456,7 +462,7 @@ class QudaEigParam(Struct):
         MILC I/O)
     - gflops : The Gflops rate of the eigensolver setup
     - secs : The time taken by the eigensolver setup
-    - extlib_type : Which external library to use in the deflation operations (MAGMA or Eigen)
+    - extlib_type : Which external library to use in the deflation operations (Eigen)
     """
 
     _types = {

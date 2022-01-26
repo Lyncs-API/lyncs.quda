@@ -1163,15 +1163,9 @@ class QudaExtLibType(Enum):
     """
     cusolve_extlib = 0
     eigen_extlib = 1
-    magma_extlib = 2
     extlib_invalid = -2147483648
     """
 
     _prefix = "quda_"
     _suffix = ""
-    _values = {
-        "cusolve_extlib": 0,
-        "eigen_extlib": 1,
-        "magma_extlib": 2,
-        "extlib_invalid": -2147483648,
-    }
+    _values = {"cusolve_extlib": 0, "eigen_extlib": 1, "extlib_invalid": -2147483648}
