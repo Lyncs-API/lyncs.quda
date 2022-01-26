@@ -82,11 +82,12 @@ def test_unity(lib, lattice, device, dtype):
     assert gf.abs_max() == 1
     assert gf.abs_min() == 0
     assert gf.project() == 0
+    assert np.isclose(gf.plaquettes(), 1)
     assert np.allclose(gf.plaquette_field().trace(), 1)
     assert np.allclose(gf.plaquette_field(force=True), 0)
+    assert np.isclose(gf.rectangles(), 1)
     assert np.allclose(gf.rectangle_field().trace(), 1)
     assert np.allclose(gf.rectangle_field(force=True), 0)
-    assert np.isclose(gf.rectangles(), 1)
     assert np.isclose(gf.gauge_action(), 1)
     assert np.isclose(gf.symanzik_gauge_action(), 1 + 7 / 12)
     assert np.isclose(gf.iwasaki_gauge_action(), 1 + 7 * 0.331)
@@ -162,6 +163,9 @@ def test_mom_to_full(lib, lattice, device, dtype):
     gf2 = mom.full()
     assert (gf2.field == gf.field).all()
 
+    mom2 = gf.copy(out=mom.new())
+    assert (mom2.field == mom.field).all()
+
 
 @dtype_loop  # enables dtype
 @device_loop  # enables device
@@ -175,11 +179,16 @@ def test_force(lib, lattice, device, dtype, epsilon):
 
     gf2 = mom.exponentiate(mul_to=gf)
 
-    plaq = gf.plaquette()[0]
-    plaq2 = gf2.plaquette()[0]
-    rel_tol = epsilon * prod(lattice)
-    assert isclose(plaq, plaq2, rel_tol=rel_tol)
+    for path in "plaquette", "rectangle", "chair", "twisted_chair":
+        action = getattr(gf, path + "s")()
+        action2 = getattr(gf2, path + "s")()
+        rel_tol = epsilon * prod(lattice)
+        print(path, action, action2)
+        assert isclose(action, action2, rel_tol=rel_tol)
 
-    dplaq = -2 * gf.plaquette_field(force=True).full().dot(mom.full()).reduce()
-    dplaq2 = plaq2 - plaq
-    assert isclose(dplaq, dplaq2, rel_tol=rel_tol)
+        daction = (
+            getattr(gf, path + "_field")(force=True).full().dot(mom.full()).reduce()
+        )
+        daction2 = action2 - action
+        print(path, daction, daction2, daction / daction2)
+        assert isclose(daction, daction2, rel_tol=rel_tol)

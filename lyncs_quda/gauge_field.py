@@ -75,8 +75,26 @@ class GaugeField(LatticeField):
             pass
         elif reconstruct == "NO":
             kwargs["dofs"] = (self.geometry_size, 9 if self.iscomplex else 18)
+        else:
+            try:
+                val = int(reconstruct)
+                kwargs["dofs"] = (
+                    self.geometry_size,
+                    val / 2 if self.iscomplex else val,
+                )
+            except ValueError:
+                raise ValueError(f"Invalid reconstruct {reconstruct}")
         out = super().new(**kwargs)
+        is_momentum = kwargs.get("is_momentum", self.is_momentum)
+        out.is_momentum = is_momentum
         return out
+
+    def cast(self, other, **kwargs):
+        "Cast a field into its type and check for compatibility"
+        other = super().cast(other, **kwargs)
+        is_momentum = kwargs.get("is_momentum", self.is_momentum)
+        other.is_momentum = is_momentum
+        return other
 
     def get_reconstruct(self, dofs):
         "Returns the reconstruct type of dofs"
@@ -261,21 +279,15 @@ class GaugeField(LatticeField):
         "Sets all field elements to zero"
         self.quda_field.zero()
 
-    def copy(self, out=None):
+    def copy(self, out=None, **kwargs):
         "Returns a copy of the field"
-        if out is None:
-            out = self.new()
-        out.is_momentum = self.is_momentum
+        out = self.prepare(out, **kwargs)
         out.quda_field.copy(self.quda_field)
         return out
 
     def full(self):
         "Returns a full matrix version of the field (with reconstruct=NO)"
-        if self.reconstruct == "NO":
-            return self
-        out = self.new(reconstruct="NO")
-        self.copy(out=out)
-        return out
+        return self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
 
     def default_view(self, split_col=True):
         "Returns the default view of the field including reshaping"
@@ -311,8 +323,7 @@ class GaugeField(LatticeField):
 
     def dagger(self, out=None):
         "Returns the complex conjugate transpose of the field"
-        if out is None:
-            out = self.new()
+        out = self.prepare(out)
         self.backend.conj(
             self.default_view().transpose((0, 1, 3, 2, 4)), out=out.default_view()
         )
@@ -333,13 +344,13 @@ class GaugeField(LatticeField):
             raise NotImplementedError
         return out
 
-    def dot(self, other):
+    def dot(self, other, out=None):
         "Matrix product between two gauge fields"
         if not isinstance(other, GaugeField):
             raise ValueError
         if self.reconstruct != "NO" or other.reconstruct != "NO":
             raise NotImplementedError
-        out = self.new()
+        out = self.prepare(out)
         self.backend.matmul(
             self.default_view(),
             other.default_view(),
@@ -387,8 +398,7 @@ class GaugeField(LatticeField):
         return plaq.x, plaq.y, plaq.z
 
     def compute_fmunu(self, out=None):
-        if out is None:
-            out = self.new(dofs=(6, 18))
+        out = self.prepare(out, dofs=(6, 18))
         lib.computeFmunu(out.quda_field, self.extended_field(1))
         return out
 
@@ -473,7 +483,7 @@ class GaugeField(LatticeField):
                     out.append(path[i:] + path[:i])
                 elif move == -1:
                     tmp = list(reversed(path[: i + 1])) + list(reversed(path[i + 1 :]))
-                    out.append([-m for m in tmp])
+                    out.append(tuple(-m for m in tmp))
         return out
 
     def compute_paths(self, paths, coeffs=None, out=None, add_coeff=1, force=False):
@@ -490,19 +500,21 @@ class GaugeField(LatticeField):
         """
 
         self._check_paths(paths)
+        if coeffs is None:
+            coeffs = 1 / len(paths)
         if force:
             paths = self._paths_for_force(paths)
             self._check_paths(paths)
 
-        if coeffs is None:
-            coeffs = [1] * len(paths)
-        elif isinstance(coeffs, (int, float)):
+        if isinstance(coeffs, (int, float)):
             coeffs = [coeffs] * len(paths)
         if not len(paths) == len(coeffs):
             raise ValueError("Paths and coeffs must have the same length")
+        coeffs = numpy.array(coeffs, dtype="float64")
+        if force:
+            coeffs *= -2
 
         num_paths = len(paths)
-        coeffs = numpy.array(coeffs, dtype="float64")
         lengths = (
             numpy.array(list(map(len, paths)), dtype="int32") - 1
         )  # -1 because the first step is always 1 (the direction itself)
@@ -516,20 +528,14 @@ class GaugeField(LatticeField):
                         paths_array[dim, i, j] = (step - 1 + dim) % self.ndims
                     else:
                         paths_array[dim, i, j] = 7 - (-step - 1 + dim) % self.ndims
-
         quda_paths_array = array_to_pointers(paths_array)
 
-        kwargs = dict(empty=False)
         fnc = lib.gaugePath
+        kwargs = dict(empty=False)
         if force:
             fnc = lib.gaugeForce
-            if self.iscomplex:
-                kwargs["dofs"] = (4, 5)
-            else:
-                kwargs["dofs"] = (4, 10)
-
+            kwargs["reconstruct"] = 10
         out = self.prepare(out, **kwargs)
-
         fnc(
             out.quda_field,
             self.extended_field(1),
@@ -540,43 +546,114 @@ class GaugeField(LatticeField):
             num_paths,
             max_length,
         )
+        print(out.field[0, 0, 0, 0])
         return out
+
+    @property
+    def plaquette_paths(self):
+        "List of plaquette paths"
+        return tuple((1, mu, -1, -mu) for mu in range(2, self.ndims + 1))
 
     def plaquette_field(self, force=False):
         "Computes the plaquette field"
-        return self.compute_paths(
-            [[1, 2, -1, -2], [1, 3, -1, -3], [1, 4, -1, -4]], coeffs=1 / 3, force=force
-        )
-
-    def rectangle_field(self, force=False):
-        "Computes the rectangle field"
-        return self.compute_paths(
-            [
-                [1, 2, 2, -1, -2, -2],
-                [1, 3, 3, -1, -3, -3],
-                [1, 4, 4, -1, -4, -4],
-                [1, 1, 2, -1, -1, -2],
-                [1, 1, 3, -1, -1, -3],
-                [1, 1, 4, -1, -1, -4],
-            ],
-            coeffs=1 / 6,
-            force=force,
-        )
+        return self.compute_paths(self.plaquette_paths, force=force)
 
     def plaquettes(self, **kwargs):
         "Returns the average over plaquettes (Note: plaquette should performs better)"
         return self.plaquette_field().reduce(**kwargs)
 
+    @property
+    def rectangle_paths(self):
+        "List of rectangle paths"
+        return tuple(
+            (1, mu, mu, -1, -mu, -mu) for mu in range(2, self.ndims + 1)
+        ) + tuple((1, 1, mu, -1, -1, -mu) for mu in range(2, self.ndims + 1))
+
+    def rectangle_field(self, force=False):
+        "Computes the rectangle field"
+        return self.compute_paths(self.rectangle_paths, force=force)
+
     def rectangles(self, **kwargs):
         "Returns the average over rectangles"
         return self.rectangle_field().reduce(**kwargs)
+
+    @property
+    def chair_paths(self):
+        "List of chair paths"
+        return (
+            tuple(
+                (1, mu, nu, -1, -nu, -mu)
+                for mu in range(2, self.ndims + 1)
+                for nu in range(2, self.ndims + 1)
+                if mu != nu
+            )
+            + tuple(
+                (1, sgn * mu, -sgn * nu, -1, sgn * nu, -sgn * mu)
+                for mu in range(2, self.ndims + 1)
+                for nu in range(mu + 1, self.ndims + 1)
+                for sgn in (+1, -1)
+            )
+            + tuple(
+                (1, mu, -1, sgn * nu, -mu, -sgn * nu)
+                for mu in range(2, self.ndims + 1)
+                for nu in range(2, self.ndims + 1)
+                for sgn in (+1, -1)
+                if mu != nu
+            )
+            + tuple(
+                (1, sgn * nu, mu, -sgn * nu, -1, -mu)
+                for mu in range(2, self.ndims + 1)
+                for nu in range(2, self.ndims + 1)
+                for sgn in (+1, -1)
+                if mu != nu
+            )
+        )
+
+    def chair_field(self, force=False):
+        "Computes the chairs field"
+        return self.compute_paths(self.chair_paths, force=force)
+
+    def chairs(self, **kwargs):
+        "Returns the average over chairs"
+        return self.chair_field().reduce(**kwargs)
+
+    @property
+    def twisted_chair_paths(self):
+        "List of twisted chair paths"
+        return (
+            tuple(
+                (1, mu, nu, -1, -mu, -nu)
+                for mu in range(2, self.ndims + 1)
+                for nu in range(2, self.ndims + 1)
+                if mu != nu
+            )
+            + tuple(
+                (1, mu, -nu, -1, mu, -nu)
+                for mu in range(2, self.ndims + 1)
+                for nu in range(mu + 1, self.ndims + 1)
+            )
+            + tuple(
+                (1, -mu, nu, -1, -mu, nu)
+                for mu in range(2, self.ndims + 1)
+                for nu in range(mu + 1, self.ndims + 1)
+            )
+        )
+
+    def twisted_chair_field(self, force=False):
+        "Computes the twisted chairs field"
+        return self.compute_paths(self.twisted_chair_paths, force=force)
+
+    def twisted_chairs(self, **kwargs):
+        "Returns the average over twisted chairs"
+        return self.twisted_chair_field().reduce(**kwargs)
 
     def exponentiate(self, coeff=1, mul_to=None, out=None, conj=False, exact=False):
         """
         Exponentiates a momentum field
         """
+
         if out is None:
-            out = mul_to.new() if mul_to is not None else self.new(dofs=(4, 18))
+            out = mul_to.new() if mul_to is not None else self.new(reconstruct="NO")
         if mul_to is None:
             mul_to = out.new()
             mul_to.unity()
