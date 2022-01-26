@@ -343,3 +343,10 @@ def generate_config(builder, ext):
 
     text = "\n".join(f"{line[0]} = {parse(line[2:])}" for line in lines)
     open(filename, "w").write(CONFIG_OUTPUT + text)
+
+    try:
+        from black import format_file_in_place, Mode, Path, WriteBack
+
+        format_file_in_place(Path(filename), False, Mode(), write_back=WriteBack.YES)
+    except ImportError:
+        pass
