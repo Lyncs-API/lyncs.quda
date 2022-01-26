@@ -76,13 +76,13 @@ class LatticeField:
         cls = type(self)
         if not isinstance(other, cls):
             other = cls(other)
-        # TODO: check compatibility using also kwargs
-        dofs = (kwargs.get("dofs", self.dofs),)
-        assert other.dofs == dofs
-        dtype = (kwargs.get("dtype", self.dtype),)
+        dtype = kwargs.get("dtype", self.dtype)
         assert other.dtype == dtype
-        device = (kwargs.get("device", self.device),)
+        device = kwargs.get("device", self.device)
         assert other.device == device
+        dofs = kwargs.get("dofs", None)
+        if dofs:
+            assert other.dofs == dofs
         return other
 
     def prepare(self, *fields, **kwargs):
