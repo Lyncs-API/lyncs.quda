@@ -1,6 +1,7 @@
 from lyncs_quda import gauge, momentum
 import numpy as np
 import cupy as cp
+from pytest import skip
 from lyncs_quda.testing import (
     fixlib as lib,
     lattice_loop,
@@ -83,10 +84,10 @@ def test_unity(lib, lattice, device, dtype):
     assert gf.abs_min() == 0
     assert gf.project() == 0
     assert np.isclose(gf.plaquettes(), 1)
-    assert np.allclose(gf.plaquette_field().trace().mean(axis=1), 1)
+    assert np.allclose(gf.plaquette_field().trace().mean(axis=1), gf.ncol)
     assert np.allclose(gf.plaquette_field(force=True), 0)
     assert np.isclose(gf.rectangles(), 1)
-    assert np.allclose(gf.rectangle_field().trace().mean(axis=1), 1)
+    assert np.allclose(gf.rectangle_field().trace().mean(axis=1), gf.ncol)
     assert np.allclose(gf.rectangle_field(force=True), 0)
     assert np.isclose(gf.gauge_action(), 1)
     assert np.isclose(gf.symanzik_gauge_action(), 1 + 7 / 12)
@@ -163,11 +164,12 @@ def test_mom_to_full(lib, lattice, device, dtype):
     assert (mom2.field == mom.field).all()
 
 
-@dtype_loop  # enables dtype
+# @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 @epsilon_loop  # enables epsilon
-def test_force(lib, lattice, device, dtype, epsilon):
+def test_force(lib, lattice, device, epsilon):
+    dtype = "float64"
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.gaussian()
     mom = momentum(lattice, dtype=dtype, device=device)
@@ -188,3 +190,47 @@ def test_force(lib, lattice, device, dtype, epsilon):
         daction2 = action2 - action
         print(path, daction, daction2, daction / daction2)
         assert isclose(daction, daction2, rel_tol=rel_tol)
+
+
+# @dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+@epsilon_loop  # enables epsilon
+def test_force_gradient(lib, lattice, device, epsilon):
+    dtype = "float64"
+    gf = gauge(lattice, dtype=dtype, device=device)
+    gf.gaussian()
+
+    mom1 = momentum(lattice, dtype=dtype, device=device)
+    mom1.gaussian(epsilon=epsilon)
+
+    mom2 = momentum(lattice, dtype=dtype, device=device)
+    mom2.gaussian(epsilon=epsilon)
+
+    gf1 = mom1.exponentiate(mul_to=gf)
+    gf2 = mom2.exponentiate(mul_to=gf)
+    gf12 = mom1.exponentiate(mul_to=gf2)
+    gf21 = mom2.exponentiate(mul_to=gf1)
+
+    rel_tol = epsilon * prod(lattice)
+    for path in "plaquette", "rectangle":
+        action = getattr(gf, path + "s")()
+        action1 = getattr(gf1, path + "s")()
+        action2 = getattr(gf2, path + "s")()
+        action21 = getattr(gf21, path + "s")()
+        action12 = getattr(gf12, path + "s")()
+
+        ddaction21 = action21 + action - action1 - action2
+        ddaction12 = action12 + action - action1 - action2
+
+        ddaction = (
+            getattr(gf, path + "_field")(grad=mom1).full().dot(mom2.full()).reduce()
+        )
+        print(path, ddaction, ddaction21, ddaction / ddaction21)
+        assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
+
+        ddaction = (
+            getattr(gf, path + "_field")(grad=mom2).full().dot(mom1.full()).reduce()
+        )
+        print(path, ddaction, ddaction12, ddaction / ddaction12)
+        assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
