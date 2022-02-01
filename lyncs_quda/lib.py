@@ -231,6 +231,7 @@ headers = [
     "invert_quda.h",
     "blas_quda.h",
     "multigrid.h",
+    "evenodd.h",
 ]
 
 
@@ -238,7 +239,7 @@ lib = QudaLib(
     path=PATHS,
     header=headers,
     library=["libquda.so"] + libs,
-    namespace="quda",
+    namespace=["quda", "lyncs_quda"],
 )
 
 
