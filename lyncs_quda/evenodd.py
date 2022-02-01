@@ -1,28 +1,33 @@
 __all__ = [
     "evenodd",
     "continous",
+    "to_quda",
+    "from_quda",
 ]
 
 from array import array
 import numpy as np
 from lyncs_utils import prod
 from .lib import lib
+from .lattice_field import backend
 
 
-def _get_params(arr, axes=None):
+def _get_axes(arr, axes=None):
     if axes is None:
         axes = tuple(range(len(arr.shape)))
     elif isinstance(axes, int):
         axes = (axes,)
-
     axes = sorted(axes)
     if not axes == list(range(min(axes), max(axes) + 1)):
         raise ValueError(f"Given axes {axes} are not consecutive numbers")
+    return np.array(axes)
 
+
+def _get_params(arr, axes=None):
+    axes = _get_axes(arr, axes)
     outer = prod(arr.shape[: min(axes)])
     inner = prod(arr.shape[max(axes) + 1 :]) * arr.dtype.itemsize
     shape = np.array(arr.shape)[axes]
-
     return shape, inner, outer
 
 
@@ -58,3 +63,44 @@ def continous(arr, axes=None, swap=False, out=None):
         out = np.empty_like(arr)
     lib.continous(out, arr, len(shape), array("i", shape), outer, inner, swap=swap)
     return out
+
+
+def to_quda(arr, axes=None, swap=False):
+    """
+    Converts standard CPU array to QUDA format.
+    I.E. (extra, lattice, dofs) on CPU -> (extra, EO, dofs, lattice/2) on GPU
+    """
+    axes = _get_axes(arr, axes)
+    arr = evenodd(arr, axes, swap)
+    # Flattening the lattice
+    shape = np.array(arr.shape)
+    arr = arr.reshape(*shape[: min(axes)], 2, -1, *shape[max(axes) + 1 :])
+    # Transposing lattice (min(axes)+1) and inner dofs
+    arr = arr.transpose(
+        *range(min(axes) + 1), *range(min(axes) + 2, len(arr.shape)), min(axes) + 1
+    )
+    # Reshaping to expected shape
+    arr = arr.reshape(*shape[: min(axes)], *shape[max(axes) + 1 :], *shape[axes])
+    with backend() as bck:
+        return bck.asarray(arr)
+
+
+def from_quda(arr, axes=None, swap=False):
+    """
+    Converts QUDA array to standard CPU format.
+    I.E. (extra, EO, dofs, lattice/2) on GPU -> (extra, lattice, dofs) on CPU
+    """
+    axes = _get_axes(arr, axes)
+    with backend(False) as bck:
+        arr = bck.asarray(arr.get())
+    shape = arr.shape
+    arr = arr.reshape(*shape[: min(axes)], 2, *shape[min(axes) : -len(axes)], -1)
+    arr = arr.transpose(
+        *range(min(axes) + 1),
+        len(arr.shape) - 1,
+        *range(min(axes) + 1, len(arr.shape) - 1),
+    )
+    arr = arr.reshape(
+        *shape[: min(axes)], *shape[-len(axes) :], *shape[min(axes) : -len(axes)]
+    )
+    return continous(arr, axes, swap)

@@ -1,5 +1,7 @@
 import pytest
-from lyncs_quda import evenodd, continous
+from lyncs_quda import evenodd, continous, to_quda, from_quda
+
+# from lyncs_quda.lib import fixlib as lib
 import numpy as np
 
 
@@ -62,3 +64,9 @@ def test_evenodd(shape, inner, outer):
     arr = np.random.rand(*(outer + shape + inner))
     out = evenodd(arr, axes=axes)
     assert (continous(out, axes=axes) == arr).all()
+
+    out = to_quda(arr, axes=axes)
+    assert out.shape == outer + inner + shape
+    out2 = from_quda(out, axes=axes)
+    assert out2.shape == arr.shape
+    assert (from_quda(out, axes=axes) == arr).all()
