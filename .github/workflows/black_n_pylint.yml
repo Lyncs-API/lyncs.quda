@@ -49,7 +49,9 @@ jobs:
       - name: Pylint output
         run: |
           badge=$(lyncs_pylint_badge --disable=import-error . | sed "s/\&/\\\&/g")
+	  test ! -z "$badge"
           badge_line=$(awk '/!\[pylint\]/ {print FNR}' README.md)
+	  test ! -z "$badge_line"
           sed -i "${badge_line}s#.*#${badge}#" README.md
 
       - name: Pushing changes if any
