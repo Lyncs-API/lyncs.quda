@@ -66,7 +66,7 @@ def test_evenodd(shape, inner, outer):
     assert (continous(out, axes=axes) == arr).all()
 
     out = to_quda(arr, axes=axes)
-    assert out.shape == outer + inner + shape
+    assert out.shape == outer + inner + tuple(reversed(shape))
     out2 = from_quda(out, axes=axes)
     assert out2.shape == arr.shape
     assert (from_quda(out, axes=axes) == arr).all()

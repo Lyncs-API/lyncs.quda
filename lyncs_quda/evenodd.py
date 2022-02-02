@@ -42,6 +42,7 @@ def evenodd(arr, axes=None, swap=False, out=None):
     - out: output array
     """
     shape, inner, outer = _get_params(arr, axes)
+    arr = to_numpy(arr)
     if out is None:
         out = numpy.empty_like(arr)
     lib.evenodd(out, arr, len(shape), array("i", shape), outer, inner, swap=swap)
@@ -59,6 +60,7 @@ def continous(arr, axes=None, swap=False, out=None):
     - out: output array
     """
     shape, inner, outer = _get_params(arr, axes)
+    arr = to_numpy(arr)
     if out is None:
         out = numpy.empty_like(arr)
     lib.continous(out, arr, len(shape), array("i", shape), outer, inner, swap=swap)
@@ -71,7 +73,7 @@ def to_numpy(arr):
         arr = arr.get()
     except AttributeError:
         pass
-    return numpy.asarray(arr)
+    return numpy.asarray(arr, order="C")
 
 
 def to_quda(arr, axes=tuple(range(4)), swap=False):
@@ -81,6 +83,9 @@ def to_quda(arr, axes=tuple(range(4)), swap=False):
     """
     axes = _get_axes(arr, axes)
     arr = to_numpy(arr)
+    arr = arr.transpose(
+        *range(min(axes)), *reversed(axes), *range(max(axes) + 1, len(arr.shape))
+    )
     arr = evenodd(arr, axes, swap)
     # Flattening the lattice
     shape = numpy.array(arr.shape)
@@ -112,4 +117,7 @@ def from_quda(arr, axes=tuple(range(4)), swap=False):
     arr = arr.reshape(
         *shape[: min(axes)], *shape[-len(axes) :], *shape[min(axes) : -len(axes)]
     )
-    return continous(arr, axes, swap)
+    arr = continous(arr, axes, swap)
+    return arr.transpose(
+        *range(min(axes)), *reversed(axes), *range(max(axes) + 1, len(arr.shape))
+    )
