@@ -18,7 +18,7 @@ from math import sqrt
 from collections import defaultdict
 import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
-from lyncs_utils import prod
+from lyncs_utils import prod, isiterable
 from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .time_profile import default_profiler
@@ -80,7 +80,7 @@ class GaugeField(LatticeField):
                 val = int(reconstruct)
                 kwargs["dofs"] = (
                     self.geometry_size,
-                    val / 2 if self.iscomplex else val,
+                    val // 2 if self.iscomplex else val,
                 )
             except ValueError:
                 raise ValueError(f"Invalid reconstruct {reconstruct}")
@@ -331,12 +331,13 @@ class GaugeField(LatticeField):
         )
         return out
 
-    def reduce(self, local=False, only_real=True):
+    def reduce(self, local=False, only_real=True, mean=True):
         "Reduction of a gauge field (real of mean of trace)"
-        out = (
-            self.trace(dtype="float64" if only_real else "complex128").mean()
-            / self.ncol
-        )
+        out = self.trace(dtype="float64" if only_real else "complex128")
+        if mean:
+            out = out.mean() / self.ncol
+        else:
+            out = out.sum()
         if not local and self.comm is not None:
             # TODO: global reduction
             raise NotImplementedError
@@ -458,7 +459,13 @@ class GaugeField(LatticeField):
 
     def _check_paths(self, paths):
         "Check if all paths are valid"
+        if not isiterable(paths):
+            raise TypeError(f"Paths ({paths}) are not iterable")
         for i, path in enumerate(paths):
+            if not isiterable(path):
+                raise TypeError(f"Path {i} = {path} is not iterable")
+            if path[0] < 0:
+                raise ValueError(f"Path {i} = {path} nevative first movement")
             if min(path) < -self.ndims:
                 raise ValueError(
                     f"Path {i} = {path} has direction smaller than {-self.ndims}"
@@ -515,6 +522,7 @@ class GaugeField(LatticeField):
 
         # Checking paths for error
         self._check_paths(paths)
+        paths = tuple(tuple(path) for path in paths)
 
         # Preparing coeffs
         if coeffs is None:
@@ -539,6 +547,7 @@ class GaugeField(LatticeField):
         # Preparing paths
         if force:
             paths, coeffs = self._paths_for_force(paths, coeffs)
+            self._check_paths(paths)
         paths, lengths = self._paths_to_array(paths)
 
         # Calling Quda function
