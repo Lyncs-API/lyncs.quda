@@ -113,6 +113,8 @@ class LatticeField:
 
     @field.setter
     def field(self, field):
+        if isinstance(field, LatticeField):
+            field = field.field
         if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
             raise TypeError("Supporting only numpy or cupy for field")
         if isinstance(field, cupy.ndarray) and field.device.id != lib.device_id:
@@ -120,6 +122,10 @@ class LatticeField:
         if len(field.shape) < 4:
             raise ValueError("A lattice field should not have shape smaller than 4")
         self._field = field
+
+    def get(self):
+        "Returns the field as numpy array"
+        return self.__array__()
 
     def __array__(self, *args, **kwargs):
         out = self.field
