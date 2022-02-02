@@ -71,18 +71,39 @@ class LatticeField:
             empty=empty,
         )
 
-    def cast(self, other, **kwargs):
+    def copy(self, other=None, out=None, **kwargs):
+        "Returns a copy of the field"
+        out = self.prepare(out, check=False, **kwargs)
+        if other is None:
+            other = self
+        other = out.cast(other, check=False)
+        out.quda_field.copy(other.quda_field)
+        return out
+
+    def equivalent(self, other, **kwargs):
+        "Whether a field is equivalent to the current"
+        if not isinstance(other, type(self)):
+            return False
+        dtype = kwargs.get("dtype", self.dtype)
+        if other.dtype != dtype:
+            return False
+        device = kwargs.get("device", self.device)
+        if other.device != device:
+            return False
+        dofs = kwargs.get("dofs", None)
+        if dofs and other.dofs != dofs:
+            return False
+        return True
+
+    def cast(self, other, copy=True, check=True, **kwargs):
         "Cast a field into its type and check for compatibility"
         cls = type(self)
         if not isinstance(other, cls):
             other = cls(other)
-        dtype = kwargs.get("dtype", self.dtype)
-        assert other.dtype == dtype
-        device = kwargs.get("device", self.device)
-        assert other.device == device
-        dofs = kwargs.get("dofs", None)
-        if dofs:
-            assert other.dofs == dofs
+        if check and not self.equivalent(other, **kwargs):
+            if not copy:
+                raise ValueError("The given field is not appropriate")
+            return self.copy(other, **kwargs)
         return other
 
     def prepare(self, *fields, **kwargs):
@@ -93,7 +114,7 @@ class LatticeField:
             field = fields[0]
             if field is None:
                 return self.new(**kwargs)
-            return self.cast(field, **kwargs)
+            return self.cast(field, copy=False, **kwargs)
         return tuple(self.prepare(field, **kwargs) for field in fields)
 
     def __init__(self, field, comm=None):

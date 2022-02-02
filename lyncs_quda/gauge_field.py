@@ -89,20 +89,21 @@ class GaugeField(LatticeField):
         out.is_momentum = is_momentum
         return out
 
-    def cast(self, other, reconstruct=None, **kwargs):
+    def equivalent(self, other, **kwargs):
+        "Whether a field is equivalent to the current"
+        if not super().equivalent(other, **kwargs):
+            return False
+        reconstruct = kwargs.get("reconstruct", self.reconstruct)
+        if other.reconstruct != str(reconstruct):
+            return False
+        return True
+
+    def cast(self, other, **kwargs):
         "Cast a field into its type and check for compatibility"
         other = super().cast(other, **kwargs)
         is_momentum = kwargs.get("is_momentum", self.is_momentum)
         other.is_momentum = is_momentum
-        if reconstruct is not None:
-            assert other.reconstruct == str(reconstruct)
         return other
-
-    def get_reconstruct(self, dofs):
-        "Returns the reconstruct type of dofs"
-        dofs = prod(dofs)
-        if self.iscomplex:
-            dofs *= 2
 
     @property
     def dofs_per_link(self):
@@ -197,7 +198,7 @@ class GaugeField(LatticeField):
     @property
     def is_momentum(self):
         "Whether is a momentum field"
-        return getattr(self, "_is_momentum", False) or self.reconstruct == "10"
+        return self.reconstruct == "10" or getattr(self, "_is_momentum", False)
 
     @is_momentum.setter
     def is_momentum(self, value):
@@ -280,12 +281,6 @@ class GaugeField(LatticeField):
     def zero(self):
         "Sets all field elements to zero"
         self.quda_field.zero()
-
-    def copy(self, out=None, **kwargs):
-        "Returns a copy of the field"
-        out = self.prepare(out, **kwargs)
-        out.quda_field.copy(self.quda_field)
-        return out
 
     def full(self):
         "Returns a full matrix version of the field (with reconstruct=NO)"
@@ -535,7 +530,7 @@ class GaugeField(LatticeField):
         # Preparing grad and fnc
         if grad is not None:
             force = True
-            self.prepare(grad, reconstruct=10)
+            grad = self.cast(grad, reconstruct=10)
             fnc = lambda out, u, *args: lib.gaugeForceGradient(
                 out, u, grad.quda_field, *args
             )
