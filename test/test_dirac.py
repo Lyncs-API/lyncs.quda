@@ -78,7 +78,7 @@ def test_coarse_zero(lib, lattice, device, dtype=None):
     dtype = "float32"
     gf = gauge_coarse(lattice, dtype=dtype, device=device)
     gf.zero()
-    gf2 = gauge_scalar(lattice, dtype=dtype, dofs=2 * 48 ** 2, device=device)
+    gf2 = gauge_scalar(lattice, dtype=dtype, dofs=2 * 48**2, device=device)
     gf2.unity()
     sf = spinor_coarse(lattice, dtype=dtype, device=device)
     sf.uniform()

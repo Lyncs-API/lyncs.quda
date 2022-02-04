@@ -29,5 +29,5 @@ def test_unity(lib, lattice, procs, device, dtype):
     assert gf.project() == 0
     assert gf.plaquette() == (1, 1, 1)
     topo = gf.topological_charge()
-    assert np.isclose(topo[0], -3 / 4 / np.pi ** 2 * np.prod(lattice) * np.prod(procs))
+    assert np.isclose(topo[0], -3 / 4 / np.pi**2 * np.prod(lattice) * np.prod(procs))
     assert topo[1] == (0, 0, 0)
