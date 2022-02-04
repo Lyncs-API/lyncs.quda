@@ -50,7 +50,7 @@ def test_params(lib, lattice, device, dtype):
 def test_zero(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.zero()
-    assert (gf.field == 0).all()
+    assert gf == 0
     assert gf.plaquette() == (0, 0, 0)
     assert gf.topological_charge() == (0, (0, 0, 0))
     assert gf.norm1() == 0
@@ -63,7 +63,17 @@ def test_zero(lib, lattice, device, dtype):
 
     gf2 = gf.new()
     gf2.gaussian()
-    assert (gf.dot(gf2).field == 0).all()
+    assert gf.dot(gf2) == 0
+
+    # Testing operators
+    assert not gf
+    assert gf + 0 == gf
+    assert gf + 1 != gf
+    assert gf - 0 == gf
+    assert gf * 1 == gf
+    assert gf / 1 == gf
+
+    assert isinstance(gf + 0, type(gf))
 
 
 @dtype_loop  # enables dtype
@@ -95,7 +105,7 @@ def test_unity(lib, lattice, device, dtype):
 
     gf2 = gf.new()
     gf2.gaussian()
-    assert (gf.dot(gf2).field == gf2.field).all()
+    assert gf.dot(gf2) == gf2
 
 
 @dtype_loop  # enables dtype
@@ -109,7 +119,7 @@ def test_random(lib, lattice, device, dtype):
     assert np.isclose(plaq[0], total)
 
     gf2 = gf.copy()
-    assert (gf.field == gf2.field).all()
+    assert gf == gf2
 
 
 @dtype_loop  # enables dtype
@@ -121,22 +131,22 @@ def test_exponential(lib, lattice, device, dtype):
     mom.zero()
 
     mom.copy(out=gf)
-    assert (gf.field == 0).all()
+    assert gf == 0
 
     gf.unity()
     gf2 = mom.exponentiate()
-    assert (gf2.field == gf.field).all()
+    assert gf2 == gf
 
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
-    assert (gf2.field == gf.field).all()
+    assert gf2 == gf
 
     gf.gaussian()
     gf2 = mom.exponentiate(mul_to=gf)
-    assert (gf2.field == gf.field).all()
+    assert gf2 == gf
 
     gf2 = gf.update_gauge(mom)
-    assert (gf2.field == gf.field).all()
+    assert gf2 == gf
 
 
 @dtype_loop  # enables dtype
@@ -148,20 +158,20 @@ def test_mom_to_full(lib, lattice, device, dtype):
     mom.zero()
     mom.copy(out=gf)
 
-    assert (gf.field == 0).all()
+    assert gf == 0
     assert (gf.trace() == 0).all()
 
     mom.gaussian()
     mom.copy(out=gf)
 
-    assert (gf.dagger().field == -gf.field).all()
+    assert gf.dagger() == -gf
     assert np.allclose(gf.trace().real, 0, atol=1e-9)
 
     gf2 = mom.full()
-    assert (gf2.field == gf.field).all()
+    assert gf2 == gf
 
     mom2 = gf.copy(out=mom.new())
-    assert (mom2.field == mom.field).all()
+    assert mom2 == mom
 
 
 # @dtype_loop  # enables dtype
