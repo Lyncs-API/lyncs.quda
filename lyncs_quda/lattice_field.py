@@ -40,7 +40,7 @@ def backend(device=True):
             yield cupy
 
 
-class LatticeField:
+class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     "Mimics the quda::LatticeField object"
 
     @classmethod
@@ -300,3 +300,16 @@ class LatticeField:
         if self.device is not None:
             return self.quda_field
         return nullptr
+
+    def __array_ufunc__(self, ufunc, method, *args, **kwargs):
+        prepare = (
+            lambda arg: self.prepare(arg).field
+            if isinstance(arg, LatticeField)
+            else arg
+        )
+        args = tuple(map(prepare, args))
+        fnc = getattr(ufunc, method)
+        return type(self)(fnc(*args, **kwargs))
+
+    def __bool__(self):
+        return bool(self.field.all())

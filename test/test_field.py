@@ -27,6 +27,13 @@ def test_numpy():
     assert field.dofs == shape[:-4]
     assert field.precision == "double"
 
+    assert not field
+    assert field + 0 == field
+    assert field + 1 != field
+    assert field - 0 == field
+    assert field * 1 == field
+    assert field / 1 == field
+
 
 def test_cupy():
     field = LatticeField(cp.zeros(shape))
@@ -34,3 +41,12 @@ def test_cupy():
     assert field.dims == shape[-4:]
     assert field.dofs == shape[:-4]
     assert field.precision == "double"
+
+    assert not field
+    assert field + 0 == field
+    assert field + 1 != field
+    assert field - 0 == field
+    assert field * 1 == field
+    assert field / 1 == field
+
+    assert isinstance(field + 0, type(field))
