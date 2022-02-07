@@ -17,8 +17,8 @@ from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .time_profile import default_profiler
 
-#? so order is FLOAT2, which means double *gauge
-#? is real/complex the fastest running index in self.field?
+# TODO: Make array dims consistent with gauge order
+
 def gauge_field(lattice, dofs=(4,18), **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
@@ -90,7 +90,11 @@ class GaugeField(LatticeField):
     @property
     def order(self):
         "Data order of the field"
-        return "FLOAT2"
+        dofs = self.dofs_per_link
+        if dofs == 8 or dofs == 12:
+            return "FLOAT4"
+        else:
+            return "FLOAT2"
 
     @property
     def quda_order(self):
@@ -159,7 +163,7 @@ class GaugeField(LatticeField):
 
     @property
     def quda_field(self):
-        "Returns an instance of quda::GaugeField"
+        "Returns an instance of quda::(cpu/cuda)GaugeField for QUDA_(CPU/CUDA)_FIELD_LOCATION"
         self.activate()
         return make_shared(lib.GaugeField.Create(self.quda_params))
 
@@ -171,7 +175,7 @@ class GaugeField(LatticeField):
 
     def extended_field(self, sites=1):
         "Extends the gauge field in each direction by sites (i.e., width of the halo shell) on each MPI rank"
-        #? to which geometry is this applicable?
+        #TODO: Check the acceptable geometries of the gauge field
         if sites in (None, 0) or self.comm is None:
             return self.quda_field
 
@@ -183,10 +187,10 @@ class GaugeField(LatticeField):
             return self.quda_field
 
         if self.location is "CPU":
-            # Returns cpuGaugeField
+            "Returns cpuGaugeField"
             """
               Remark:
-                * createExtendedGaug takes (void **) as its first argument
+                * createExtendedGaugr takes (void **) as its first argument
                 * However, it is used to set (void *gauge) in GaugeFieldParam
                 * (void **gauge) is defined as a private member in cpuGaugeField
                 * This private member does not seem relevant in createExtendedGauge as it sets
@@ -205,10 +209,10 @@ class GaugeField(LatticeField):
                 )
             )
         elif self.location is "CUDA":
-            # Returns cudaGaugeField
+            "Returns cudaGaugeField"
             return make_shared(
                 lib.createExtendedGauge(
-                    self.quda_field, #? implicit downcasting?
+                    self.quda_field, #quda_field returns an instance of cudaGaugeField in this case
                     numpy.array(sites, dtype="int32"),
                     default_profiler().quda,
                 )
@@ -223,7 +227,8 @@ class GaugeField(LatticeField):
 
     def unity(self):
         "Set all field elements to unity"
-        #? This applies only when geometry == "VECOTR"?
+        if self.geometry != "VECTOR":
+            raise NotImplementedError
         if self.reconstruct != "NO":
             raise NotImplementedError
         tmp = self.field.reshape((2, 4, 9, -1, 2))
@@ -256,13 +261,10 @@ class GaugeField(LatticeField):
         if tol is None:
             tol = numpy.finfo(self.dtype).eps
 
-        #? is this correct?  lib.projectSU3 is a host function...
-        fails = numpy.zeros((1,), dtype="int32")
         with cupy.cuda.Device(self.device):
-            dfails = cupy.zeros((1,), dtype="int32")
+            fails = cupy.zeros((1,), dtype="int32")
             lib.projectSU3(self.quda_field, tol, to_pointer(dfails.data.ptr, "int *"))
-            fails += dfails.get()
-        return fails[0]
+        return fails.get()[0]
 
     def gaussian(self, epsilon=1, seed=None):
         """
@@ -275,8 +277,7 @@ class GaugeField(LatticeField):
         distribution (sigma = 0 results in a free field, and sigma = 1 has
         maximum disorder).
         """
-        #? I would think this overwrite self.field
-        #? Also, what is the required geometry?
+        #TODO: Check the acceptable geometries of the gauge field
         seed = seed or int(time() * 1e9)
         lib.gaugeGauss(self.quda_field, seed, epsilon)
 
@@ -289,8 +290,8 @@ class GaugeField(LatticeField):
         tuple(total, spatial, temporal) plaquette site averaged and
             normalized such that each plaquette is in the range [0,1]
         """
-        if self.location is "CPU":
-            raise NotImplementedError("The underlying QUDA function will not work without GPU") # I don't think double3 is defined without CUDA
+        if self.location is "CPU": # I don't think double3 is defined without CUDA
+            raise NotImplementedError("The underlying QUDA function will not work without GPU") 
         
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
@@ -385,7 +386,7 @@ class GaugeField(LatticeField):
         - Paths are then rotated for every direction.
         """
         if self.geometry != "VECTOR":
-            raise TypeError("This gauge object needs to have VECTOR geometry") #? True?
+            raise TypeError("This gauge object needs to have VECTOR geometry") 
 
         if coeffs is None:
             coeffs = [1] * len(paths)
@@ -480,7 +481,7 @@ class GaugeField(LatticeField):
         """
         Exponentiates a momentum field
         """
-        #? no restriction on geometry of self?
+        #TODO: Check the acceptable geometries of the gauge field  
         if out is None:
             out = self.new()
         if mul_to is None:

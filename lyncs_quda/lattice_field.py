@@ -39,6 +39,7 @@ def backend(device=True):
         if not isinstance(device, int):
             raise TypeError("Expected device to be an integer or None/True/False")
 
+        #? is this safe?  
         lib.device_id = device
         with cupy.cuda.Device(device):
             yield cupy
@@ -53,7 +54,7 @@ class LatticeField:
 
     @classmethod
     def create(cls, lattice, dofs=None, dtype=None, device=True, empty=True, **kwargs):
-        "Constructs a new lattice field"
+        "Constructs a new lattice field with default dtype=None, translating into float64"
         if isinstance(lattice, cls):
             return lattice
 
@@ -173,7 +174,7 @@ class LatticeField:
 
     @property
     def quda_dims(self):
-        "Memory array with lattice dimensions"
+        "Memory array with lattice dimensions including halo width"
         return array("i", self.dims)
 
     @property
@@ -240,6 +241,7 @@ class LatticeField:
         )
     #? this assumes: mem_type(QUDA_MEMORY_DEVICE),
     # siteSubset(QUDA_FULL_SITE_SUBSET) => volumeCB =  volume / 2 = stride (as pad==0)
+    # Here, local volume (with no halo) = volume (with halo) as ghost_exchange == NO
     
     def reduce(self, val, local=False, opr="SUM"):
         if self.comm is None or local:

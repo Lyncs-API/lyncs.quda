@@ -54,6 +54,14 @@ dtype_loop = mark.parametrize(
     ],
 )
 
+mtype_loop = mark.parametrize(
+    "mtype",
+    [
+        0,
+        1,
+    ],
+)
+
 gamma_loop = mark.parametrize("gamma", SpinorField.gammas)
 
 

@@ -50,6 +50,7 @@ class Struct:
     _types = {}
 
     def __init__(self, *args, **kwargs):
+        #? better to simply store (key, val) pair into an instance's own __dict__, if key is in _types.keys()
         self._params = getattr(lib, type(self).__name__)() #? recursive?
 
         for arg in args:
@@ -76,8 +77,8 @@ class Struct:
         val = to_code(val, typ)
         cur = getattr(self._params, key)
 
-        if hasattr(cur, "shape"):
-            setitems(cur, val)
+        if hasattr(cur, "shape"):#? what is this?
+            setitems(cur, val)#?  what is this? 
         else:
             setattr(self._params, key, val)
 

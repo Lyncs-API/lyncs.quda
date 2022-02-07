@@ -16,6 +16,7 @@ def test_default(lattice):
     assert clv.twisted == False
     assert clv.mu2 == 0
     assert clv.rho == 0
+    assert clv.computeTrLog == False
 
 
 @dtype_loop  # enables dtype
@@ -47,26 +48,36 @@ def test_params(lib, lattice, device, dtype):
     assert params.ghostExchange == clv.quda_ghost_exchange
 
 
-#@dtype_loop  # enables dtype
+@dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
-def test_zero(lib, lattice, device, dtype='float64'):
+def test_zero(lib, lattice, device, dtype):
     mu2=2.
     d = 1/(1+mu2)/2
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.zero()
-    clv = CloverField(gf, csw=1., twisted=True, mu2=mu2, trLog=True)
-    #why does this work?  I'm using cupy, and this is numpy?  full lattice allocated on each gpu?
-    tmp = np.zeros((72,)+lattice,dtype=dtype).reshape((2, 2, 36, -1)) #np.copy(clv.clover_field).reshape((2, 2, 36, -1)) # left most 2=parity
-    tmp[:, :, 0:6,:] = 0.5
-    #assert (gf.compute_fmunu().field==0).all()
-    #assert (clv.field == 0).all()
-    assert np.allclose(clv.clover_field.flatten(), tmp.flatten())
+    clv = CloverField(gf, csw=1., twisted=True, mu2=mu2, computeTrLog=False)
+    idof = int(((clv.ncol*clv.nspin)**2/2))
+    if dtype is 'float64':
+        tmp = np.zeros((idof,)+lattice,dtype=dtype).reshape((2, 2, 36, -1))
+        tmp[:, :, 0:6,:] = 0.5
+    else:
+        tmp = np.zeros((idof,)+lattice,dtype=dtype).reshape((2, 2, 9, -1, 4))
+        tmp[:, :, 0,:,:] = 0.5
+        tmp[:, :, 1,:,0:2] = 0.5
+    assert np.allclose(clv.clover_field.flatten(), tmp.flatten()) 
     assert (clv.clover_norm == 0).all() #when is this computed?
-    tmp = np.zeros((72,)+lattice,dtype=dtype).reshape((2, 2, 36, -1))
-    tmp[:, :, 0:6,:] = d
+    if dtype is 'float64':
+        tmp = np.zeros((idof,)+lattice,dtype=dtype).reshape((2, 2, 36, -1))
+        tmp[:, :, 0:6,:] = d
+    else:
+        tmp = np.zeros((idof,)+lattice,dtype=dtype).reshape((2, 2, 9, -1, 4))
+        tmp[:, :, 0,:,:] = d
+        tmp[:, :, 1,:,0:2] = d
+    # Here, create a lattice of the same dims, specified in the argument in this function  on each device.  So comparison with the numpy array of dims=lattice works
     assert np.allclose(clv.inverse_field.flatten(), tmp.flatten())
-    assert (clv.inverse_norm == 0).all()
+    tmp = np.zeros((2,)+lattice,dtype=np.float32)
+    assert np.allclose(clv.inverse_norm.flatten(), tmp.flatten())
     # QUDA turns CloverField into basically a pointer to complex numbers
     #  When computing norm's and abs', QUDA removes the internal factor of 1/2, present in the above
     assert np.isclose(clv.norm1(), np.sqrt(2)*prod(lattice)*6)
@@ -80,20 +91,31 @@ def test_zero(lib, lattice, device, dtype='float64'):
     assert (clv.trLog == 0).all() #inf?
 
 
-#@dtype_loop  # enables dtype
+@dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
-def test_unit(lib, lattice, device, dtype='float64'):
+def test_unit(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.unity()
     clv = CloverField(gf, csw=1., twisted=True, mu2=1.)
     assert (clv.field == 0).all()
-    tmp = np.zeros((72,)+lattice,dtype=dtype).reshape((2, 2, 36, -1))
-    tmp[:, :, 0:6,:] = 0.5
+    idof = int(((clv.ncol*clv.nspin)**2/2))
+    if dtype is 'float64':
+        tmp = np.zeros((idof,)+lattice,dtype=dtype).reshape((2, 2, 36, -1))
+        tmp[:, :, 0:6,:] = 0.5
+    else:
+        tmp = np.zeros((idof,)+lattice,dtype=dtype).reshape((2, 2, 9, -1, 4))
+        tmp[:, :, 0,:,:] = 0.5
+        tmp[:, :, 1,:,0:2] = 0.5
     assert np.allclose(clv.clover_field.flatten(), tmp.flatten())
     assert (clv.clover_norm == 0).all()
-    tmp = np.zeros((72,)+lattice,dtype=dtype).reshape((2, 2, 36, -1))
-    tmp[:, :, 0:6,:] = 0.25
+    if dtype is 'float64':
+        tmp = np.zeros((idof,)+lattice,dtype=dtype).reshape((2, 2, 36, -1))
+        tmp[:, :, 0:6,:] = 0.25
+    else:
+        tmp = np.zeros((idof,)+lattice,dtype=dtype).reshape((2, 2, 9, -1, 4))
+        tmp[:, :, 0,:,:] = 0.25
+        tmp[:, :, 1,:,0:2] = 0.25
     assert np.allclose(clv.inverse_field.flatten(), tmp.flatten())
     assert (clv.inverse_norm == 0).all()
     assert np.isclose(clv.norm1(), np.sqrt(2)*prod(lattice)*6)
