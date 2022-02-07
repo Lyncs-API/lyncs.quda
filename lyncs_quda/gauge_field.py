@@ -48,6 +48,44 @@ class GaugeField(LatticeField):
         if self.reconstruct == "INVALID":
             raise TypeError(f"Unrecognized field dofs {self.dofs}")
 
+    def new(self, reconstruct=None, **kwargs):
+        "Returns a new empty field based on the current"
+        if reconstruct is None:
+            pass
+        elif reconstruct == self.reconstruct:
+            pass
+        elif reconstruct == "NO":
+            kwargs["dofs"] = (self.geometry_size, 9 if self.iscomplex else 18)
+        else:
+            try:
+                val = int(reconstruct)
+                kwargs["dofs"] = (
+                    self.geometry_size,
+                    val // 2 if self.iscomplex else val,
+                )
+            except ValueError:
+                raise ValueError(f"Invalid reconstruct {reconstruct}")
+        out = super().new(**kwargs)
+        is_momentum = kwargs.get("is_momentum", self.is_momentum)
+        out.is_momentum = is_momentum
+        return out
+
+    def equivalent(self, other, **kwargs):
+        "Whether a field is equivalent to the current"
+        if not super().equivalent(other, **kwargs):
+            return False
+        reconstruct = kwargs.get("reconstruct", self.reconstruct)
+        if other.reconstruct != str(reconstruct):
+            return False
+        return True
+
+    def cast(self, other, **kwargs):
+        "Cast a field into its type and check for compatibility"
+        other = super().cast(other, **kwargs)
+        is_momentum = kwargs.get("is_momentum", self.is_momentum)
+        other.is_momentum = is_momentum
+        return other
+    
     @property
     def dofs_per_link(self):
         if self.geometry == "SCALAR":

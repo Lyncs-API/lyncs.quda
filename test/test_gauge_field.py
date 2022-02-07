@@ -62,7 +62,7 @@ def test_unity(lib, lattice, device, dtype):
     gf.unity()
     assert gf.plaquette() == (1, 1, 1)
     topo = gf.topological_charge()
-    assert np.isclose(topo[0], 0) #-3 / 4 / np.pi ** 2 * np.prod(lattice))
+    assert np.isclose(topo[0], 0)
     assert topo[1] == (0, 0, 0)
     assert gf.norm1() == 3 * 4 * np.prod(lattice)
     assert gf.norm2() == 3 * 4 * np.prod(lattice)

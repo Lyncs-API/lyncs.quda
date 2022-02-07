@@ -22,7 +22,7 @@ QUDA_CMAKE_ARGS = {
 
 
 findMPI = find_package("MPI")
-if False: #findMPI["cxx_found"]:
+if findMPI["cxx_found"] and os.environ.get("QUDA_MPI", None) in (None, "ON"):
     requirements.append("lyncs_mpi")
     QUDA_CMAKE_ARGS["QUDA_MPI"] = "ON"
 
