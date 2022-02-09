@@ -4,6 +4,7 @@ Interface to gauge_field.h
 
 __all__ = [
     "spinor",
+    "spinor_coarse",
     "SpinorField",
 ]
 
@@ -16,9 +17,14 @@ from .lattice_field import LatticeField
 
 
 def spinor(lattice, **kwargs):
-    "Constructs a new gauge field"
-    # TODO add option to select field type -> dofs
+    "Constructs a new spinor field"
     return SpinorField.create(lattice, dofs=(4, 3), **kwargs)
+
+
+def spinor_coarse(lattice, dofs=24, **kwargs):
+    "Constructs a new coarse spinor field (dofs=nColor)"
+    kwargs.setdefault("gamma_basis", "DEGRAND_ROSSI")
+    return SpinorField.create(lattice, dofs=(2, dofs), **kwargs)
 
 
 class SpinorField(LatticeField):

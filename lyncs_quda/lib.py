@@ -16,9 +16,10 @@ from lyncs_cppyy import Lib, nullptr, cppdef
 from lyncs_cppyy.ll import addressof, to_pointer
 from lyncs_utils import static_property, lazy_import
 from . import __path__
-from .config import QUDA_MPI, GITVERSION, CUDA_INCLUDE
+from .config import QUDA_MPI, GITVERSION
 
 cupy = lazy_import("cupy")
+
 
 class QudaLib(Lib):
     "Adds additional enviromental control required by QUDA"
@@ -216,7 +217,7 @@ if QUDA_MPI:
 
     libs.append(libmpi)
 else:
-    MPI=None
+    MPI = None
 
 PATHS = list(__path__)
 
@@ -230,6 +231,8 @@ headers = [
     "dirac_quda.h",
     "invert_quda.h",
     "blas_quda.h",
+    "multigrid.h",
+    "evenodd.h",
 ]
 
 
@@ -237,9 +240,7 @@ lib = QudaLib(
     path=PATHS,
     header=headers,
     library=["libquda.so"] + libs,
-    check="initQuda",
-    include=CUDA_INCLUDE.split(";"),
-    namespace="quda",
+    namespace=["quda", "lyncs_quda"],
 )
 
 
@@ -254,7 +255,6 @@ try:
         yield lib
         if lib.initialized:
             lib.end_quda()
-
 
 except ImportError:
     pass

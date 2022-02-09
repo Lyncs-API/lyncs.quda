@@ -9,7 +9,8 @@ __all__ = [
 from functools import wraps
 from dataclasses import dataclass, field
 from numpy import sqrt
-from lyncs_cppyy import make_shared
+from dataclasses import dataclass
+from lyncs_cppyy import make_shared, nullptr
 from .gauge_field import gauge, GaugeField
 from .clover_field import CloverField
 from .spinor_field import spinor
@@ -19,12 +20,16 @@ from .enums import QudaPrecision
 
 @dataclass
 class Dirac:
+
     # For QUDA DiracParam class:
     gauge: GaugeField  # TODO: check acceptable geometry of gauge as an argument to QUDA Dirac class
     _gauge: GaugeField = field(init=False, repr=False) # Do not define __getattribute__ to make this work, unless designed wisely
+    coarse_clover: GaugeField = None
+    coarse_clover_inv: GaugeField = None
+    coarse_precond: GaugeField = None
     kappa: float = 1
     m5: float = 0
-    Ls: int = 0
+    Ls: int = 1
     mu: float = 0
     epsilon: float = 0
 
@@ -64,10 +69,12 @@ class Dirac:
             
     # TODO: Support more Dirac types
     #   Unsupported: PC for the below types, Hasenbusch for clover types
-    #                DomainWall(4D/PC), Mobius(PC/Eofa), (Improved)Staggered(KD/PC), Coarse(PC), GaugeLaplace(PC), GaugeCovDev
+    #                DomainWall(4D/PC), Mobius(PC/Eofa), (Improved)Staggered(KD/PC), CoarsePC, GaugeLaplace(PC), GaugeCovDev
     @property
     def type(self):
         "Type of the operator"
+        if self.gauge.is_coarse:
+            return "COARSE"
         if self.csw == 0:
             if self.mu == 0:
                 return "WILSON"
@@ -80,6 +87,11 @@ class Dirac:
     def quda_type(self):
         "Quda enum for quda dslash type"
         return getattr(lib, f"QUDA_{self.type}_DIRAC")
+
+    @property
+    def is_coarse(self):
+        "Whether is a coarse operator"
+        return self.type == "COARSE"
 
     @property
     def precision(self):
@@ -118,7 +130,23 @@ class Dirac:
 
     @property
     def quda_dirac(self):
-        return make_shared(lib.Dirac.create(self.quda_params))
+        if not self.is_coarse:
+            return make_shared(lib.Dirac.create(self.quda_params))
+        # Creating coarse operator
+        #  This constcutor seems to rely on initializeLazy when performing M, MdagM, etc.
+        #  initializeLazy seems to assume that if gauge is allocated on LOCATION,
+        #  then coarse_* is alredy allocated on LOCATION too if we use the follwing constructor
+        return lib.DiracCoarse(
+            self.quda_params,
+            self.gauge.cpu_field,
+            self.coarse_clover.cpu_field if self.coarse_clover else nullptr, #if we give nullptr, (ok if gauge's location=CUDA) then cpuClass is internally allocated if an operand is located on cpu, but this is not accessible from Python side.  no accessor in DiracCoarse
+            self.coarse_clover_inv.cpu_field if self.coarse_clover_inv else nullptr,
+            self.coarse_precond.cpu_field if self.coarse_precond else nullptr,
+            self.gauge.gpu_field,
+            self.coarse_clover.gpu_field if self.coarse_clover else nullptr,
+            self.coarse_clover_inv.gpu_field if self.coarse_clover_inv else nullptr,
+            self.coarse_precond.gpu_field if self.coarse_precond else nullptr,
+        )
 
     def get_matrix(self, key="M"):
         "Returns the respective quda matrix."
@@ -178,7 +206,7 @@ class DiracMatrix:
     
     @property
     def key(self):
-        "The name of the natrix"
+        "The name of the matrix"
         return self._key
 
     @property

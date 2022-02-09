@@ -9,6 +9,7 @@ __all__ = [
 from array import array
 from contextlib import contextmanager
 import numpy
+from lyncs_cppyy import nullptr
 from .enums import QudaPrecision
 from .lib import lib, cupy
 
@@ -45,7 +46,7 @@ def backend(device=True):
             yield cupy
 
 
-class LatticeField:
+class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     "Mimics the quda::LatticeField object"
 
     @classmethod
@@ -76,18 +77,43 @@ class LatticeField:
             empty=empty,
         )
 
-    def cast(self, other, **kwargs):
-        "Cast a field into its type and check for compatibility"
+    def copy(self, other=None, out=None, **kwargs):
+        "Returns a copy of the field"
+        # if out != None, the user is responsible for making sure our has a correct shape
+        # if out is None but other != None, other needs to be equivalent to self
+        out = self.prepare(out, check=False, **kwargs)
+        if other is None:
+            other = self
+        other = out.cast(other, check=False) # check=True leads to recursion if out not equivalent to other, but this line just wraps field by a Python class
+        out.quda_field.copy(other.quda_field) # Attention!: not present in lattice_field.h. So only some children support this
+        return out
+
+    def equivalent(self, other, **kwargs):
+        "Whether a field is equivalent to the current"
+        if not isinstance(other, type(self)):
+            return False
+        dtype = kwargs.get("dtype", self.dtype)
+        if other.dtype != dtype:
+            return False
+        device = kwargs.get("device", self.device)
+        if other.device != device:
+            return False
+        #? why do you take dofs from kwards instead of from self?
+        dofs = kwargs.get("dofs", None)
+        if dofs and other.dofs != dofs:
+            return False
+        return True
+
+    def cast(self, other, copy=True, check=True, **kwargs): #mostly for "prepare"
+        "Cast a field in other into an instance of type(self) and check for compatibility"
         cls = type(self)
         if not isinstance(other, cls):
             other = cls(other)
-        # TODO: check compatibility using also kwargs
-        dofs = (kwargs.get("dofs", self.dofs),)
-        assert other.dofs == dofs
-        dtype = (kwargs.get("dtype", self.dtype),)
-        assert other.dtype == dtype
-        device = (kwargs.get("device", self.device),)
-        assert other.device == device
+        if check and not self.equivalent(other, **kwargs):
+            if not copy:
+                raise ValueError("The given field is not appropriate")
+            # copy other onto a newly allocated memory in the new instance returned by copy
+            return self.copy(other, **kwargs) #? other is not equivalent to self -> is copying done properly?
         return other
 
     def prepare(self, *fields, **kwargs):
@@ -98,12 +124,13 @@ class LatticeField:
             field = fields[0]
             if field is None:
                 return self.new(**kwargs)
-            return self.cast(field, **kwargs)
+            return self.cast(field, copy=False, **kwargs)
         return tuple(self.prepare(field, **kwargs) for field in fields)
 
     def __init__(self, field, comm=None):
         self.field = field
         self.comm = comm
+        self._quda = None
         self.activate()
 
     def activate(self):
@@ -117,6 +144,8 @@ class LatticeField:
 
     @field.setter
     def field(self, field):
+        if isinstance(field, LatticeField):
+            field = field.field
         if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
             raise TypeError("Supporting only numpy or cupy for field")
         if isinstance(field, cupy.ndarray) and field.device.id != lib.device_id:
@@ -125,11 +154,29 @@ class LatticeField:
             raise ValueError("A lattice field should not have shape smaller than 4")
         self._field = field
 
+    def get(self):
+        "Returns the field as numpy array"
+        return self.__array__()
+
     def __array__(self, *args, **kwargs):
         out = self.field
         if self.device is not None:
             out = out.get()
         return out.__array__(*args, **kwargs)
+
+    def complex_view(self):
+        "Returns a complex view of the field"
+        if self.iscomplex:
+            return self.field
+        if self.dtype == "float64":
+            return self.field.view("complex128")
+        elif self.dtype == "float32":
+            return self.field.view("complex64")
+        raise TypeError(f"Cannot convert {self.dtype} to complex")
+
+    def default_view(self):
+        "Returns the default view of the field including reshaping"
+        return self.complex_view()
 
     @property
     def backend(self):
@@ -247,3 +294,35 @@ class LatticeField:
         if self.comm is None or local:
             return val
         return self.comm.allreduce(val, getattr(lib.MPI, opr))
+
+    @property
+    def quda_field(self):
+        "Returns an instance of a quda class"
+        raise NotImplementedError("Creating a LatticeField")
+
+    @property
+    def cpu_field(self):
+        "Returns a cpuField class if possible, otherwise nullptr"
+        if self.device is None:
+            return self.quda_field
+        return nullptr
+
+    @property
+    def gpu_field(self):
+        "Returns a gpuField class if possible, otherwise nullptr"
+        if self.device is not None:
+            return self.quda_field
+        return nullptr
+
+    def __array_ufunc__(self, ufunc, method, *args, **kwargs):
+        prepare = (
+            lambda arg: self.prepare(arg).field
+            if isinstance(arg, LatticeField)
+            else arg
+        )
+        args = tuple(map(prepare, args))
+        fnc = getattr(ufunc, method)
+        return type(self)(fnc(*args, **kwargs))
+
+    def __bool__(self):
+        return bool(self.field.all())

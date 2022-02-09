@@ -13,3 +13,4 @@ from .clover_field import *
 from .spinor_field import *
 from .dirac import *
 from .solver import *
+from .evenodd import *

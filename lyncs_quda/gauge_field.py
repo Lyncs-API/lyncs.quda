@@ -4,40 +4,60 @@ Interface to gauge_field.h
 
 __all__ = [
     "gauge",
+    "gauge_field",
+    "gauge_scalar",
+    "gauge_links",
+    "gauge_tensor",
+    "gauge_coarse",
+    "momentum",
     "GaugeField",
 ]
 
-from functools import reduce
 from time import time
 from math import sqrt
+from collections import defaultdict
 import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
-from lyncs_utils import prod
+from lyncs_utils import prod, isiterable
 from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .time_profile import default_profiler
 
 # TODO: Make array dims consistent with gauge order
 
-def gauge_field(lattice, dofs=(4,18), **kwargs):
+def gauge_field(lattice, dofs=(4, 18), **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
     # TODO reshape/shuffle to native order
     return GaugeField.create(lattice, dofs=dofs, **kwargs)
 
+
+def gauge_scalar(lattice, dofs=18, **kwargs):
+    "Constructs a new scalar gauge field"
+    return gauge_field(lattice, dofs=(1, dofs), **kwargs)
+
+
 def gauge_links(lattice, dofs=18, **kwargs):
     "Constructs a new gauge field of links"
-    return gauge_field(lattice, dofs=(4,dofs), **kwargs)
+    return gauge_field(lattice, dofs=(4, dofs), **kwargs)
+
 
 gauge = gauge_links
 
+
 def gauge_tensor(lattice, dofs=18, **kwargs):
     "Constructs a new gauge field with tensor structure"
-    return gauge_field(lattice, dofs=(6,dofs), **kwargs)
+    return gauge_field(lattice, dofs=(6, dofs), **kwargs)
 
-def gauge_coarse(lattice, dofs=18, **kwargs):
+
+def gauge_coarse(lattice, dofs=2 * 48**2, **kwargs):
     "Constructs a new coarse gauge field"
-    return gauge_field(lattice, dofs=(8,dofs), **kwargs)
+    return gauge_field(lattice, dofs=(8, dofs), **kwargs)
+
+
+def momentum(lattice, **kwargs):
+    return gauge_field(lattice, dofs=(4, 10), **kwargs)
+
 
 class GaugeField(LatticeField):
     "Mimics the quda::GaugeField object"
@@ -54,8 +74,9 @@ class GaugeField(LatticeField):
             pass
         elif reconstruct == self.reconstruct:
             pass
-        elif reconstruct == "NO":
-            kwargs["dofs"] = (self.geometry_size, 9 if self.iscomplex else 18)
+        elif reconstruct == "NO": #? what if geometry == COARSE?
+            size = self.ncol**2
+            kwargs["dofs"] = (self.geometry_size, size if self.iscomplex else size*2)
         else:
             try:
                 val = int(reconstruct)
@@ -95,7 +116,7 @@ class GaugeField(LatticeField):
         if self.iscomplex:
             return dofs * 2
         return dofs
-        
+
     @property
     def reconstruct(self):
         "Reconstruct type of the field"
@@ -106,10 +127,10 @@ class GaugeField(LatticeField):
             return "8"
         if dofs == 10:
             return "10"
-        if sqrt(dofs/2).is_integer():
+        if sqrt(dofs / 2).is_integer():
             return "NO"
         return "INVALID"
-    
+
     @property
     def quda_reconstruct(self):
         "Quda enum for reconstruct type of the field"
@@ -120,10 +141,10 @@ class GaugeField(LatticeField):
         "Number of colors"
         if self.reconstruct == "NO":
             dofs = self.dofs_per_link
-            ncol = sqrt(dofs/2)
+            ncol = sqrt(dofs / 2)
             assert ncol.is_integer()
             return int(ncol)
-        return 3    
+        return 3
 
     @property
     def order(self):
@@ -140,6 +161,13 @@ class GaugeField(LatticeField):
         return getattr(lib, f"QUDA_{self.order}_GAUGE_ORDER")
 
     @property
+    def _geometry_values(self):
+        return (
+            ("SCALAR", "VECTOR", "TENSOR", "COARSE"),
+            (1, self.ndims, self.ndims * (self.ndims - 1) / 2, self.ndims * 2),
+        )
+
+    @property
     def geometry(self):
         """
         Geometry of the field
@@ -148,18 +176,39 @@ class GaugeField(LatticeField):
             TENSOR = Fmunu antisymmetric (upper triangle)
             COARSE = all links, both directions
         """
-        if self.dofs[0] == self.ndims:
-            return "VECTOR"
-        if self.dofs[0] == self.ndims * (self.ndims - 1) / 2:
-            return "TENSOR"
-        if self.dofs[0] == self.ndims*2:
-            return "COARSE"
+        keys, vals = self._geometry_values
+        if self.dofs[0] in vals:
+            return keys[vals.index(self.dofs[0])]
         return "SCALAR"
+
+    @property
+    def geometry_size(self):
+        "Size of the geometry index"
+        keys, vals = self._geometry_values
+        if self.dofs[0] in vals:
+            return self.dofs[0]
+        return 1
 
     @property
     def quda_geometry(self):
         "Quda enum for geometry of the field"
         return getattr(lib, f"QUDA_{self.geometry}_GEOMETRY")
+
+    @property
+    def is_coarse(self):
+        "Whether is a coarse gauge field"
+        return self.geometry == "COARSE" or (
+            self.geometry == "SCALAR" and self.ncol != 3
+        )
+
+    @property
+    def is_momentum(self):
+        "Whether is a momentum field"
+        return self.reconstruct == "10" or getattr(self, "_is_momentum", False)
+
+    @is_momentum.setter
+    def is_momentum(self, value):
+        self._is_momentum = value
 
     @property
     def t_boundary(self):
@@ -174,8 +223,10 @@ class GaugeField(LatticeField):
     @property
     def link_type(self):
         "Type of the links"
-        if self.geometry == "COARSE":
+        if self.is_coarse:
             return "COARSE"
+        if self.is_momentum:
+            return "MOMENTUM"
         return "SU3"
 
     @property
@@ -203,7 +254,9 @@ class GaugeField(LatticeField):
     def quda_field(self):
         "Returns an instance of quda::(cpu/cuda)GaugeField for QUDA_(CPU/CUDA)_FIELD_LOCATION"
         self.activate()
-        return make_shared(lib.GaugeField.Create(self.quda_params))
+        if self._quda is None:
+            self._quda = make_shared(lib.GaugeField.Create(self.quda_params))
+        return self._quda
 
     def is_native(self):
         "Whether the field is native for Quda"
@@ -263,29 +316,81 @@ class GaugeField(LatticeField):
         "Sets all field elements to zero"
         self.quda_field.zero()
 
+    def full(self):
+        "Returns a full matrix version of the field (with reconstruct=NO)"
+        return self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
+
+    def default_view(self, split_col=True):
+        "Returns the default view of the field including reshaping"
+        #? order?
+        shape = (2,)  # even-odd
+        # geometry
+        if len(self.dofs) == 1:
+            shape += (1,)
+        else:
+            shape += (self.dofs[0],)
+        # matrix
+        if self.reconstruct == "NO" and split_col:
+            shape += (self.ncol, self.ncol)
+        else:
+            shape += (self.dofs_per_link // 2,)
+        # lattice
+        shape += (-1,)
+        return super().complex_view().reshape(shape)
+
     def unity(self):
         "Set all field elements to unity"
         if self.geometry != "VECTOR":
             raise NotImplementedError
         if self.reconstruct != "NO":
             raise NotImplementedError
-        tmp = self.field.reshape((2, 4, 9, -1, 2))
-        tmp[:] = 0
-        tmp[:, :, [0, 4, 8], :, 0] = 1
-        self.field = tmp.reshape(self.shape)
+        field = self.default_view(split_col=False)
+        field[:] = 0
+        diag = [i * self.ncol + i for i in range(self.ncol)]
+        field[:, :, diag, ...] = 1
 
-    def trace(self):
+    def trace(self, **kwargs):
         "Returns the trace in color of the field"
         if self.reconstruct != "NO":
             raise NotImplementedError
-        field = self.field
-        if self.dtype == "float64":
-            field = field.view("complex128")
-        elif self.dtype == "float32":
-            field = field.view("complex64")
+        return self.default_view().trace(axis1=2, axis2=3, **kwargs)
+
+    def dagger(self, out=None):
+        "Returns the complex conjugate transpose of the field"
+        out = self.prepare(out)
+        self.backend.conj(
+            self.default_view().transpose((0, 1, 3, 2, 4)), out=out.default_view()
+        )
+        return out
+
+    def reduce(self, local=False, only_real=True, mean=True):
+        "Reduction of a gauge field (real of mean of trace)"
+        out = self.trace(dtype="float64" if only_real else "complex128")
+        if mean:
+            out = out.mean() / self.ncol
         else:
-            assert self.iscomplex
-        return field.reshape((2, 4, 3, 3, -1)).trace(axis1=2, axis2=3)
+            out = out.sum()
+        if not local and self.comm is not None:
+            # TODO: global reduction
+            raise NotImplementedError
+        return out
+
+    def dot(self, other, out=None):
+        "Matrix product between two gauge fields"
+        if not isinstance(other, GaugeField):
+            raise ValueError
+        #if self.reconstruct != "NO" or other.reconstruct != "NO":
+        #    raise NotImplementedError
+        self = self.cast(self, reconstruct="NO")
+        other = self.cast(other, reconstruct="NO")
+        out = self.prepare(out)
+        self.backend.matmul(
+            self.default_view(),
+            other.default_view(),
+            out=out.default_view(),
+            axes=[(2, 3)] * 3,
+        )
+        return out
 
     def project(self, tol=None):
         """
@@ -337,12 +442,13 @@ class GaugeField(LatticeField):
         return plaq.x, plaq.y, plaq.z
 
     def compute_fmunu(self, out=None):
+
         if self.geometry == "TENSOR":
             return self
         if self.geometry != "VECTOR":
            raise TypeError("This gauge object needs to have VECTOR geometry")
-        if out is None:
-            out = self.new(dofs=(6,18))
+       
+        out = self.prepare(out, dofs=(6, 18))
         lib.computeFmunu(out.quda_field, self.extended_field(1))
         return out
 
@@ -411,7 +517,57 @@ class GaugeField(LatticeField):
             )
         return self.quda_field.abs_min(link_dir)
 
-    def compute_paths(self, paths, coeffs=None, out=None, add_coeff=1, force=False):
+    def _check_paths(self, paths):
+        "Check if all paths are valid"
+        if not isiterable(paths):
+            raise TypeError(f"Paths ({paths}) are not iterable")
+        for i, path in enumerate(paths):
+            if not isiterable(path):
+                raise TypeError(f"Path {i} = {path} is not iterable")
+            if path[0] < 0:
+                raise ValueError(f"Path {i} = {path} nevative first movement")
+            if min(path) < -self.ndims:
+                raise ValueError(
+                    f"Path {i} = {path} has direction smaller than {-self.ndims}"
+                )
+            if max(path) > self.ndims:
+                raise ValueError(
+                    f"Path {i} = {path} has direction larger than {self.ndims}"
+                )
+            if 0 in path:
+                raise ValueError(f"Path {i} = {path} has zeros")
+
+    def _paths_to_array(self, paths):
+        "Returns array of paths and their length"
+
+        lengths = numpy.array(list(map(len, paths)), dtype="int32")
+        max_length = lengths.max()
+        paths_array = numpy.empty((1, len(paths), max_length), dtype="int32")
+
+        convert = lambda step: (step - 1) if step > 0 else (8 + step)
+
+        for i, path in enumerate(paths):
+            for j, step in enumerate(path):
+                paths_array[0, i, j] = convert(step)
+
+        return paths_array, lengths
+
+    def _paths_for_force(self, paths, coeffs):
+        "Create all paths needed for force"
+        out = defaultdict(int)
+        shift = lambda path, i: path if i in (0, len(path)) else (path[i:] + path[:i])
+        for path, coeff in zip(paths, coeffs):
+            for i in range(len(path)):
+                if path[i] > 0:
+                    tmp = shift(path, i)
+                else:
+                    tmp = tuple(-_ for _ in reversed(shift(path, i + 1)))
+                out[tmp] -= coeff
+        return tuple(out.keys()), tuple(out.values())
+
+    def compute_paths(
+        self, paths, coeffs=None, out=None, add_coeff=1, force=False, grad=None
+    ):
         """
         Computes the gauge paths on the lattice.
 
@@ -426,94 +582,89 @@ class GaugeField(LatticeField):
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry") 
 
+        # Checking paths for error
+        self._check_paths(paths)
+        paths = tuple(tuple(path) for path in paths)
+
+        # Preparing coeffs
         if coeffs is None:
-            coeffs = [1] * len(paths)
-        elif isinstance(coeffs, (int, float)):
+            coeffs = self.ndims / len(paths)
+        if isinstance(coeffs, (int, float)):
             coeffs = [coeffs] * len(paths)
         if not len(paths) == len(coeffs):
             raise ValueError("Paths and coeffs must have the same length")
 
-        num_paths = len(paths)
-        coeffs = numpy.array(coeffs, dtype="float64")
-        lengths = (
-            numpy.array(list(map(len, paths)), dtype="int32") - 1
-        )  # -1 because the first step is always 1 (the direction itself)
-        max_length = int(lengths.max())
-        paths_array = numpy.zeros((self.ndims, num_paths, max_length), dtype="int32")
-
-        for i, path in enumerate(paths):
-            if min(path) < -self.ndims:
-                raise ValueError(
-                    f"Path {i} = {path} has direction smaller than {-self.ndims}"
-                )
-            if max(path) > self.ndims:
-                raise ValueError(
-                    f"Path {i} = {path} has direction larger than {self.ndims}"
-                )
-            if path[0] != 1:
-                raise ValueError(f"Path {i} = {path} does not start with 1")
-            if 0 in path:
-                raise ValueError(f"Path {i} = {path} has zeros")
-
-            for dim in range(self.ndims):
-                for j, step in enumerate(path[1:]):
-                    if step > 0:
-                        paths_array[dim, i, j] = (step - 1 + dim) % self.ndims
-                    else:
-                        paths_array[dim, i, j] = 7 - (-step - 1 + dim) % self.ndims
-
-        quda_paths_array = array_to_pointers(paths_array)
-
-        kwargs = dict(empty=False)
-        fnc = lib.gaugePath
-        if force:
+        # Preparing grad and fnc
+        if grad is not None:
+            force = True
+            grad = self.cast(grad, reconstruct=10)
+            fnc = lambda out, u, *args: lib.gaugeForceGradient(
+                out, u, grad.quda_field, *args
+            )
+        elif force:
             fnc = lib.gaugeForce
-            if self.iscomplex:
-                kwargs["dofs"] = (4, 5)
-            else:
-                kwargs["dofs"] = (4, 10)
+        else:
+            fnc = lib.gaugePath
 
-        out = self.prepare(out, **kwargs)
+        # Preparing paths
+        if force:
+            paths, coeffs = self._paths_for_force(paths, coeffs)
+            self._check_paths(paths)
+        paths, lengths = self._paths_to_array(paths)
+
+        # Calling Quda function
+        num_paths = paths.shape[1]
+        max_length = paths.shape[2]
+        quda_paths_array = array_to_pointers(paths)
+        coeffs = numpy.array(coeffs, dtype="float64")
+        out = self.prepare(out, empty=False, reconstruct=10 if force else None)
 
         fnc(
             out.quda_field,
-            self.extended_field(1),
+            self.extended_field(1),  # TODO: compute correct extension (max distance)
             add_coeff,
-            quda_paths_array,
+            quda_paths_array.get(),
             lengths,
             coeffs,
             num_paths,
             max_length,
+            False,
         )
         return out
 
-    def plaquette_field(self, force=False):
+    @property
+    def plaquette_paths(self):
+        "List of plaquette paths"
+        return tuple(
+            (mu, nu, -mu, -nu)
+            for mu in range(1, self.ndims + 1)
+            for nu in range(mu + 1, self.ndims + 1)
+        )
+
+    def plaquette_field(self, force=False, grad=None):
         "Computes the plaquette field"
-        return self.compute_paths(
-            [[1, 2, -1, -2], [1, 3, -1, -3], [1, 4, -1, -4]], coeffs=1 / 3, force=force
+        return self.compute_paths(self.plaquette_paths, force=force, grad=grad)
+
+    def plaquettes(self, **kwargs):
+        "Returns the average over plaquettes (Note: plaquette should performs better)"
+        return self.plaquette_field().reduce(**kwargs)
+
+    @property
+    def rectangle_paths(self):
+        "List of rectangle paths"
+        return tuple(
+            (mu, nu, nu, -mu, -nu, -nu)
+            for mu in range(1, self.ndims + 1)
+            for nu in range(mu + 1, self.ndims + 1)
         )
 
-    def rectangle_field(self, force=False):
+    def rectangle_field(self, force=False, grad=None):
         "Computes the rectangle field"
-        return self.compute_paths(
-            [
-                [1, 2, 2, -1, -2, -2],
-                [1, 3, 3, -1, -3, -3],
-                [1, 4, 4, -1, -4, -4],
-                [1, 1, 2, -1, -1, -2],
-                [1, 1, 3, -1, -1, -3],
-                [1, 1, 4, -1, -1, -4],
-            ],
-            coeffs=1 / 6,
-            force=force,
-        )
+        return self.compute_paths(self.rectangle_paths, force=force, grad=grad)
 
-    def rectangles(self):
+    def rectangles(self, **kwargs):
         "Returns the average over rectangles"
-        # Suboptimal implementation based on rectangle_field
-        local = self.rectangle_field().trace().mean().real / 3
-        # TODO: global reduction
-        return float(local)
+        return self.rectangle_field().reduce(**kwargs)
 
     def exponentiate(self, coeff=1, mul_to=None, out=None, conj=False, exact=False):
         """
@@ -521,15 +672,23 @@ class GaugeField(LatticeField):
         """
         #TODO: Check the acceptable geometries of the gauge field  
         if out is None:
-            out = self.new()
+            out = mul_to.new() if mul_to is not None else self.new(reconstruct="NO")
         if mul_to is None:
-            mul_to = self.new()
+            mul_to = out.new()
             mul_to.unity()
 
         lib.updateGaugeField(
             out.quda_field, coeff, mul_to.quda_field, self.quda_field, conj, exact
         )
         return out
+
+    def update_gauge(self, mom, coeff=1, out=None, conj=False, exact=False):
+        """
+        Updates a gauge field with momentum field
+        """
+        return mom.exponentiate(
+            coeff=coeff, mul_to=self, out=out, conj=conj, exact=exact
+        )
 
     def gauge_action(self, plaq_coeff=0, rect_coeff=0):
         """
