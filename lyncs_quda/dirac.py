@@ -23,7 +23,9 @@ class Dirac:
 
     # For QUDA DiracParam class:
     gauge: GaugeField  # TODO: check acceptable geometry of gauge as an argument to QUDA Dirac class
-    _gauge: GaugeField = field(init=False, repr=False) # Do not define __getattribute__ to make this work, unless designed wisely
+    _gauge: GaugeField = field(
+        init=False, repr=False
+    )  # Do not define __getattribute__ to make this work, unless designed wisely
     coarse_clover: GaugeField = None
     coarse_clover_inv: GaugeField = None
     coarse_precond: GaugeField = None
@@ -38,7 +40,9 @@ class Dirac:
     rho: float = 0
     computeTrLog: bool = False
     clover: CloverField = None
-    _clover: CloverField = field(init=False, repr=False) # Do not define __getattribute__ to make this work, unless designed wisely
+    _clover: CloverField = field(
+        init=False, repr=False
+    )  # Do not define __getattribute__ to make this work, unless designed wisely
 
     @property
     def gauge(self):
@@ -56,7 +60,9 @@ class Dirac:
     @clover.setter
     def clover(self, clover: CloverField):
         if clover is not None and not isinstance(clover, CloverField):
-            raise TypeError("This class expects its clover argument to be an instance of CloverField")
+            raise TypeError(
+                "This class expects its clover argument to be an instance of CloverField"
+            )
 
         self._clover = clover
         if clover is not None:
@@ -64,9 +70,9 @@ class Dirac:
             self.mu = sqrt(clover.mu2)
             self.rho = clover.rho
             self.computeTrLog = clover.computeTrLog
-        
-    #? do we want to support more methods for Dirac?
-            
+
+    # ? do we want to support more methods for Dirac?
+
     # TODO: Support more Dirac types
     #   Unsupported: PC for the below types, Hasenbusch for clover types
     #                DomainWall(4D/PC), Mobius(PC/Eofa), (Improved)Staggered(KD/PC), CoarsePC, GaugeLaplace(PC), GaugeCovDev
@@ -121,9 +127,16 @@ class Dirac:
         # Needs to prevent the gauge field to get destroyed
         self.quda_gauge = self.gauge.quda_field
         params.gauge = self.quda_gauge
-        if self.csw != 0.:
+        if self.csw != 0.0:
             if self.clover is None:
-                self.clover = CloverField(self.gauge, csw = self.csw, twisted = (self.mu!=0), mu2 = self.mu**2, rho = self.rho, computeTrLog = self.computeTrLog)
+                self.clover = CloverField(
+                    self.gauge,
+                    csw=self.csw,
+                    twisted=(self.mu != 0),
+                    mu2=self.mu**2,
+                    rho=self.rho,
+                    computeTrLog=self.computeTrLog,
+                )
             params.clover = self.clover.quda_field
 
         return params
@@ -139,7 +152,9 @@ class Dirac:
         return lib.DiracCoarse(
             self.quda_params,
             self.gauge.cpu_field,
-            self.coarse_clover.cpu_field if self.coarse_clover else nullptr, #if we give nullptr, (ok if gauge's location=CUDA) then cpuClass is internally allocated if an operand is located on cpu, but this is not accessible from Python side.  no accessor in DiracCoarse
+            self.coarse_clover.cpu_field
+            if self.coarse_clover
+            else nullptr,  # if we give nullptr, (ok if gauge's location=CUDA) then cpuClass is internally allocated if an operand is located on cpu, but this is not accessible from Python side.  no accessor in DiracCoarse
             self.coarse_clover_inv.cpu_field if self.coarse_clover_inv else nullptr,
             self.coarse_precond.cpu_field if self.coarse_precond else nullptr,
             self.gauge.gpu_field,
@@ -156,7 +171,7 @@ class Dirac:
         return self.get_matrix(key)(spinor_in, spinor_out)
 
     # TODO: Support more functors: Dagger, G5M
-    
+
     @property
     def M(self):
         "Returns the matrix M"
@@ -190,11 +205,13 @@ class DiracMatrix:
     __slots__ = ["_dirac", "_gauge", "_matrix", "_key"]
 
     def __init__(self, dirac, key="M"):
-        self._dirac = dirac.quda_dirac #necessary?
+        self._dirac = dirac.quda_dirac  # necessary?
         self._matrix = getattr(lib, "Dirac" + key)(self._dirac)
-        self._gauge = dirac.quda_gauge #necessary?
+        self._gauge = dirac.quda_gauge  # necessary?
         self._key = key
-        del dirac.quda_gauge #? why?  if an instance of Dirac tries to construct DiracMatrix next time, it will fail
+        del (
+            dirac.quda_gauge
+        )  # ? why?  if an instance of Dirac tries to construct DiracMatrix next time, it will fail
 
     def __call__(self, rhs, out=None):
         rhs = spinor(rhs)
@@ -203,7 +220,7 @@ class DiracMatrix:
         return out
 
     # TODO: Support int getStencilSteps(); QudaMatPCType getMatPCType();
-    
+
     @property
     def key(self):
         "The name of the matrix"
@@ -262,5 +279,3 @@ class DiracMatrix:
     @property
     def quda(self):
         return self._matrix
-    
-

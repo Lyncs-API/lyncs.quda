@@ -23,11 +23,13 @@ def get_precision(dtype):
         return "half"
     raise ValueError
 
+
 def get_ptr(array):
     "Memory pointer"
     if isinstance(array, numpy.ndarray):
         return array.__array_interface__["data"][0]
     return array.data.ptr
+
 
 @contextmanager
 def backend(device=True):
@@ -40,7 +42,7 @@ def backend(device=True):
         if not isinstance(device, int):
             raise TypeError("Expected device to be an integer or None/True/False")
 
-        #? is this safe?  
+        # ? is this safe?
         lib.device_id = device
         with cupy.cuda.Device(device):
             yield cupy
@@ -84,8 +86,12 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         out = self.prepare(out, check=False, **kwargs)
         if other is None:
             other = self
-        other = out.cast(other, check=False) # check=True leads to recursion if out not equivalent to other, but this line just wraps field by a Python class
-        out.quda_field.copy(other.quda_field) # Attention!: not present in lattice_field.h. So only some children support this
+        other = out.cast(
+            other, check=False
+        )  # check=True leads to recursion if out not equivalent to other, but this line just wraps field by a Python class
+        out.quda_field.copy(
+            other.quda_field
+        )  # Attention!: not present in lattice_field.h. So only some children support this
         return out
 
     def equivalent(self, other, **kwargs):
@@ -98,13 +104,13 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         device = kwargs.get("device", self.device)
         if other.device != device:
             return False
-        #? why do you take dofs from kwards instead of from self?
+        # ? why do you take dofs from kwards instead of from self?
         dofs = kwargs.get("dofs", None)
         if dofs and other.dofs != dofs:
             return False
         return True
 
-    def cast(self, other, copy=True, check=True, **kwargs): #mostly for "prepare"
+    def cast(self, other, copy=True, check=True, **kwargs):  # mostly for "prepare"
         "Cast a field in other into an instance of type(self) and check for compatibility"
         cls = type(self)
         if not isinstance(other, cls):
@@ -113,7 +119,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             if not copy:
                 raise ValueError("The given field is not appropriate")
             # copy other onto a newly allocated memory in the new instance returned by copy
-            return self.copy(other, **kwargs) #? other is not equivalent to self -> is copying done properly?
+            return self.copy(
+                other, **kwargs
+            )  # ? other is not equivalent to self -> is copying done properly?
         return other
 
     def prepare(self, *fields, **kwargs):
@@ -286,10 +294,11 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             self.quda_precision,
             self.quda_ghost_exchange,
         )
-    #? this assumes: mem_type(QUDA_MEMORY_DEVICE),
+
+    # ? this assumes: mem_type(QUDA_MEMORY_DEVICE),
     # siteSubset(QUDA_FULL_SITE_SUBSET) => volumeCB =  volume / 2 = stride (as pad==0)
     # Here, local volume (with no halo) = volume (with halo) as ghost_exchange == NO
-    
+
     def reduce(self, val, local=False, opr="SUM"):
         if self.comm is None or local:
             return val

@@ -25,6 +25,7 @@ from .time_profile import default_profiler
 
 # TODO: Make array dims consistent with gauge order
 
+
 def gauge_field(lattice, dofs=(4, 18), **kwargs):
     "Constructs a new gauge field"
     # TODO add option to select field type -> dofs
@@ -74,9 +75,9 @@ class GaugeField(LatticeField):
             pass
         elif reconstruct == self.reconstruct:
             pass
-        elif reconstruct == "NO": #? what if geometry == COARSE?
+        elif reconstruct == "NO":  # ? what if geometry == COARSE?
             size = self.ncol**2
-            kwargs["dofs"] = (self.geometry_size, size if self.iscomplex else size*2)
+            kwargs["dofs"] = (self.geometry_size, size if self.iscomplex else size * 2)
         else:
             try:
                 val = int(reconstruct)
@@ -106,7 +107,7 @@ class GaugeField(LatticeField):
         is_momentum = kwargs.get("is_momentum", self.is_momentum)
         other.is_momentum = is_momentum
         return other
-    
+
     @property
     def dofs_per_link(self):
         if self.geometry == "SCALAR":
@@ -266,7 +267,7 @@ class GaugeField(LatticeField):
 
     def extended_field(self, sites=1):
         "Extends the gauge field in each direction by sites (i.e., width of the halo shell) on each MPI rank"
-        #TODO: Check the acceptable geometries of the gauge field
+        # TODO: Check the acceptable geometries of the gauge field
         if sites in (None, 0) or self.comm is None:
             return self.quda_field
 
@@ -294,23 +295,20 @@ class GaugeField(LatticeField):
             """
             return make_shared(
                 lib.createExtendedGauge(
-                    self.ptr, 
-                    self.quda_params,
-                    numpy.array(sites, dtype="int32")
+                    self.ptr, self.quda_params, numpy.array(sites, dtype="int32")
                 )
             )
         elif self.location is "CUDA":
             "Returns cudaGaugeField"
             return make_shared(
                 lib.createExtendedGauge(
-                    self.quda_field, #quda_field returns an instance of cudaGaugeField in this case
+                    self.quda_field,  # quda_field returns an instance of cudaGaugeField in this case
                     numpy.array(sites, dtype="int32"),
                     default_profiler().quda,
                 )
             )
         else:
-            raise ValueError("Something is wrong!") # just for debugging
-                
+            raise ValueError("Something is wrong!")  # just for debugging
 
     def zero(self):
         "Sets all field elements to zero"
@@ -322,7 +320,7 @@ class GaugeField(LatticeField):
 
     def default_view(self, split_col=True):
         "Returns the default view of the field including reshaping"
-        #? order?
+        # ? order?
         shape = (2,)  # even-odd
         # geometry
         if len(self.dofs) == 1:
@@ -379,7 +377,7 @@ class GaugeField(LatticeField):
         "Matrix product between two gauge fields"
         if not isinstance(other, GaugeField):
             raise ValueError
-        #if self.reconstruct != "NO" or other.reconstruct != "NO":
+        # if self.reconstruct != "NO" or other.reconstruct != "NO":
         #    raise NotImplementedError
         self = self.cast(self, reconstruct="NO")
         other = self.cast(other, reconstruct="NO")
@@ -399,8 +397,10 @@ class GaugeField(LatticeField):
         reported so appropriate action can be taken.
         """
         if self.location is "CPU":
-            raise NotImplementedError("This method currently works only when running on GPUs")
-        
+            raise NotImplementedError(
+                "This method currently works only when running on GPUs"
+            )
+
         if tol is None:
             tol = numpy.finfo(self.dtype).eps
 
@@ -420,7 +420,7 @@ class GaugeField(LatticeField):
         distribution (sigma = 0 results in a free field, and sigma = 1 has
         maximum disorder).
         """
-        #TODO: Check the acceptable geometries of the gauge field
+        # TODO: Check the acceptable geometries of the gauge field
         seed = seed or int(time() * 1e9)
         lib.gaugeGauss(self.quda_field, seed, epsilon)
 
@@ -433,9 +433,11 @@ class GaugeField(LatticeField):
         tuple(total, spatial, temporal) plaquette site averaged and
             normalized such that each plaquette is in the range [0,1]
         """
-        if self.location is "CPU": # I don't think double3 is defined without CUDA
-            raise NotImplementedError("The underlying QUDA function will not work without GPU") 
-        
+        if self.location is "CPU":  # I don't think double3 is defined without CUDA
+            raise NotImplementedError(
+                "The underlying QUDA function will not work without GPU"
+            )
+
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
         plaq = lib.plaquette(self.extended_field(1))
@@ -446,8 +448,8 @@ class GaugeField(LatticeField):
         if self.geometry == "TENSOR":
             return self
         if self.geometry != "VECTOR":
-           raise TypeError("This gauge object needs to have VECTOR geometry")
-       
+            raise TypeError("This gauge object needs to have VECTOR geometry")
+
         out = self.prepare(out, dofs=(6, 18))
         lib.computeFmunu(out.quda_field, self.extended_field(1))
         return out
@@ -470,18 +472,18 @@ class GaugeField(LatticeField):
     def topological_charge_density(self, density=None):
         """
         Computes the topological charge and density
-        
+
         Returns
         -------
         charge, (total, spatial, temporal), density:
           The total topological charge, (total, spatial, temporal) field energy, and
-          topological charge density 
+          topological charge density
         """
         if self.geometry != "TENSOR":
             self = self.compute_fmunu()
-        charge  = numpy.zeros(4, dtype="double")
+        charge = numpy.zeros(4, dtype="double")
         if density is None:
-            density = self.new(dofs=(1,),dtype=self.precision)
+            density = self.new(dofs=(1,), dtype=self.precision)
         lib.computeQChargeDensity(charge[:3], charge[3:], density.ptr, self.quda_field)
         return charge[3], tuple(charge[:3]), density
 
@@ -580,7 +582,7 @@ class GaugeField(LatticeField):
         - Paths are then rotated for every direction.
         """
         if self.geometry != "VECTOR":
-            raise TypeError("This gauge object needs to have VECTOR geometry") 
+            raise TypeError("This gauge object needs to have VECTOR geometry")
 
         # Checking paths for error
         self._check_paths(paths)
@@ -670,7 +672,7 @@ class GaugeField(LatticeField):
         """
         Exponentiates a momentum field
         """
-        #TODO: Check the acceptable geometries of the gauge field  
+        # TODO: Check the acceptable geometries of the gauge field
         if out is None:
             out = mul_to.new() if mul_to is not None else self.new(reconstruct="NO")
         if mul_to is None:
