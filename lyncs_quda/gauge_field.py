@@ -51,7 +51,7 @@ def gauge_tensor(lattice, dofs=18, **kwargs):
     return gauge_field(lattice, dofs=(6, dofs), **kwargs)
 
 
-def gauge_coarse(lattice, dofs=2 * 48**2, **kwargs):
+def gauge_coarse(lattice, dofs=2 * 48 ** 2, **kwargs):
     "Constructs a new coarse gauge field"
     return gauge_field(lattice, dofs=(8, dofs), **kwargs)
 
@@ -76,7 +76,7 @@ class GaugeField(LatticeField):
         elif reconstruct == self.reconstruct:
             pass
         elif reconstruct == "NO":  # ? what if geometry == COARSE?
-            size = self.ncol**2
+            size = self.ncol ** 2
             kwargs["dofs"] = (self.geometry_size, size if self.iscomplex else size * 2)
         else:
             try:
@@ -278,7 +278,7 @@ class GaugeField(LatticeField):
         if sites == [0, 0, 0, 0]:
             return self.quda_field
 
-        if self.location is "CPU":
+        if self.location == "CPU":
             "Returns cpuGaugeField"
             """
               Remark:
@@ -298,7 +298,7 @@ class GaugeField(LatticeField):
                     self.ptr, self.quda_params, numpy.array(sites, dtype="int32")
                 )
             )
-        elif self.location is "CUDA":
+        elif self.location == "CUDA":
             "Returns cudaGaugeField"
             return make_shared(
                 lib.createExtendedGauge(
@@ -396,7 +396,7 @@ class GaugeField(LatticeField):
         is a destructive operation.  The number of link failures is
         reported so appropriate action can be taken.
         """
-        if self.location is "CPU":
+        if self.location == "CPU":
             raise NotImplementedError(
                 "This method currently works only when running on GPUs"
             )
@@ -433,7 +433,7 @@ class GaugeField(LatticeField):
         tuple(total, spatial, temporal) plaquette site averaged and
             normalized such that each plaquette is in the range [0,1]
         """
-        if self.location is "CPU":  # I don't think double3 is defined without CUDA
+        if self.location == "CPU":  # I don't think double3 is defined without CUDA
             raise NotImplementedError(
                 "The underlying QUDA function will not work without GPU"
             )

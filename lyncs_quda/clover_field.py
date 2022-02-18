@@ -51,9 +51,9 @@ class CloverField(LatticeField):
     ):
         if not isinstance(field, GaugeField):
             field = GaugeField(field)
-        if field.geometry is "VECTOR":
+        if field.geometry == "VECTOR":
             self._fmunu = field.compute_fmunu()
-        elif field.geometry is "TENSOR":
+        elif field.geometry == "TENSOR":
             self._fmunu = field
         else:
             raise TypeError(
@@ -146,7 +146,7 @@ class CloverField(LatticeField):
     @property
     def order(self):
         "Data order of the field"
-        if self.precision is "double":
+        if self.precision == "double":
             return "FLOAT2"
         else:
             return "FLOAT4"
