@@ -23,11 +23,13 @@ def test_default(lattice):
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 def test_params(lib, lattice, device, dtype):
-    gf = gauge(lattice, dtype=dtype, device=device) 
+    gf = gauge(lattice, dtype=dtype, device=device)
     clv = CloverField(gf)
     params = clv.quda_params
 
-    print(cp.cuda.runtime.getDeviceCount(),clv.quda_precision, clv.Bytes, clv.Norm_bytes) #norm_bytes=0
+    print(
+        cp.cuda.runtime.getDeviceCount(), clv.quda_precision, clv.Bytes, clv.Norm_bytes
+    )  # norm_bytes=0
 
     assert clv.is_native()
     assert params.direct == True
@@ -91,9 +93,10 @@ def test_zero(lib, lattice, device, dtype):
     assert np.isclose(clv.abs_max(True), 2 * np.sqrt(2 * d**2))
     assert np.isclose(clv.abs_min(True), 0.0)
     if clv.computeTrLog:
-        assert (clv.trLog == 0).all() 
+        assert (clv.trLog == 0).all()
     else:
         assert clv.trLog == None
+
 
 @dtype_loop  # enables dtype
 @device_loop  # enables device
@@ -132,6 +135,6 @@ def test_unit(lib, lattice, device, dtype):
     assert np.isclose(clv.abs_max(True), np.sqrt(1 / 2))
     assert np.isclose(clv.abs_min(True), 0.0)
     if clv.computeTrLog:
-        assert (clv.trLog == 0).all() 
+        assert (clv.trLog == 0).all()
     else:
         assert clv.trLog == None

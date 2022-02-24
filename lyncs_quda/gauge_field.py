@@ -55,6 +55,7 @@ def gauge_coarse(lattice, dofs=2 * 48**2, **kwargs):
     "Constructs a new coarse gauge field"
     return gauge_field(lattice, dofs=(8, dofs), **kwargs)
 
+
 def momentum(lattice, **kwargs):
     return gauge_field(lattice, dofs=(4, 10), **kwargs)
 
@@ -319,7 +320,7 @@ class GaugeField(LatticeField):
 
     def default_view(self, split_col=True):
         "Returns the default view of the field including reshaping"
-        #? if we take into account FLAOT4 order, unity, etc shoud not depend on this; tr,dag might need reshuffle
+        # ? if we take into account FLAOT4 order, unity, etc shoud not depend on this; tr,dag might need reshuffle
         shape = (2,)  # even-odd
         # geometry
         if len(self.dofs) == 1:

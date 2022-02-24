@@ -1,6 +1,13 @@
 from random import random
 import numpy as np
-from lyncs_quda import gauge, spinor, gauge_coarse, gauge_scalar, spinor_coarse, clover_coarse
+from lyncs_quda import (
+    gauge,
+    spinor,
+    gauge_coarse,
+    gauge_scalar,
+    spinor_coarse,
+    clover_coarse,
+)
 from lyncs_quda.lattice_field import get_precision
 from lyncs_quda.testing import (
     fixlib as lib,
@@ -97,7 +104,7 @@ def test_coarse_zero(lib, lattice, device, dtype=None):
     gf4.unity()
     sf = spinor_coarse(lattice, dtype=dtype, device=device)
     sf.uniform()
-    dirac = gf.Dirac(coarse_clover=gf2)#,coarse_clover_inv=gf3,coarse_precond=gf4)
+    dirac = gf.Dirac(coarse_clover=gf2)  # ,coarse_clover_inv=gf3,coarse_precond=gf4)
 
     assert (dirac.M(sf).field == sf.field).all()
     assert (dirac.Mdag(sf).field == sf.field).all()

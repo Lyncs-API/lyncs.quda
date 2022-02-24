@@ -37,21 +37,29 @@ def reshuffle(field, N0, N1):
     # TODO: write safegurds
     # ASSUME: array in field has shape= dofs+lattice so that self.dofs, etc works; add dofs attribute if not
     # ASSUME: Given array is actually ordered so that parity is slowest running index; currently is default; see below
-    
+
     xp = field.backend
 
     sub = []
-    sub.append(field.field.reshape((2,-1))[0,:])
-    sub.append(field.field.reshape((2,-1))[1,:])
+    sub.append(field.field.reshape((2, -1))[0, :])
+    sub.append(field.field.reshape((2, -1))[1, :])
 
-    dof = (1,) + field.dofs if len(field.dofs)==1 else field.dofs
+    dof = (1,) + field.dofs if len(field.dofs) == 1 else field.dofs
     idof = prod(field.dofs[1:])
-    dof0 = (dof[0],) + (idof//N0,)
-    dof1 = (dof[0],) + (idof//N1,)
+    dof0 = (dof[0],) + (idof // N0,)
+    dof1 = (dof[0],) + (idof // N1,)
     for i in range(2):
-        sub[i] = xp.transpose(xp.transpose(sub[i].reshape(dof0+(-1,N0)),axes=(0,2,1,3)).reshape((dof[0],)+(-1,dof1[1],N1)),axes=(0,2,1,3))
-        
-    field.field = xp.concatenate(sub[0]+sub[1]) #ATTENTION: this will affects self.dofs, etc
+        sub[i] = xp.transpose(
+            xp.transpose(sub[i].reshape(dof0 + (-1, N0)), axes=(0, 2, 1, 3)).reshape(
+                (dof[0],) + (-1, dof1[1], N1)
+            ),
+            axes=(0, 2, 1, 3),
+        )
+
+    field.field = xp.concatenate(
+        sub[0] + sub[1]
+    )  # ATTENTION: this will affects self.dofs, etc
+
 
 @contextmanager
 def backend(device=True):
@@ -106,11 +114,17 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         # copies from other(->self if other=None), stores it in out, which is returned (kwargs for out)
         # if other and out are both given, this behaves like a classmethod except out is casted into type(self)
 
-        out = self.prepare(out, copy=False, check=False, **kwargs) #check=False => if out!=None, this simply converts from type(out) to type(self); 
+        out = self.prepare(
+            out, copy=False, check=False, **kwargs
+        )  # check=False => if out!=None, this simply converts from type(out) to type(self);
         if other is None:
             other = self
-        other = out.cast(other, copy=False, check=True, switch=True, dofs=out.dofs) # hack to ignore dof cmp
-        out.quda_field.copy(other.quda_field) # Attention!: not present in lattice_field.h. So only some children support this
+        other = out.cast(
+            other, copy=False, check=True, switch=True, dofs=out.dofs
+        )  # hack to ignore dof cmp
+        out.quda_field.copy(
+            other.quda_field
+        )  # Attention!: not present in lattice_field.h. So only some children support this
         return out
 
     def equivalent(self, other, switch=False, **kwargs):
@@ -119,7 +133,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
         if switch:
             self, other = other, self
-            
+
         if not isinstance(other, type(self)):
             return False
         dtype = kwargs.get("dtype", self.dtype)
@@ -129,11 +143,12 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         if other.device != device:
             return False
 
-        dofs = kwargs.get("dofs", self.dofs) #None) #so force to specify dof in kwargs?
+        dofs = kwargs.get(
+            "dofs", self.dofs
+        )  # None) #so force to specify dof in kwargs?
         if dofs and other.dofs != dofs:
             return False
         return True
-
 
     def cast(self, other, copy=True, check=True, **kwargs):
         "Cast a field in other into an instance of type(self) and check for compatibility"
@@ -144,7 +159,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
             raise ValueError("The given field is not appropriate")
         if copy:
-            return self.copy(other, **kwargs) 
+            return self.copy(other, **kwargs)
         return other
 
     def prepare(self, *fields, **kwargs):

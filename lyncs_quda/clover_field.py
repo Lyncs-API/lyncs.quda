@@ -57,8 +57,8 @@ class CloverField(LatticeField):
 
         # QUDA clover field inherently works with real's not with complex's (c.f., include/clover_field_order.h)
 
-        idof  = int((self._fmunu.ncol * self._fmunu.ndims)**2 / 2)
-        prec  = self._fmunu.precision 
+        idof = int((self._fmunu.ncol * self._fmunu.ndims) ** 2 / 2)
+        prec = self._fmunu.precision
         self._direct = (
             False  # Here, it is a flag to indicate whether the field has been computed
         )
@@ -72,8 +72,10 @@ class CloverField(LatticeField):
         # norm used only when self.quda_precision = HALF or QUARTER?
         # Apparently, stride for clover field needs to be QUDA_FULL_SITE_SUBSET for clover fields,
         #  suggested by CloverFieldParam::CloverFieldParam(const CloverField &a) in clover_field.cpp
-        self._norm = new(dofs=(2,),empty=False,dtype=numpy.float32)     # 2 for chirality
-        self._normInv = new(dofs=(2,),empty=False,dtype=numpy.float32)  # 2 for chirality #empty=False for testing
+        self._norm = new(dofs=(2,), empty=False, dtype=numpy.float32)  # 2 for chirality
+        self._normInv = new(
+            dofs=(2,), empty=False, dtype=numpy.float32
+        )  # 2 for chirality #empty=False for testing
         self._csw = csw
         self._twisted = twisted
         self._mu2 = mu2
@@ -110,11 +112,11 @@ class CloverField(LatticeField):
     # native_view? default_* saved for dofs+lattice?
     def default_view(self):
         N = 1 if self.order is "FLOAT2" else 4
-        shape = (2,) # even-odd
-        shape += (self.dofs[0]//N,-1,N)
+        shape = (2,)  # even-odd
+        shape += (self.dofs[0] // N, -1, N)
 
         return self.field.view().reshape(shape)
-    
+
     @property
     def csw(self):
         return self._csw
@@ -148,7 +150,7 @@ class CloverField(LatticeField):
         if self.precision is "double":
             return "FLOAT2"
         return "FLOAT4"
-        
+
     @property
     def quda_order(self):
         "Quda enum for data order of the field"
