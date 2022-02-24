@@ -24,11 +24,13 @@ def get_precision(dtype):
         return "half"
     raise ValueError
 
+
 def get_ptr(array):
     "Memory pointer"
     if isinstance(array, numpy.ndarray):
         return array.__array_interface__["data"][0]
     return array.data.ptr
+
 
 def reshuffle(field, N0, N1):
     #### PROPOSAL - template #### not sure if this is better than manual for-loop in Python
@@ -50,7 +52,6 @@ def reshuffle(field, N0, N1):
         sub[i] = xp.transpose(xp.transpose(sub[i].reshape(dof0+(-1,N0)),axes=(0,2,1,3)).reshape((dof[0],)+(-1,dof1[1],N1)),axes=(0,2,1,3))
         
     field.field = xp.concatenate(sub[0]+sub[1]) #ATTENTION: this will affects self.dofs, etc
-        
 
 @contextmanager
 def backend(device=True):
@@ -63,7 +64,7 @@ def backend(device=True):
         if not isinstance(device, int):
             raise TypeError("Expected device to be an integer or None/True/False")
 
-        #? is this safe?  
+        # ? is this safe?
         lib.device_id = device
         with cupy.cuda.Device(device):
             yield cupy
@@ -127,10 +128,12 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         device = kwargs.get("device", self.device)
         if other.device != device:
             return False
+
         dofs = kwargs.get("dofs", self.dofs) #None) #so force to specify dof in kwargs?
         if dofs and other.dofs != dofs:
             return False
         return True
+
 
     def cast(self, other, copy=True, check=True, **kwargs):
         "Cast a field in other into an instance of type(self) and check for compatibility"
@@ -138,6 +141,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         if not isinstance(other, cls):
             other = cls(other)
         if check and not self.equivalent(other, **kwargs):
+
             raise ValueError("The given field is not appropriate")
         if copy:
             return self.copy(other, **kwargs) 
@@ -313,10 +317,11 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             self.quda_precision,
             self.quda_ghost_exchange,
         )
-    #? this assumes: mem_type(QUDA_MEMORY_DEVICE),
+
+    # ? this assumes: mem_type(QUDA_MEMORY_DEVICE),
     # siteSubset(QUDA_FULL_SITE_SUBSET) => volumeCB =  volume / 2 = stride (as pad==0)
     # Here, local volume (with no halo) = volume (with halo) as ghost_exchange == NO
-    
+
     def reduce(self, val, local=False, opr="SUM"):
         if self.comm is None or local:
             return val

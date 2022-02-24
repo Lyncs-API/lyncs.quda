@@ -47,7 +47,7 @@ def test_matrix(lib, lattice, device, dtype):
     assert matrix.is_coarse == False
 
 
-@mtype_loop # enables matrix type
+@mtype_loop  # enables matrix type
 # @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
@@ -73,7 +73,7 @@ def test_zero(lib, lattice, device, gamma, mtype, dtype=None):
     assert np.allclose(dirac.MMdag(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
 
     csw = random()
-    mu = mtype*mu
+    mu = mtype * mu
     dirac = gf.Dirac(kappa=kappa, mu=mu, csw=csw)
     sfmu = (2 * kappa * mu) * 1j * sf.gamma5().field
     assert np.allclose(dirac.M(sf).field, sf.field + sfmu)
@@ -103,4 +103,3 @@ def test_coarse_zero(lib, lattice, device, dtype=None):
     assert (dirac.Mdag(sf).field == sf.field).all()
     assert (dirac.MdagM(sf).field == sf.field).all()
     assert (dirac.MMdag(sf).field == sf.field).all()
-
