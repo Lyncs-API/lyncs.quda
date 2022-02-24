@@ -23,10 +23,11 @@ def test_default(lattice):
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 def test_params(lib, lattice, device, dtype):
-    gf = gauge(lattice, dtype=dtype, device=device)
+    gf = gauge(lattice, dtype=dtype, device=device) 
     clv = CloverField(gf)
     params = clv.quda_params
-    print(cp.cuda.runtime.getDeviceCount(),clv.quda_precision, clv.Bytes, clv.Norm_bytes)
+    print(cp.cuda.runtime.getDeviceCount(),clv.quda_precision, clv.Bytes, clv.Norm_bytes) #norm_bytes=0
+    #assert False
     assert clv.is_native()
     assert params.direct == True
     assert params.inverse == True
@@ -52,6 +53,7 @@ def test_params(lib, lattice, device, dtype):
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 def test_zero(lib, lattice, device, dtype):
+    # TODO: fix the issue when computeTrLog=True
     mu2=2.
     d = 1/(1+mu2)/2
     gf = gauge(lattice, dtype=dtype, device=device)
@@ -66,7 +68,7 @@ def test_zero(lib, lattice, device, dtype):
         tmp[:, :, 0,:,:] = 0.5
         tmp[:, :, 1,:,0:2] = 0.5
     assert np.allclose(clv.clover_field.flatten(), tmp.flatten()) 
-    assert (clv.clover_norm == 0).all() #when is this computed?
+    assert (clv.clover_norm == 0).all()
     if dtype is 'float64':
         tmp = np.zeros((idof,)+lattice,dtype=dtype).reshape((2, 2, 36, -1))
         tmp[:, :, 0:6,:] = d
@@ -76,8 +78,7 @@ def test_zero(lib, lattice, device, dtype):
         tmp[:, :, 1,:,0:2] = d
     # Here, create a lattice of the same dims, specified in the argument in this function  on each device.  So comparison with the numpy array of dims=lattice works
     assert np.allclose(clv.inverse_field.flatten(), tmp.flatten())
-    tmp = np.zeros((2,)+lattice,dtype=np.float32)
-    assert np.allclose(clv.inverse_norm.flatten(), tmp.flatten())
+    assert (clv.clover_norm == 0).all()
     # QUDA turns CloverField into basically a pointer to complex numbers
     #  When computing norm's and abs', QUDA removes the internal factor of 1/2, present in the above
     assert np.isclose(clv.norm1(), np.sqrt(2)*prod(lattice)*6)
@@ -88,7 +89,10 @@ def test_zero(lib, lattice, device, dtype):
     assert np.isclose(clv.abs_min(), 0.)
     assert np.isclose(clv.abs_max(True), 2*np.sqrt(2*d**2))
     assert np.isclose(clv.abs_min(True), 0.)
-    assert (clv.trLog == 0).all() #inf?
+    if clv.computeTrLog:
+        assert (clv.trLog == 0).all() 
+    else:
+        assert clv.trLog == None
 
 
 @dtype_loop  # enables dtype
@@ -126,6 +130,8 @@ def test_unit(lib, lattice, device, dtype):
     assert np.isclose(clv.abs_min(), 0.)
     assert np.isclose(clv.abs_max(True), np.sqrt(1/2))
     assert np.isclose(clv.abs_min(True), 0.)
-    assert (clv.trLog == 0).all() #inf?
-
+    if clv.computeTrLog:
+        assert (clv.trLog == 0).all() 
+    else:
+        assert clv.trLog == None
 

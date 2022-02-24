@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 from functools import wraps
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from numpy import sqrt
 from dataclasses import dataclass
 from lyncs_cppyy import make_shared, nullptr
@@ -37,9 +37,16 @@ class Dirac:
     csw: float = 0
     rho: float = 0
     computeTrLog: bool = False
-    clover: CloverField = None
+    clover: InitVar[CloverField] = None
     _clover: CloverField = field(init=False, repr=False) # Do not define __getattribute__ to make this work, unless designed wisely
 
+    def __post_init__(self, clover): # this is to overcome default overwritten as a property
+        if clover is self.__dataclass_fields__["clover"].default:
+            clover = None
+
+        self.clover = clover
+
+        
     @property
     def gauge(self):
         return self._gauge
@@ -59,6 +66,7 @@ class Dirac:
             raise TypeError("This class expects its clover argument to be an instance of CloverField")
 
         self._clover = clover
+        
         if clover is not None:
             self.csw = clover.csw
             self.mu = sqrt(clover.mu2)
@@ -121,9 +129,10 @@ class Dirac:
         # Needs to prevent the gauge field to get destroyed
         self.quda_gauge = self.gauge.quda_field
         params.gauge = self.quda_gauge
-        if self.csw != 0.:
+        if self.csw != 0. and not self.gauge.is_coarse:
             if self.clover is None:
                 self.clover = CloverField(self.gauge, csw = self.csw, twisted = (self.mu!=0), mu2 = self.mu**2, rho = self.rho, computeTrLog = self.computeTrLog)
+                self.clover.clover_field
             params.clover = self.clover.quda_field
 
         return params

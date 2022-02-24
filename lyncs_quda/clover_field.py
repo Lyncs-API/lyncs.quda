@@ -6,23 +6,16 @@ __all__ = [
     "CloverField",
 ]
 
-from functools import reduce
-from time import time
-from math import sqrt
 import numpy
-import cupy
-import ctypes 
-from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
-from lyncs_utils import prod
+from lyncs_cppyy import make_shared, lib as to_pointer
 from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .gauge_field import GaugeField
-from .time_profile import default_profiler
 from .enums import QudaParity
 
 #TODO list
 # We want dimension of (cu/num)py array to reflect parity and order
-# For float64, native order is (2,72,-1,2) where the (left/right)-most 2 is parity/real-imag
+# For float64, native order is (2,72,-1)   where the (left/right)-most 2 is parity/real-imag
 # For flaot32, native order is (2,36,-1,4) where the (left/right)-most 2 is parity/real-imag+half_of_color_spin
 
 class CloverField(LatticeField):
@@ -49,7 +42,7 @@ class CloverField(LatticeField):
         super().__init__(self._fmunu.field, comm = self._fmunu.comm)
 
         # QUDA clover field inherently works with real's not with complex's (c.f., include/clover_field_order.h)
-        idof  = 72 #int((self._fmunu.ncol*self._fmunu.ndims)**2/2)
+        idof  = int((self._fmunu.ncol*self._fmunu.ndims)**2/2)
         prec  = self._fmunu.precision 
 
         self._direct = False   # Here, it is a flag to indicate whether the field has been computed
@@ -61,17 +54,14 @@ class CloverField(LatticeField):
         # norm used only when self.quda_precision = HALF or QUARTER?
         # Apparently, stride for clover field needs to be QUDA_FULL_SITE_SUBSET for clover fields,
         #  suggested by CloverFieldParam::CloverFieldParam(const CloverField &a) in clover_field.cpp
-        self._norm = new(dofs=(2,),dtype=numpy.float32)     # 2 for chirality
-        self._normInv = new(dofs=(2,),dtype=numpy.float32)  # 2 for chirality
+        self._norm = new(dofs=(2,),empty=False,dtype=numpy.float32)     # 2 for chirality
+        self._normInv = new(dofs=(2,),empty=False,dtype=numpy.float32)  # 2 for chirality #empty=False for testing
         
         self._csw = csw
         self._twisted = twisted
         self._mu2 = mu2
         self._rho = rho
         self.computeTrLog = computeTrLog
-        
-        self._quda_clover = None
-
         
     # shape, dofs, dtype, iscomlex, isreal are overwriten to report their values for the clover field, instead of _fmunu
     
@@ -99,6 +89,14 @@ class CloverField(LatticeField):
     def isreal(self):
         "Whether the clover field dtype is real"
         return self._clover.isreal
+
+    # native_view? default_* saved for dofs+lattice?
+    def default_view(self):
+        N = 1 if self.order is "FLOAT2" else 4
+        shape = (2,) # even-odd
+        shape += (self.dofs[0]//N,-1,N)
+
+        return self.field.view().reshape(shape)
     
     @property
     def csw(self):
@@ -123,8 +121,8 @@ class CloverField(LatticeField):
                 val = float(val)
             else:
                 raise TypeError("rho value should be a real number")
-        if self._quda_clover is not None:
-            self._quda_clover.setRho(val)
+        if self._quda is not None:
+            self._quda.setRho(val)
         self._rho = val
 
     @property
@@ -132,8 +130,7 @@ class CloverField(LatticeField):
         "Data order of the field"
         if self.precision is "double":
             return "FLOAT2"
-        else:
-            return "FLOAT4"
+        return "FLOAT4"
         
     @property
     def quda_order(self):
@@ -163,10 +160,10 @@ class CloverField(LatticeField):
     @property
     def quda_field(self):
         "Returns an instance of quda::(cpu/cuda)CloverField for QUDA_(CPU/CUDA)_FIELD_LOCATION"
-        if self._quda_clover is None:
+        if self._quda is None:
             self.activate()
-            self._quda_clover = make_shared(lib.CloverField.Create(self.quda_params))
-        return self._quda_clover
+            self._quda = make_shared(lib.CloverField.Create(self.quda_params))
+        return self._quda
 
     def is_native(self):
         "Whether the field is native for Quda"
@@ -210,12 +207,12 @@ class CloverField(LatticeField):
 
     @property
     def trLog(self):
-        if self._inverse:
+        if self._inverse and self.computeTrLog:
             # separation into the following two lines is necessary
             arr = self.quda_field.TrLog()
             arr.reshape((2,)) 
             return numpy.frombuffer(arr, dtype=self.dtype, count=2)
-        return numpy.zeros((2,),dtype="double")
+        return None
 
     @property
     def Bytes(self):

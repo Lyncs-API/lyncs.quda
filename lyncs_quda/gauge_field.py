@@ -54,7 +54,6 @@ def gauge_coarse(lattice, dofs=2 * 48**2, **kwargs):
     "Constructs a new coarse gauge field"
     return gauge_field(lattice, dofs=(8, dofs), **kwargs)
 
-
 def momentum(lattice, **kwargs):
     return gauge_field(lattice, dofs=(4, 10), **kwargs)
 
@@ -74,9 +73,9 @@ class GaugeField(LatticeField):
             pass
         elif reconstruct == self.reconstruct:
             pass
-        elif reconstruct == "NO": #? what if geometry == COARSE?
-            size = self.ncol**2
-            kwargs["dofs"] = (self.geometry_size, size if self.iscomplex else size*2)
+        elif reconstruct == "NO":
+            idof = self.ncol**2
+            kwargs["dofs"] = (self.geometry_size, idof if self.iscomplex else idof*2)
         else:
             try:
                 val = int(reconstruct)
@@ -150,10 +149,9 @@ class GaugeField(LatticeField):
     def order(self):
         "Data order of the field"
         dofs = self.dofs_per_link
-        if dofs == 8 or dofs == 12:
+        if self.precision == "single" and (dofs == 8 or dofs == 12):
             return "FLOAT4"
-        else:
-            return "FLOAT2"
+        return "FLOAT2"
 
     @property
     def quda_order(self):
@@ -322,7 +320,7 @@ class GaugeField(LatticeField):
 
     def default_view(self, split_col=True):
         "Returns the default view of the field including reshaping"
-        #? order?
+        #? if we take into account FLAOT4 order, unity, etc shoud not depend on this; tr,dag might need reshuffle
         shape = (2,)  # even-odd
         # geometry
         if len(self.dofs) == 1:
@@ -340,8 +338,6 @@ class GaugeField(LatticeField):
 
     def unity(self):
         "Set all field elements to unity"
-        if self.geometry != "VECTOR":
-            raise NotImplementedError
         if self.reconstruct != "NO":
             raise NotImplementedError
         field = self.default_view(split_col=False)
@@ -379,8 +375,6 @@ class GaugeField(LatticeField):
         "Matrix product between two gauge fields"
         if not isinstance(other, GaugeField):
             raise ValueError
-        #if self.reconstruct != "NO" or other.reconstruct != "NO":
-        #    raise NotImplementedError
         self = self.cast(self, reconstruct="NO")
         other = self.cast(other, reconstruct="NO")
         out = self.prepare(out)
