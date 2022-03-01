@@ -49,7 +49,7 @@ def gauge_tensor(lattice, dofs=18, **kwargs):
     return gauge_field(lattice, dofs=(6, dofs), **kwargs)
 
 
-def gauge_coarse(lattice, dofs=2 * 48 ** 2, **kwargs):
+def gauge_coarse(lattice, dofs=2 * 48**2, **kwargs):
     "Constructs a new coarse gauge field"
     return gauge_field(lattice, dofs=(8, dofs), **kwargs)
 
