@@ -95,9 +95,11 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             return False
         return True
 
-    def cast(self, other, copy=True, check=True, **kwargs):
+    def cast(self, other=None, copy=True, check=True, **kwargs):
         "Cast a field into its type and check for compatibility"
         cls = type(self)
+        if other is None:
+            other = self
         if not isinstance(other, cls):
             other = cls(other)
         if check and not self.equivalent(other, **kwargs):
@@ -303,7 +305,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         prepare = (
-            lambda arg: self.prepare(arg).field
+            lambda arg: self.cast(arg).field
             if isinstance(arg, LatticeField)
             else arg
         )

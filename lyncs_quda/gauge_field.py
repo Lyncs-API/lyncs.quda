@@ -98,7 +98,7 @@ class GaugeField(LatticeField):
             return False
         return True
 
-    def cast(self, other, **kwargs):
+    def cast(self, other=None, **kwargs):
         "Cast a field into its type and check for compatibility"
         other = super().cast(other, **kwargs)
         is_momentum = kwargs.get("is_momentum", self.is_momentum)
@@ -342,8 +342,8 @@ class GaugeField(LatticeField):
         "Matrix product between two gauge fields"
         if not isinstance(other, GaugeField):
             raise ValueError
-        if self.reconstruct != "NO" or other.reconstruct != "NO":
-            raise NotImplementedError
+        self = self.cast(reconstruct = "NO")
+        other = self.cast(other, reconstruct = "NO")
         out = self.prepare(out)
         self.backend.matmul(
             self.default_view(),
