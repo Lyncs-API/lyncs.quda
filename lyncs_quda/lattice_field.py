@@ -305,9 +305,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         prepare = (
-            lambda arg: self.cast(arg).field
-            if isinstance(arg, LatticeField)
-            else arg
+            lambda arg: self.cast(arg).field if isinstance(arg, LatticeField) else arg
         )
         args = tuple(map(prepare, args))
         fnc = getattr(ufunc, method)

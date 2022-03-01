@@ -240,7 +240,25 @@ def test_force_gradient(lib, lattice, device, epsilon):
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
 
         ddaction = (
+            getattr(gf, path + "_field")(grad=mom1, left_grad=True)
+            .full()
+            .dot(mom2.full())
+            .reduce()
+        )
+        print(path, ddaction, ddaction12, ddaction / ddaction21)
+        assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
+
+        ddaction = (
             getattr(gf, path + "_field")(grad=mom2).full().dot(mom1.full()).reduce()
         )
         print(path, ddaction, ddaction12, ddaction / ddaction12)
         assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
+
+        ddaction = (
+            getattr(gf, path + "_field")(grad=mom2, left_grad=True)
+            .full()
+            .dot(mom1.full())
+            .reduce()
+        )
+        print(path, ddaction, ddaction21, ddaction / ddaction12)
+        assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
