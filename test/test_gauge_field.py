@@ -137,6 +137,10 @@ def test_exponential(lib, lattice, device, dtype):
     gf2 = mom.exponentiate()
     assert gf2 == gf
 
+    gf.unity()
+    gf2 = mom.exponentiate(exact=True)
+    assert gf2 == gf
+
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
     assert gf2 == gf
@@ -200,6 +204,9 @@ def test_force(lib, lattice, device, epsilon):
         daction2 = action2 - action
         print(path, daction, daction2, daction / daction2)
         assert isclose(daction, daction2, rel_tol=rel_tol)
+
+        zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
+        assert zeros == 0
 
 
 # @dtype_loop  # enables dtype
