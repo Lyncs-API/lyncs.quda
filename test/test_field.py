@@ -34,6 +34,18 @@ def test_numpy():
     assert field * 1 == field
     assert field / 1 == field
 
+    assert isinstance(field + 0, type(field))
+
+    field2 = field.copy()
+    field += 0
+    assert field2 == field
+    field -= 0
+    assert field2 == field
+    field *= 1
+    assert field2 == field
+    field /= 1
+    assert field2 == field
+
 
 def test_cupy():
     field = LatticeField(cp.zeros(shape))
@@ -50,3 +62,13 @@ def test_cupy():
     assert field / 1 == field
 
     assert isinstance(field + 0, type(field))
+
+    field2 = field.copy()
+    field += 0
+    assert field2 == field
+    field -= 0
+    assert field2 == field
+    field *= 1
+    assert field2 == field
+    field /= 1
+    assert field2 == field

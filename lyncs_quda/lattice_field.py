@@ -77,7 +77,10 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         if other is None:
             other = self
         other = out.cast(other, check=False)
-        out.quda_field.copy(other.quda_field)
+        try:
+            out.quda_field.copy(other.quda_field)
+        except NotImplementedError:
+            out = out.cast((other.field.copy()))
         return out
 
     def equivalent(self, other, **kwargs):
@@ -308,6 +311,13 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             lambda arg: self.cast(arg).field if isinstance(arg, LatticeField) else arg
         )
         args = tuple(map(prepare, args))
+
+        for key, val in kwargs.items():
+            if isinstance(val, (tuple, list)):
+                kwargs[key] = type(val)(map(prepare, val))
+            else:
+                kwargs[key] = prepare(val)
+
         fnc = getattr(ufunc, method)
         return type(self)(fnc(*args, **kwargs))
 
