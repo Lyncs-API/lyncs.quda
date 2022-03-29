@@ -326,7 +326,7 @@ class GaugeField(LatticeField):
         )
         return out
 
-    def reduce(self, local=False, only_real=True, mean=True):
+    def reduce(self, local=False, only_real=True, mean=True, **kwargs):
         "Reduction of a gauge field (real of mean of trace)"
         out = self.trace(dtype="float64" if only_real else "complex128")
         if mean:
@@ -489,6 +489,8 @@ class GaugeField(LatticeField):
 
     def _paths_for_force(self, paths, coeffs):
         "Create all paths needed for force"
+        if len(coeffs) == 2 * len(paths):
+            coeffs = numpy.array(coeffs).reshape(2, -1).transpose()
         out = defaultdict(int)
         shift = lambda path, i: path if i in (0, len(path)) else (path[i:] + path[:i])
         for path, coeff in zip(paths, coeffs):
@@ -497,8 +499,9 @@ class GaugeField(LatticeField):
                     tmp = shift(path, i)
                 else:
                     tmp = tuple(-_ for _ in reversed(shift(path, i + 1)))
-                out[tmp] -= coeff
-        return tuple(out.keys()), tuple(out.values())
+                out[tmp] = out[tmp] - coeff
+        coeffs = numpy.array(tuple(out.values())).transpose().flatten()
+        return tuple(out.keys()), coeffs
 
     def compute_paths(
         self,
@@ -509,6 +512,7 @@ class GaugeField(LatticeField):
         force=False,
         grad=None,
         left_grad=False,
+        **kwargs,
     ):
         """
         Computes the gauge paths on the lattice.
@@ -531,8 +535,10 @@ class GaugeField(LatticeField):
             coeffs = self.ndims / len(paths)
         if isinstance(coeffs, (int, float)):
             coeffs = [coeffs] * len(paths)
-        if not len(paths) == len(coeffs):
+        if not len(coeffs) in (len(paths), 2 * len(paths)):
             raise ValueError("Paths and coeffs must have the same length")
+
+        eo_coeffs = True if len(coeffs) == 2 * len(paths) else False
 
         # Preparing grad and fnc
         if grad is not None:
@@ -573,6 +579,7 @@ class GaugeField(LatticeField):
             num_paths,
             max_length,
             False,
+            eo_coeffs,
         )
         return out
 
@@ -591,7 +598,7 @@ class GaugeField(LatticeField):
 
     def plaquettes(self, **kwargs):
         "Returns the average over plaquettes (Note: plaquette should performs better)"
-        return self.plaquette_field().reduce(**kwargs)
+        return self.plaquette_field(**kwargs).reduce(**kwargs)
 
     @property
     def rectangle_paths(self):
@@ -608,7 +615,7 @@ class GaugeField(LatticeField):
 
     def rectangles(self, **kwargs):
         "Returns the average over rectangles"
-        return self.rectangle_field().reduce(**kwargs)
+        return self.rectangle_field(**kwargs).reduce(**kwargs)
 
     def exponentiate(self, coeff=1, mul_to=None, out=None, conj=False, exact=False):
         """

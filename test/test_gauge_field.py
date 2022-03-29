@@ -195,18 +195,59 @@ def test_force(lib, lattice, device, epsilon):
         action = getattr(gf, path + "s")()
         action2 = getattr(gf2, path + "s")()
         rel_tol = epsilon * prod(lattice)
-        print(path, action, action2)
         assert isclose(action, action2, rel_tol=rel_tol)
 
         daction = (
             getattr(gf, path + "_field")(force=True).full().dot(mom.full()).reduce()
         )
         daction2 = action2 - action
-        print(path, daction, daction2, daction / daction2)
         assert isclose(daction, daction2, rel_tol=rel_tol)
 
         zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
         assert zeros == 0
+
+        npaths = len(getattr(gf, path + "_paths"))
+        coeffs = np.random.rand(npaths)
+        coeffs2 = np.hstack([coeffs, coeffs])
+        action = getattr(gf, path + "s")(coeffs=coeffs)
+        action2 = getattr(gf2, path + "s")(coeffs=coeffs)
+        rel_tol = epsilon * prod(lattice)
+        assert isclose(action, action2, rel_tol=rel_tol)
+
+        action3 = getattr(gf, path + "s")(coeffs=coeffs2)
+        assert isclose(action, action3)
+
+        daction = (
+            getattr(gf, path + "_field")(coeffs=coeffs, force=True)
+            .full()
+            .dot(mom.full())
+            .reduce()
+        )
+        daction2 = action2 - action
+        assert isclose(daction, daction2, rel_tol=rel_tol)
+
+        daction3 = (
+            getattr(gf, path + "_field")(coeffs=coeffs2, force=True)
+            .full()
+            .dot(mom.full())
+            .reduce()
+        )
+        assert isclose(daction, daction3)
+
+        coeffs = np.random.rand(2 * npaths)
+        action = getattr(gf, path + "s")(coeffs=coeffs)
+        action2 = getattr(gf2, path + "s")(coeffs=coeffs)
+        rel_tol = epsilon * prod(lattice)
+        assert isclose(action, action2, rel_tol=rel_tol)
+
+        daction = (
+            getattr(gf, path + "_field")(coeffs=coeffs, force=True)
+            .full()
+            .dot(mom.full())
+            .reduce()
+        )
+        daction2 = action2 - action
+        assert isclose(daction, daction2, rel_tol=rel_tol)
 
 
 # @dtype_loop  # enables dtype
@@ -216,7 +257,7 @@ def test_force(lib, lattice, device, epsilon):
 def test_force_gradient(lib, lattice, device, epsilon):
     dtype = "float64"
     gf = gauge(lattice, dtype=dtype, device=device)
-    gf.gaussian()
+    gf.gaussian(epsilon=0.2)
 
     mom1 = momentum(lattice, dtype=dtype, device=device)
     mom1.gaussian(epsilon=epsilon)
@@ -231,41 +272,49 @@ def test_force_gradient(lib, lattice, device, epsilon):
 
     rel_tol = epsilon * prod(lattice)
     for path in "plaquette", "rectangle":
-        action = getattr(gf, path + "s")()
-        action1 = getattr(gf1, path + "s")()
-        action2 = getattr(gf2, path + "s")()
-        action21 = getattr(gf21, path + "s")()
-        action12 = getattr(gf12, path + "s")()
+        npaths = len(getattr(gf, path + "_paths"))
+        for coeffs in 1, np.random.rand(npaths), np.random.rand(2 * npaths):
+            action = getattr(gf, path + "s")(coeffs=coeffs)
+            action1 = getattr(gf1, path + "s")(coeffs=coeffs)
+            action2 = getattr(gf2, path + "s")(coeffs=coeffs)
+            action21 = getattr(gf21, path + "s")(coeffs=coeffs)
+            action12 = getattr(gf12, path + "s")(coeffs=coeffs)
 
-        ddaction21 = action21 + action - action1 - action2
-        ddaction12 = action12 + action - action1 - action2
+            ddaction21 = action21 + action - action1 - action2
+            ddaction12 = action12 + action - action1 - action2
 
-        ddaction = (
-            getattr(gf, path + "_field")(grad=mom1).full().dot(mom2.full()).reduce()
-        )
-        print(path, ddaction, ddaction21, ddaction / ddaction21)
-        assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
+            ddaction = (
+                getattr(gf, path + "_field")(coeffs=coeffs, grad=mom1)
+                .full()
+                .dot(mom2.full())
+                .reduce()
+            )
+            print(path, ddaction, ddaction21, ddaction / ddaction21)
+            assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
 
-        ddaction = (
-            getattr(gf, path + "_field")(grad=mom1, left_grad=True)
-            .full()
-            .dot(mom2.full())
-            .reduce()
-        )
-        print(path, ddaction, ddaction12, ddaction / ddaction21)
-        assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
+            ddaction = (
+                getattr(gf, path + "_field")(coeffs=coeffs, grad=mom1, left_grad=True)
+                .full()
+                .dot(mom2.full())
+                .reduce()
+            )
+            print(path, ddaction, ddaction12, ddaction / ddaction21)
+            assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
 
-        ddaction = (
-            getattr(gf, path + "_field")(grad=mom2).full().dot(mom1.full()).reduce()
-        )
-        print(path, ddaction, ddaction12, ddaction / ddaction12)
-        assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
+            ddaction = (
+                getattr(gf, path + "_field")(coeffs=coeffs, grad=mom2)
+                .full()
+                .dot(mom1.full())
+                .reduce()
+            )
+            print(path, ddaction, ddaction12, ddaction / ddaction12)
+            assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
 
-        ddaction = (
-            getattr(gf, path + "_field")(grad=mom2, left_grad=True)
-            .full()
-            .dot(mom1.full())
-            .reduce()
-        )
-        print(path, ddaction, ddaction21, ddaction / ddaction12)
-        assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
+            ddaction = (
+                getattr(gf, path + "_field")(coeffs=coeffs, grad=mom2, left_grad=True)
+                .full()
+                .dot(mom1.full())
+                .reduce()
+            )
+            print(path, ddaction, ddaction21, ddaction / ddaction12)
+            assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
