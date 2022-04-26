@@ -342,8 +342,8 @@ class GaugeField(LatticeField):
         "Matrix product between two gauge fields"
         if not isinstance(other, GaugeField):
             raise ValueError
-        self = self.cast(reconstruct="NO")
-        other = self.cast(other, reconstruct="NO")
+        self = self.full()
+        other = other.full()
         out = self.prepare(out)
         self.backend.matmul(
             self.default_view(),
@@ -489,16 +489,21 @@ class GaugeField(LatticeField):
 
     def _paths_for_force(self, paths, coeffs):
         "Create all paths needed for force"
-        out = defaultdict(int)
+        out_paths = []
+        out_coeffs = []
+        out_shifts = []
         shift = lambda path, i: path if i in (0, len(path)) else (path[i:] + path[:i])
         for path, coeff in zip(paths, coeffs):
             for i in range(len(path)):
                 if path[i] > 0:
                     tmp = shift(path, i)
+                    out_shifts.append(len(path) - i)
                 else:
                     tmp = tuple(-_ for _ in reversed(shift(path, i + 1)))
-                out[tmp] -= coeff
-        return tuple(out.keys()), tuple(out.values())
+                    out_shifts.append(-(i + 1))
+                out_paths.append(tmp)
+                out_coeffs.append(-coeff)
+        return tuple(out_paths), tuple(out_coeffs), tuple(out_shifts)
 
     def compute_paths(
         self,
@@ -509,6 +514,7 @@ class GaugeField(LatticeField):
         force=False,
         grad=None,
         left_grad=False,
+        insert=None,
     ):
         """
         Computes the gauge paths on the lattice.
@@ -552,8 +558,25 @@ class GaugeField(LatticeField):
 
         # Preparing paths
         if force:
-            paths, coeffs = self._paths_for_force(paths, coeffs)
+            paths, coeffs, shifts = self._paths_for_force(paths, coeffs)
             self._check_paths(paths)
+
+        if insert is not None:
+            assert force
+            assert isinstance(insert, numpy.ndarray)
+            assert insert.shape == (3, 3)
+            assert len(set(paths)) == len(paths)
+            assert len(shifts) == len(paths)
+            fnc = lambda *args: lib.gaugeForce(
+                *args, insert=insert, insert_at=numpy.array(shifts, dtype="int32")
+            )
+
+        else:
+            tmp = defaultdict(int)
+            for path, coeff in zip(paths, coeffs):
+                tmp[path] += coeff
+            paths, coeffs = tuple(tmp.keys()), tuple(tmp.values())
+
         paths, lengths = self._paths_to_array(paths)
 
         # Calling Quda function
