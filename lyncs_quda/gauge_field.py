@@ -342,8 +342,8 @@ class GaugeField(LatticeField):
         "Matrix product between two gauge fields"
         if not isinstance(other, GaugeField):
             raise ValueError
-        self = self.cast(reconstruct="NO")
-        other = self.cast(other, reconstruct="NO")
+        self = self.full()
+        other = other.full()
         out = self.prepare(out)
         self.backend.matmul(
             self.default_view(),
