@@ -14,6 +14,8 @@ from lyncs_utils import prod
 from .enums import QudaPrecision
 from .lib import lib, cupy
 
+from lyncs_cppyy import to_pointer
+import ctypes
 
 def get_precision(dtype):
     if dtype in ["float64", "complex128"]:
@@ -102,19 +104,23 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         )
 
     def copy(self, other=None, out=None, **kwargs):
-        "Returns a copy of the field in other if given else in self"
-        # copies from other(->self if other=None), stores it in out, which is returned (kwargs for out)
-        # if other and out are both given, this behaves like a classmethod except out is casted into type(self)
+        "Returns out, a copy+=kwargs, of other if given, else of self"
+        # ASSUME: if out != None, out <=> other/self+=kwargs
+        # if other and out are both given, this behaves like a classmethod except out&other are casted into type(self)
 
-        out = self.prepare(out, copy=False, check=False, **kwargs) #check=False => if out!=None, this simply converts from type(out) to type(self); 
+        out = self.prepare(out, copy=False, check=False, **kwargs) #check=False => if out!=None, converts from type(out) to type(self); else create a new one with kwargs
         if other is None:
             other = self
-        other = out.cast(other, copy=False, check=True, switch=True, dofs=out.dofs) # hack to ignore dof cmp
-        out.quda_field.copy(other.quda_field) # Attention!: not present in lattice_field.h. So only some children support this
+        kwargs.update({"dofs":out.dofs}) # to enable equiv check; or we can trust user and set check=False
+        other = out.prepare(other, copy=False, check=False, switch=True, **kwargs) #switch=True=>check if out<=>other+=kwargs
+        try:
+            out.quda_field.copy(other.quda_field)
+        except NotImplementedError: # at least, serial version calls exit(1) from qudaError, which is not catched by this
+            out = out.prepare((other.field.copy()), copy=False) #the orignal code may lead to infinite recursion
         return out
 
     def equivalent(self, other, switch=False, **kwargs):
-        "Whether a 'other' field is equivalent to the current 'self' with kwargs"
+        "Whether other is equivalent to self with kwargs"
         # Check if self+kwargs <=> other
 
         if switch:
@@ -128,34 +134,54 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         device = kwargs.get("device", self.device)
         if other.device != device:
             return False
-
-        dofs = kwargs.get("dofs", self.dofs) #None) #so force to specify dof in kwargs?
+        dofs = kwargs.get("dofs", self.dofs) #None) #? to force to specify dof in kwargs?
         if dofs and other.dofs != dofs:
             return False
         return True
 
 
-    def cast(self, other, copy=True, check=True, **kwargs):
-        "Cast a field in other into an instance of type(self) and check for compatibility"
+    def cast(self, other=None, copy=True, check=False, **kwargs):
+        "Cast other (self if not given) into type(self) and copy or check for compatibility"
+
+        if other is None:
+            other = self
+        return self.prepare(other, copy=copy, check=check, **kwargs)
+
+        """
         cls = type(self)
+        if other is None:
+            other = self
         if not isinstance(other, cls):
             other = cls(other)
-        if check and not self.equivalent(other, **kwargs):
 
-            raise ValueError("The given field is not appropriate")
-        if copy:
+        # (check, copy)                 expect
+        # (T, T): check but not copy      check & copy
+        # (T, F): copy but no check       check & not copy
+        # (F, T): does nothing            no check & just copy
+        # (F, F): does nothing            does nothing
+        if check and not self.equivalent(other, **kwargs):
+            if copy:
+                raise ValueError("The given field is not appropriate")
             return self.copy(other, **kwargs) 
         return other
-
-    def prepare(self, *fields, **kwargs):
-        "Prepares the fields by creating new one if None given else checking them if compatible with self while casting it to the same class as self"
+        """
+        
+    def prepare(self, *fields, copy=True, check=False, switch=False, **kwargs):
+        "Prepares the fields by creating new one if None given else casting them to type(self) then  checking them if compatible with self and/or copying them"
         if not fields:
             return self  # Needed? or raise error
         if len(fields) == 1:
             field = fields[0]
             if field is None:
                 return self.new(**kwargs)
-            return self.cast(field, copy=False, **kwargs)
+            cls = type(self)
+            if not isinstance(field, cls):
+                field = cls(field)
+            if check and not self.equivalent(field, switch=switch, **kwargs):
+                raise ValueError("The given field is not appropriate")
+            if copy:
+                return self.copy(other=field, **kwargs)
+            return field
         return tuple(self.prepare(field, **kwargs) for field in fields)
 
     def __init__(self, field, comm=None):
@@ -254,7 +280,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     def quda_dims(self):
         "Memory array with lattice dimensions including halo width"
         return array("i", self.dims)
-
+    
     @property
     def dofs(self):
         "Shape of the per-site degrees of freedom"

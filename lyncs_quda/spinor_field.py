@@ -89,6 +89,9 @@ class SpinorField(LatticeField):
     @property
     def order(self):
         "Data order of the field"
+        if self.precision in ["single","half"] and self.nspin == 4:
+            # Assume: FLOAT8 is not defined
+            return "FLOAT4"
         return "FLOAT2"
 
     @property

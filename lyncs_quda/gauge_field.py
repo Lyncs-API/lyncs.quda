@@ -92,10 +92,12 @@ class GaugeField(LatticeField):
         out.is_momentum = is_momentum
         return out
 
-    def equivalent(self, other, **kwargs):
+    def equivalent(self, other, switch=False, **kwargs):
         "Whether a field is equivalent to the current"
-        if not super().equivalent(other, **kwargs):
+        if not super().equivalent(other, switch=switch, **kwargs):
             return False
+        if switch:
+            self, other = other, self
         reconstruct = kwargs.get("reconstruct", self.reconstruct)
         if other.reconstruct != str(reconstruct):
             return False
@@ -151,7 +153,7 @@ class GaugeField(LatticeField):
     def order(self):
         "Data order of the field"
         dofs = self.dofs_per_link
-        if self.precision == "single" and (dofs == 8 or dofs == 12):
+        if self.precision != "double" and (dofs == 8 or dofs == 12): # if FLOAT8 defined, if prec=half/quarter and recon=8, FLOAT8
             return "FLOAT4"
         return "FLOAT2"
 
@@ -237,6 +239,9 @@ class GaugeField(LatticeField):
     @property
     def quda_params(self):
         "Returns an instance of quda::GaugeFieldParams"
+        #TODO: Support MILC gauge order (site_offset, site_size)
+        #TODO: Support Staggered phase (staggeredPhaseType, staggeredPhaseApplied)
+        #TODO: Allow control on QudaGaugeFixed, i_mu, nFace, anisotropy, tadpole, compute_fat_link_max, 
         params = lib.GaugeFieldParam()
         lib.copy_struct(params, super().quda_params)
         params.reconstruct = self.quda_reconstruct
@@ -401,7 +406,7 @@ class GaugeField(LatticeField):
 
         with cupy.cuda.Device(self.device):
             fails = cupy.zeros((1,), dtype="int32")
-            lib.projectSU3(self.quda_field, tol, to_pointer(dfails.data.ptr, "int *"))
+            lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
         return fails.get()[0]
 
     def gaussian(self, epsilon=1, seed=None):
@@ -663,7 +668,7 @@ class GaugeField(LatticeField):
         "Returns the average over rectangles"
         return self.rectangle_field().reduce(**kwargs)
 
-    def exponentiate(self, coeff=1, mul_to=None, out=None, conj=False, exact=False):
+    def exponentiate(self, coeff=1., mul_to=None, out=None, conj=False, exact=False):
         """
         Exponentiates a momentum field
         """
