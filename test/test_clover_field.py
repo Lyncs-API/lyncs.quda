@@ -34,12 +34,6 @@ def test_params(lib, lattice, device, dtype):
     clv = CloverField(gf,computeTrLog=True,coeff=0)
     params = clv.quda_params
 
-    arr = params.x
-    arr.reshape((6,))
-    print(np.frombuffer(arr, dtype="i", count=6),params.pad)
-    print(cp.cuda.runtime.getDeviceCount(),clv.quda_precision, clv.Bytes, clv.total_bytes, clv.compressed_block_size, clv.reconstruct, gf.link_type)
-    print(clv.nspin,clv.ncol)
-
     assert clv.is_native()
     assert params.inverse == True
     assert addressof(params.clover) == get_ptr(clv.clover_field)

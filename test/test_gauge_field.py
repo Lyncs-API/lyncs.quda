@@ -131,11 +131,11 @@ def test_exponential(lib, lattice, device, dtype):
     print(mom.reconstruct)
     #mom.copy(out=gf) #quda_field.copy does not work if geometry is diff
     #assert gf == 0
-"""
+
     gf.unity()
     gf2 = mom.exponentiate()
     assert gf2 == gf
-
+"""
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
     assert gf2 == gf

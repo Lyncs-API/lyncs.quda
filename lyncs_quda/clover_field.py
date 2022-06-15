@@ -36,6 +36,9 @@ class CloverField(LatticeField):
     def __init__(self, fmunu, coeff=0.,
                  twisted=False, mu2=0, tf="NO", eps2=0, rho=0,
                  computeTrLog=False ):
+
+        #? better to store fmunu.quda_field to _fmunu -> import gauge_tensor to be used in some methods
+        #? better to put clover into self.field -> need walk-arond to make copy() work
         if not isinstance(fmunu, GaugeField):
             fmunu = GaugeField(fmunu)
             
@@ -59,13 +62,13 @@ class CloverField(LatticeField):
         self._inverse = (
             False  # Here, it is a flag to indicate whether the field has been computed
         )
-        print(field.lattice, self._fmunu.ncol, self._fmunu.ndims, self._fmunu.field.shape, idof, lib.clover.reconstruct(),lib.clover.dynamic_inverse())
-        new = lambda idof: LatticeField.create(field.lattice, dofs=(idof,), dtype=prec, device=field.device, empty=True)
-        self._clover = new(idof) #new(dofs=(idof,), dtype=prec) #! MOVE this into field
-        self._cloverInv = new(idof) #self.new(dofs=(idof,), dtype=prec)
+        
+        new = lambda idof: LatticeField.create(self._fmunu.lattice, dofs=(idof,), dtype=prec, device=self._fmunu.device, empty=True)
+        self._clover = new(idof) 
+        self._cloverInv = new(idof) 
         self.coeff = coeff
         self._twisted = twisted
-        self._twist_flavor = tf #? need to use class QudaTwistFlavorType(Enum)?
+        self._twist_flavor = tf 
         self._mu2 = mu2
         self._eps2 = eps2
         self._rho = rho
@@ -154,9 +157,11 @@ class CloverField(LatticeField):
         "Returns an instance of quda::CloverFieldParams"
         """
         Remarks:
-         reconstruct is set internally to True if QUDA_CLOVER_RECONSTRUCT=ON
-          False otherwise.
-         My guess is that it is not to be controlled manually
+         computeClover assumes param.reconstruct True 
+          if compiled with QUDA_CLOVER_RECONSTRUCT=ON
+          else False, which is default
+         So to use this function to construct clover field, we need to
+          stick with the default value
          When compiled with QUDA_CLOVER_DYNAMIC=ON, clover field is used as 
           an alias to inverse.  not really sure what this is, but does 
           not work properly when reconstruct==True
