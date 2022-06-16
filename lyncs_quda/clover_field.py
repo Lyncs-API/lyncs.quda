@@ -54,8 +54,8 @@ class CloverField(LatticeField):
 
         # QUDA clover field inherently works with real's not with complex's (c.f., include/clover_field_order.h)
 
-        idof  = int((self._fmunu.ncol * self._fmunu.ndims)**2 / 2)
-        prec  = self._fmunu.precision 
+        idof = int((self._fmunu.ncol * self._fmunu.ndims) ** 2 / 2)
+        prec = self._fmunu.precision
         self._direct = (
             False  # Here, it is a flag to indicate whether the field has been computed
         )
@@ -104,8 +104,8 @@ class CloverField(LatticeField):
     # naming suggestion: native_view? default_* saved for dofs+lattice?
     def default_view(self):
         N = 1 if self.order is "FLOAT2" else 4
-        shape = (2,) # even-odd
-        shape += (self.dofs[0]//N,-1,N)
+        shape = (2,)  # even-odd
+        shape += (self.dofs[0] // N, -1, N)
 
         return self.field.view().reshape(shape)
 
@@ -146,7 +146,7 @@ class CloverField(LatticeField):
         if self.precision == "double":
             return "FLOAT2"
         return "FLOAT4"
-        
+
     @property
     def quda_order(self):
         "Quda enum for data order of the field"

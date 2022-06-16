@@ -45,13 +45,14 @@ class Dirac:
         init=False, repr=False
     )  # Do not define __getattribute__ to make this work, unless designed wisely
 
-    def __post_init__(self, clover): # this is to overcome default overwritten as a property
+    def __post_init__(
+        self, clover
+    ):  # this is to overcome default overwritten as a property
         if clover is self.__dataclass_fields__["clover"].default:
             clover = None
 
         self.clover = clover
 
-        
     @property
     def gauge(self):
         return self._gauge
@@ -73,7 +74,7 @@ class Dirac:
             )
 
         self._clover = clover
-        
+
         if clover is not None:
             self.csw = clover.csw
             self.mu = sqrt(clover.mu2)
@@ -137,7 +138,7 @@ class Dirac:
         self.quda_gauge = self.gauge.quda_field
         params.gauge = self.quda_gauge
 
-        if self.csw != 0. and not self.gauge.is_coarse:
+        if self.csw != 0.0 and not self.gauge.is_coarse:
             if self.clover is None:
                 self.clover.clover_field
                 self.clover = CloverField(

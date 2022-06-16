@@ -39,21 +39,29 @@ def reshuffle(field, N0, N1):
     # TODO: write safegurds
     # ASSUME: array in field has shape= dofs+lattice so that self.dofs, etc works; add dofs attribute if not
     # ASSUME: Given array is actually ordered so that parity is slowest running index; currently is default; see below
-    
+
     xp = field.backend
 
     sub = []
-    sub.append(field.field.reshape((2,-1))[0,:])
-    sub.append(field.field.reshape((2,-1))[1,:])
+    sub.append(field.field.reshape((2, -1))[0, :])
+    sub.append(field.field.reshape((2, -1))[1, :])
 
-    dof = (1,) + field.dofs if len(field.dofs)==1 else field.dofs
+    dof = (1,) + field.dofs if len(field.dofs) == 1 else field.dofs
     idof = prod(field.dofs[1:])
-    dof0 = (dof[0],) + (idof//N0,)
-    dof1 = (dof[0],) + (idof//N1,)
+    dof0 = (dof[0],) + (idof // N0,)
+    dof1 = (dof[0],) + (idof // N1,)
     for i in range(2):
-        sub[i] = xp.transpose(xp.transpose(sub[i].reshape(dof0+(-1,N0)),axes=(0,2,1,3)).reshape((dof[0],)+(-1,dof1[1],N1)),axes=(0,2,1,3))
-        
-    field.field = xp.concatenate(sub[0]+sub[1]) #ATTENTION: this will affects self.dofs, etc
+        sub[i] = xp.transpose(
+            xp.transpose(sub[i].reshape(dof0 + (-1, N0)), axes=(0, 2, 1, 3)).reshape(
+                (dof[0],) + (-1, dof1[1], N1)
+            ),
+            axes=(0, 2, 1, 3),
+        )
+
+    field.field = xp.concatenate(
+        sub[0] + sub[1]
+    )  # ATTENTION: this will affects self.dofs, etc
+
 
 @contextmanager
 def backend(device=True):
@@ -125,7 +133,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
         if switch:
             self, other = other, self
-            
+
         if not isinstance(other, type(self)):
             return False
         dtype = kwargs.get("dtype", self.dtype)
@@ -138,7 +146,6 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         if dofs and other.dofs != dofs:
             return False
         return True
-
 
     def cast(self, other=None, copy=True, check=False, **kwargs):
         "Cast other (self if not given) into type(self) and copy or check for compatibility"
