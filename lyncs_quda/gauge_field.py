@@ -104,7 +104,7 @@ class GaugeField(LatticeField):
             return False
         return True
 
-    def cast(self, other, **kwargs):
+    def cast(self, other=None, **kwargs):
         "Cast a field into its type and check for compatibility"
         other = super().cast(other, **kwargs)
         is_momentum = kwargs.get("is_momentum", self.is_momentum)
@@ -380,8 +380,8 @@ class GaugeField(LatticeField):
         "Matrix product between two gauge fields"
         if not isinstance(other, GaugeField):
             raise ValueError
-        self = self.cast(self, reconstruct="NO")
-        other = self.cast(other, reconstruct="NO")
+        self = self.full()
+        other = other.full()
         out = self.prepare(out)
         self.backend.matmul(
             self.default_view(),
@@ -569,7 +569,14 @@ class GaugeField(LatticeField):
         return tuple(out.keys()), tuple(out.values())
 
     def compute_paths(
-        self, paths, coeffs=None, out=None, add_coeff=1, force=False, grad=None
+        self,
+        paths,
+        coeffs=None,
+        out=None,
+        add_coeff=1,
+        force=False,
+        grad=None,
+        left_grad=False,
     ):
         """
         Computes the gauge paths on the lattice.
@@ -602,7 +609,11 @@ class GaugeField(LatticeField):
             force = True
             grad = self.cast(grad, reconstruct=10)
             fnc = lambda out, u, *args: lib.gaugeForceGradient(
-                out, u, grad.quda_field, *args
+                out,
+                u,
+                grad.quda_field,
+                *args,
+                left=left_grad,
             )
         elif force:
             fnc = lib.gaugeForce
@@ -644,9 +655,9 @@ class GaugeField(LatticeField):
             for nu in range(mu + 1, self.ndims + 1)
         )
 
-    def plaquette_field(self, force=False, grad=None):
+    def plaquette_field(self, **kwargs):
         "Computes the plaquette field"
-        return self.compute_paths(self.plaquette_paths, force=force, grad=grad)
+        return self.compute_paths(self.plaquette_paths, **kwargs)
 
     def plaquettes(self, **kwargs):
         "Returns the average over plaquettes (Note: plaquette should performs better)"
@@ -661,9 +672,9 @@ class GaugeField(LatticeField):
             for nu in range(mu + 1, self.ndims + 1)
         )
 
-    def rectangle_field(self, force=False, grad=None):
+    def rectangle_field(self, **kwargs):
         "Computes the rectangle field"
-        return self.compute_paths(self.rectangle_paths, force=force, grad=grad)
+        return self.compute_paths(self.rectangle_paths, **kwargs)
 
     def rectangles(self, **kwargs):
         "Returns the average over rectangles"

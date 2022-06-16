@@ -117,10 +117,11 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         # if other and out are both given, this behaves like a classmethod except out&other are casted into type(self)
 
         out = self.prepare(out, copy=False, check=False, **kwargs) #check=False => if out!=None, converts from type(out) to type(self); else create a new one with kwargs
+        
         if other is None:
             other = self
-        kwargs.update({"dofs":out.dofs}) # to enable equiv check; or we can trust user and set check=False
-        other = out.prepare(other, copy=False, check=False, switch=True, **kwargs) #switch=True=>check if out<=>other+=kwargs
+        other = out.prepare(other, copy=False, check=False, **kwargs)
+        
         try:
             out.quda_field.copy(other.quda_field)
         except NotImplementedError: # at least, serial version calls exit(1) from qudaError, which is not catched by this
@@ -154,7 +155,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             other = self
         return self.prepare(other, copy=copy, check=check, **kwargs)
 
-        """
+    """
+    def cast(self, other=None, copy=True, check=True, **kwargs):
+        "Cast a field into its type and check for compatibility"
         cls = type(self)
         if other is None:
             other = self
@@ -171,7 +174,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
                 raise ValueError("The given field is not appropriate")
             return self.copy(other, **kwargs) 
         return other
-        """
+    """
         
     def prepare(self, *fields, copy=True, check=False, switch=False, **kwargs):
         "Prepares the fields by creating new one if None given else casting them to type(self) then  checking them if compatible with self and/or copying them"
@@ -381,11 +384,16 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         prepare = (
-            lambda arg: self.prepare(arg).field
-            if isinstance(arg, LatticeField)
-            else arg
+            lambda arg: self.cast(arg).field if isinstance(arg, LatticeField) else arg
         )
         args = tuple(map(prepare, args))
+
+        for key, val in kwargs.items():
+            if isinstance(val, (tuple, list)):
+                kwargs[key] = type(val)(map(prepare, val))
+            else:
+                kwargs[key] = prepare(val)
+
         fnc = getattr(ufunc, method)
         return type(self)(fnc(*args, **kwargs))
 

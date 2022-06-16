@@ -129,13 +129,17 @@ def test_exponential(lib, lattice, device, dtype):
     mom = momentum(lattice, dtype=dtype, device=device)
     mom.zero()
     print(mom.reconstruct,mom.is_native(),mom.ncol)
-    #mom.copy(out=gf) #quda_field.copy does not work if geometry is diff
-    #assert gf == 0
+    mom.copy(out=gf) #quda_field.copy does not work if geometry is diff
+    assert gf == 0
 
     gf.unity()
     gf2 = mom.exponentiate()
     assert gf2 == gf
-"""
+
+    gf.unity()
+    gf2 = mom.exponentiate(exact=True)
+    assert gf2 == gf
+
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
     assert gf2 == gf
@@ -200,6 +204,9 @@ def test_force(lib, lattice, device, epsilon):
         print(path, daction, daction2, daction / daction2)
         assert isclose(daction, daction2, rel_tol=rel_tol)
 
+        zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
+        assert zeros == 0
+
 
 # @dtype_loop  # enables dtype
 @device_loop  # enables device
@@ -239,8 +246,25 @@ def test_force_gradient(lib, lattice, device, epsilon):
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
 
         ddaction = (
+            getattr(gf, path + "_field")(grad=mom1, left_grad=True)
+            .full()
+            .dot(mom2.full())
+            .reduce()
+        )
+        print(path, ddaction, ddaction12, ddaction / ddaction21)
+        assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
+
+        ddaction = (
             getattr(gf, path + "_field")(grad=mom2).full().dot(mom1.full()).reduce()
         )
         print(path, ddaction, ddaction12, ddaction / ddaction12)
         assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
-"""
+
+        ddaction = (
+            getattr(gf, path + "_field")(grad=mom2, left_grad=True)
+            .full()
+            .dot(mom1.full())
+            .reduce()
+        )
+        print(path, ddaction, ddaction21, ddaction / ddaction12)
+        assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
