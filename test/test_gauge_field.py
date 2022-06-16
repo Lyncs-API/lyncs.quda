@@ -128,7 +128,7 @@ def test_exponential(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     mom = momentum(lattice, dtype=dtype, device=device)
     mom.zero()
-    print(mom.reconstruct)
+    print(mom.reconstruct,mom.is_native(),mom.ncol)
     #mom.copy(out=gf) #quda_field.copy does not work if geometry is diff
     #assert gf == 0
 

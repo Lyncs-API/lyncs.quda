@@ -678,7 +678,7 @@ class GaugeField(LatticeField):
         if mul_to is None:
             mul_to = out.new()
             mul_to.unity()
-
+        assert False
         lib.updateGaugeField(
             out.quda_field, coeff, mul_to.quda_field, self.quda_field, conj, exact
         )
