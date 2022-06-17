@@ -6,9 +6,10 @@ from lyncs_quda.testing import fixlib as lib, lattice_loop, device_loop, dtype_l
 from lyncs_cppyy.ll import addressof
 from lyncs_quda.lattice_field import get_ptr
 
-#TODO
+# TODO
 # When compiled with QUDA_CLOVER_RECONSTRUCT=ON, data field check should be modified
 #  In addition if QUDA_CLOVER_DYNAMIC=ON, inversio does not work as reconstruct is set True
+
 
 @lattice_loop
 def test_default(lattice):
@@ -30,8 +31,8 @@ def test_default(lattice):
 @lattice_loop  # enables lattice
 def test_params(lib, lattice, device, dtype):
 
-    gf = gauge(lattice, dtype=dtype, device=device) 
-    #gf.zero()
+    gf = gauge(lattice, dtype=dtype, device=device)
+    # gf.zero()
     clv = CloverField(gf, computeTrLog=True, coeff=0)
     params = clv.quda_params
 
@@ -39,7 +40,7 @@ def test_params(lib, lattice, device, dtype):
     assert params.inverse == True
     assert addressof(params.clover) == get_ptr(clv.clover_field)
     assert addressof(params.cloverInv) == get_ptr(clv.inverse_field)
-    assert params.coeff== clv.coeff
+    assert params.coeff == clv.coeff
     assert params.twisted == clv.twisted
     assert params.twist_flavor == lib.QUDA_TWIST_NO
     assert params.mu2 == clv.mu2
@@ -59,7 +60,7 @@ def test_params(lib, lattice, device, dtype):
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 def test_zero(lib, lattice, device, dtype):
-    d = 0.5 
+    d = 0.5
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.zero()
     clv = CloverField(gf, coeff=1.0, computeTrLog=True)
@@ -91,7 +92,7 @@ def test_zero(lib, lattice, device, dtype):
     #  If not QUDA_PACKED_CLOVER_ORDER, norm factor of 2 is applied to the sequence
     #  If QUDA_PACKED_CLOVER_ORDER, the factor == 1
     assert np.isclose(clv.norm1(), 2 * np.sqrt(0.5) * prod(lattice) * 6)
-    assert np.isclose(clv.norm2(), 4 * 0.5**2 * 2 *prod(lattice) * 6)
+    assert np.isclose(clv.norm2(), 4 * 0.5**2 * 2 * prod(lattice) * 6)
     assert np.isclose(clv.norm1(True), 2 * np.sqrt(2 * d**2) * prod(lattice) * 6)
     assert np.isclose(clv.norm2(True), 4 * 2 * d**2 * prod(lattice) * 6)
     assert np.isclose(clv.abs_max(), 2 * 0.5)
@@ -113,8 +114,10 @@ def test_unit(lib, lattice, device, dtype):
 
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.unity()
-    clv = CloverField(gf, coeff=1.0, tf="SINGLET", twisted=True, mu2=mu2, computeTrLog=True)
-    
+    clv = CloverField(
+        gf, coeff=1.0, tf="SINGLET", twisted=True, mu2=mu2, computeTrLog=True
+    )
+
     assert (clv.field == 0).all()
     idof = int(((clv.ncol * clv.nspin) ** 2 / 2))
     if dtype is "float64":
@@ -136,14 +139,15 @@ def test_unit(lib, lattice, device, dtype):
     assert np.isclose(clv.norm1(), np.sqrt(2) * prod(lattice) * 6)
     assert np.isclose(clv.norm2(), 2 * prod(lattice) * 6)
     assert np.isclose(clv.norm1(True), 2 * np.sqrt(2 * d**2) * prod(lattice) * 6)
-    assert np.isclose(clv.norm2(True), 4 * 2 * d**2 * prod(lattice) * 6 )
+    assert np.isclose(clv.norm2(True), 4 * 2 * d**2 * prod(lattice) * 6)
     assert np.isclose(clv.abs_max(), 2 * 0.5)
     assert np.isclose(clv.abs_min(), 0.0)
-    assert np.isclose(clv.abs_max(True), 2 * d )
+    assert np.isclose(clv.abs_max(True), 2 * d)
     assert np.isclose(clv.abs_min(True), 0.0)
     if clv.computeTrLog:
 
-        assert np.allclose(clv.trLog, np.log(1/(2*d)) * prod(lattice) * 6 * np.ones(2))
+        assert np.allclose(
+            clv.trLog, np.log(1 / (2 * d)) * prod(lattice) * 6 * np.ones(2)
+        )
     else:
         assert clv.trLog == None
-

@@ -103,12 +103,12 @@ def test_coarse_zero(lib, lattice, device, dtype=None):
     gf3.unity()
     gf4 = gauge_scalar(lattice, dtype=dtype, dofs=2 * 48**2, device=device)
     gf4.unity()
-    sf = spinor_coarse(lattice, dofs=48,dtype=dtype, device=device)
+    sf = spinor_coarse(lattice, dofs=48, dtype=dtype, device=device)
     sf.uniform()
-    print(gf2.is_coarse,gf2.geometry,gf2.gpu_field)
-    #assert False
+    print(gf2.is_coarse, gf2.geometry, gf2.gpu_field)
+    # assert False
 
-    dirac = gf.Dirac(coarse_clover=gf2)#,coarse_clover_inv=gf3,coarse_precond=gf4)
+    dirac = gf.Dirac(coarse_clover=gf2)  # ,coarse_clover_inv=gf3,coarse_precond=gf4)
 
     assert (dirac.M(sf).field == sf.field).all()
     """

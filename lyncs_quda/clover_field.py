@@ -20,6 +20,7 @@ from .enums import QudaParity
 # For flaot32, native order is (2,36,-1,4) where the (left/right)-most index is for parity/real-imag+half_of_color_spin
 # make compatible with QUDA_CLOVER_DYNAMIC=ON
 
+
 class CloverField(LatticeField):
     """
     Mimics the quda::CloverField object
@@ -33,15 +34,23 @@ class CloverField(LatticeField):
      * QUDA convention for clover field := 1+i ( kappa csw )/4 sigma_mu,nu F_mu,nu (<-sigma_mu,nu: spinor tensor)
     """
 
-    def __init__(self, fmunu, coeff=0.,
-                 twisted=False, mu2=0, tf="NO", eps2=0, rho=0,
-                 computeTrLog=False ):
+    def __init__(
+        self,
+        fmunu,
+        coeff=0.0,
+        twisted=False,
+        mu2=0,
+        tf="NO",
+        eps2=0,
+        rho=0,
+        computeTrLog=False,
+    ):
 
-        #? better to store fmunu.quda_field to _fmunu -> import gauge_tensor to be used in some methods
-        #? better to put clover into self.field -> need walk-arond to make copy() work
+        # ? better to store fmunu.quda_field to _fmunu -> import gauge_tensor to be used in some methods
+        # ? better to put clover into self.field -> need walk-arond to make copy() work
         if not isinstance(fmunu, GaugeField):
             fmunu = GaugeField(fmunu)
-            
+
         if fmunu.geometry is "VECTOR":
             self._fmunu = fmunu.compute_fmunu()
         elif fmunu.geometry is "TENSOR":
@@ -62,13 +71,19 @@ class CloverField(LatticeField):
         self._inverse = (
             False  # Here, it is a flag to indicate whether the field has been computed
         )
-        
-        new = lambda idof: LatticeField.create(self._fmunu.lattice, dofs=(idof,), dtype=prec, device=self._fmunu.device, empty=True)
-        self._clover = new(idof) 
-        self._cloverInv = new(idof) 
+
+        new = lambda idof: LatticeField.create(
+            self._fmunu.lattice,
+            dofs=(idof,),
+            dtype=prec,
+            device=self._fmunu.device,
+            empty=True,
+        )
+        self._clover = new(idof)
+        self._cloverInv = new(idof)
         self.coeff = coeff
         self._twisted = twisted
-        self._twist_flavor = tf 
+        self._twist_flavor = tf
         self._mu2 = mu2
         self._eps2 = eps2
         self._rho = rho
@@ -124,7 +139,7 @@ class CloverField(LatticeField):
     @property
     def eps2(self):
         return self._eps2
-    
+
     @property
     def rho(self):
         return self._rho
@@ -189,7 +204,7 @@ class CloverField(LatticeField):
         if self._quda is None:
             self._quda = make_shared(lib.CloverField.Create(self.quda_params))
         return self._quda
-        
+
     @property
     def clover_field(self):
         # Note: This is a kind reminder that QUDA internally applies a normalization factor of 1/2 in clover field.
@@ -210,7 +225,7 @@ class CloverField(LatticeField):
     def trLog(self):
         if self._inverse and self.computeTrLog:
             # separation into the following two lines is necessary
-            arr = self.quda_field.TrLog().data #can simply use tuple?
+            arr = self.quda_field.TrLog().data  # can simply use tuple?
             arr.reshape((2,))
             return numpy.frombuffer(arr, dtype="double", count=2)
         return None
@@ -243,7 +258,7 @@ class CloverField(LatticeField):
         return self.quda_field.Diagonal()
 
     @diagonal.setter
-    def diagonal(self, val:float):
+    def diagonal(self, val: float):
         self.quda_field.Diagonal(val)
 
     @property
@@ -257,8 +272,8 @@ class CloverField(LatticeField):
     @property
     def compressed_block_size(self):
         return self.quda_field.compressed_block_size()
-    
-    def max_elem(self, inverse=False): #? don't know what this is
+
+    def max_elem(self, inverse=False):  # ? don't know what this is
         return self.quda_field.max_element(inverse)
 
     """
@@ -289,16 +304,16 @@ class CloverField(LatticeField):
         "Computes the absolute minimum of the field"
         return self.quda_field.abs_min(inverse)
 
-    #? may not be necessary
+    # ? may not be necessary
     def backup(self):
         "Back up clover field (& its inverse if computed) onto CPU"
         self.quda_field.backup()
 
-    #? may not be necessary
+    # ? may not be necessary
     def restore(self):
         "Restore clover field (& its inverse if computed) from CPU to GPU"
         self.quda_field.restore()
-        
+
     def computeCloverForce(self, coeff):
         """
         Compute the force contribution from the solver solution fields

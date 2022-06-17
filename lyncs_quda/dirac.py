@@ -144,7 +144,7 @@ class Dirac:
                     self.gauge,
                     coeff=self.coeff,
                     twisted=(self.mu != 0),
-                    tf =("SINGLET" if "TWISTED" in self.type else "NO"),
+                    tf=("SINGLET" if "TWISTED" in self.type else "NO"),
                     mu2=self.mu**2,
                     rho=self.rho,
                     computeTrLog=self.computeTrLog,
@@ -165,7 +165,7 @@ class Dirac:
         return lib.DiracCoarse(
             self.quda_params,
             self.gauge.cpu_field,
-            self.coarse_clover.cpu_field, #if self.coarse_clover else nullptr,  # if we give nullptr, (ok if gauge's location=CUDA) then cpuClass is internally allocated if an operand is located on cpu, but this is not accessible from Python side.  no accessor in DiracCoarse
+            self.coarse_clover.cpu_field,  # if self.coarse_clover else nullptr,  # if we give nullptr, (ok if gauge's location=CUDA) then cpuClass is internally allocated if an operand is located on cpu, but this is not accessible from Python side.  no accessor in DiracCoarse
             self.coarse_clover_inv.cpu_field if self.coarse_clover_inv else nullptr,
             self.coarse_precond.cpu_field if self.coarse_precond else nullptr,
             self.gauge.gpu_field,

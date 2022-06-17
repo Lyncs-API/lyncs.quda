@@ -22,6 +22,7 @@ NOTE:
    FLOAT4: 4 from (spin,color,vec) runs before site index
 """
 
+
 def spinor(lattice, **kwargs):
     "Constructs a new spinor field"
     return SpinorField.create(lattice, dofs=(4, 3), **kwargs)
@@ -64,7 +65,7 @@ class SpinorField(LatticeField):
         "Number of spin component. 1 for staggered, 2 for coarse Dslash, 4 for 4d spinor"
         return self.dofs[-2]
 
-    #? apparently, vector is fast running index
+    # ? apparently, vector is fast running index
     @property
     def nvec(self):
         "Number of packed vectors"
@@ -96,7 +97,7 @@ class SpinorField(LatticeField):
     @property
     def order(self):
         "Data order of the field"
-        if self.precision in ["single","half"] and self.nspin == 4:
+        if self.precision in ["single", "half"] and self.nspin == 4:
             # Assume: FLOAT8 is not defined
             return "FLOAT4"
         return "FLOAT2"
@@ -173,7 +174,7 @@ class SpinorField(LatticeField):
         "Returns and instance of quda::ColorSpinorField"
         self.activate()
         if self._quda is None:
-            self._quda =  make_shared(lib.ColorSpinorField.Create(self.quda_params))
+            self._quda = make_shared(lib.ColorSpinorField.Create(self.quda_params))
         return self._quda
 
     def is_native(self):
