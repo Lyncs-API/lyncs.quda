@@ -120,11 +120,12 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         
         if other is None:
             other = self
-        other = out.prepare(other, copy=False, check=False, **kwargs)
+        other = out.cast(other, copy=False, check=False, **kwargs)
         
         try:
             out.quda_field.copy(other.quda_field)
         except NotImplementedError: # at least, serial version calls exit(1) from qudaError, which is not catched by this
+            assert False
             out = out.prepare((other.field.copy()), copy=False) #the orignal code may lead to infinite recursion
         return out
 

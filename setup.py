@@ -28,7 +28,6 @@ QUDA_CMAKE_ARGS = {
     "QUDA_CLOVER_DYNAMIC": os.environ.get("QUDA_CLOVER_DYNAMIC", "OFF"),
     "QUDA_CLOVER_RECONSTRUCT": os.environ.get("QUDA_CLOVER_RECONSTRUCT", "OFF"),
     "QUDA_GAUGE_TOOLS": os.environ.get("QUDA_GAUGE_TOOLS", "ON"),
-    "QUDA_GAUGE_FORCE": os.environ.get("QUDA_GAUGE_FORCE", "ON"),
     "QUDA_GAUGE_ALG": os.environ.get("QUDA_GAUGE_ALG", "ON"),
 }
 

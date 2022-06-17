@@ -36,7 +36,7 @@ class Dirac:
     epsilon: float = 0
 
     # For LYNCS CloverField class
-    csw: float = 0
+    coeff: float = 0
     rho: float = 0
     computeTrLog: bool = False
 
@@ -76,7 +76,7 @@ class Dirac:
         self._clover = clover
 
         if clover is not None:
-            self.csw = clover.csw
+            self.coeff = clover.coeff
             self.mu = sqrt(clover.mu2)
             self.rho = clover.rho
             self.computeTrLog = clover.computeTrLog
@@ -91,7 +91,7 @@ class Dirac:
         "Type of the operator"
         if self.gauge.is_coarse:
             return "COARSE"
-        if self.csw == 0:
+        if self.coeff == 0:
             if self.mu == 0:
                 return "WILSON"
             return "TWISTED_MASS"
@@ -138,13 +138,13 @@ class Dirac:
         self.quda_gauge = self.gauge.quda_field
         params.gauge = self.quda_gauge
 
-        if self.csw != 0.0 and not self.gauge.is_coarse:
+        if self.coeff != 0.0 and not self.gauge.is_coarse:
             if self.clover is None:
-                self.clover.clover_field
                 self.clover = CloverField(
                     self.gauge,
-                    csw=self.csw,
+                    coeff=self.coeff,
                     twisted=(self.mu != 0),
+                    tf =("SINGLET" if "TWISTED" in self.type else "NO"),
                     mu2=self.mu**2,
                     rho=self.rho,
                     computeTrLog=self.computeTrLog,
