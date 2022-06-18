@@ -121,6 +121,8 @@ def test_random(lib, lattice, device, dtype):
     gf2 = gf.copy()
     assert gf == gf2
 
+    assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)
+
 
 @dtype_loop  # enables dtype
 @device_loop  # enables device
@@ -176,6 +178,9 @@ def test_mom_to_full(lib, lattice, device, dtype):
 
     mom2 = gf.copy(out=mom.new())
     assert mom2 == mom
+
+    norm2 = 2 * (-gf.dot(gf)).reduce(mean=False)
+    assert isclose(mom.norm2(), norm2, rel_tol=1e-6)
 
 
 # @dtype_loop  # enables dtype
