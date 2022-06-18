@@ -286,6 +286,10 @@ class GaugeField(LatticeField):
         "Returns a full matrix version of the field (with reconstruct=NO)"
         return self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
 
+    def to_momentum(self):
+        "Returns a momentum version of the field (with reconstruct=NO)"
+        return self if self.reconstruct == "10" else self.copy(reconstruct="10")
+
     def default_view(self, split_col=True):
         "Returns the default view of the field including reshaping"
         shape = (2,)  # even-odd
