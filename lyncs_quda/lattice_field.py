@@ -19,9 +19,31 @@ def get_precision(dtype):
         return "double"
     if dtype in ["float32", "complex64"]:
         return "single"
-    if dtype in ["float16"]:  # , "complex32"
+    if dtype in ["float16", "complex32"]:
         return "half"
     raise ValueError
+
+
+def get_complex_dtype(dtype):
+    "Return equivalent complex dtype"
+    if dtype in ["float64", "complex128"]:
+        return "complex128"
+    if dtype in ["float32", "complex64"]:
+        return "complex64"
+    if dtype in ["float16", "complex32"]:
+        return "complex32"
+    raise TypeError(f"Cannot convert {self.dtype} to complex")
+
+
+def get_float_dtype(dtype):
+    "Return equivalent float dtype"
+    if dtype in ["float64", "complex128"]:
+        return "float64"
+    if dtype in ["float32", "complex64"]:
+        return "float32"
+    if dtype in ["float16", "complex32"]:
+        return "float16"
+    raise TypeError(f"Cannot convert {self.dtype} to float")
 
 
 @contextmanager
@@ -163,11 +185,13 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         "Returns a complex view of the field"
         if self.iscomplex:
             return self.field
-        if self.dtype == "float64":
-            return self.field.view("complex128")
-        elif self.dtype == "float32":
-            return self.field.view("complex64")
-        raise TypeError(f"Cannot convert {self.dtype} to complex")
+        return self.field.view(get_complex_dtype(self.dtype))
+
+    def float_view(self):
+        "Returns a complex view of the field"
+        if not self.iscomplex:
+            return self.field
+        return self.field.view(get_float_dtype(self.dtype))
 
     def default_view(self):
         "Returns the default view of the field including reshaping"
