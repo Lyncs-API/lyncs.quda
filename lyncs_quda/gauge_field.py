@@ -325,6 +325,10 @@ class GaugeField(LatticeField):
         "Returns a full matrix version of the field (with reconstruct=NO)"
         return self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
 
+    def to_momentum(self):
+        "Returns a momentum version of the field (with reconstruct=NO)"
+        return self if self.reconstruct == "10" else self.copy(reconstruct="10")
+
     def default_view(self, split_col=True):
         "Returns the default view of the field including reshaping"
         # ? if we take into account FLAOT4 order, unity, etc shoud not depend on this; tr,dag might need reshuffle
@@ -341,6 +345,9 @@ class GaugeField(LatticeField):
             shape += (self.dofs_per_link // 2,)
         # lattice
         shape += (-1,)
+        if self.reconstruct == "10":
+            shape += (2,)
+            return super().float_view().reshape(shape)
         return super().complex_view().reshape(shape)
 
     def unity(self):
@@ -373,9 +380,8 @@ class GaugeField(LatticeField):
             out = out.mean() / self.ncol
         else:
             out = out.sum()
-        if not local and self.comm is not None:
-            # TODO: global reduction
-            raise NotImplementedError
+        if not local:
+            return super().reduce(out)
         return out
 
     def dot(self, other, out=None):
@@ -504,6 +510,11 @@ class GaugeField(LatticeField):
             raise ValueError(
                 f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
             )
+        if self.reconstruct == "10":
+            # TODO: patch quda, reconstruct 10 not supported
+            norm2 = (self.default_view() ** 2).sum(axis=(0, 1, 3, 4)).get()
+            norm2 = norm2.sum() - norm2[-1] / 2 - norm2[-2] / 2
+            return 4 * super().reduce(norm2)
         return self.quda_field.norm2(link_dir)
 
     def abs_max(self, link_dir=-1):

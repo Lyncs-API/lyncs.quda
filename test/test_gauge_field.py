@@ -119,6 +119,8 @@ def test_random(lib, lattice, device, dtype):
     gf2 = gf.copy()
     assert gf == gf2
 
+    assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)
+
 
 # need: GPU_GAUGE_TOOLS=ON
 @dtype_loop  # enables dtype
@@ -153,7 +155,6 @@ def test_exponential(lib, lattice, device, dtype):
     assert gf2 == gf
 
 
-"""    
 @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
@@ -178,7 +179,13 @@ def test_mom_to_full(lib, lattice, device, dtype):
     mom2 = gf.copy(out=mom.new())
     assert mom2 == mom
 
-#need: GPU_GAUGE_FORCE=ON
+    mom2 = gf.to_momentum()
+    assert mom2 == mom
+
+    norm2 = 2 * (-gf.dot(gf)).reduce(mean=False)
+    assert isclose(mom.norm2(), norm2, rel_tol=1e-6)
+
+
 # @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
@@ -270,4 +277,3 @@ def test_force_gradient(lib, lattice, device, epsilon):
         )
         print(path, ddaction, ddaction21, ddaction / ddaction12)
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
-"""
