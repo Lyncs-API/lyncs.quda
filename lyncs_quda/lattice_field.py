@@ -27,6 +27,7 @@ def get_precision(dtype):
         return "half"
     raise ValueError
 
+
 def get_complex_dtype(dtype):
     "Return equivalent complex dtype"
     if dtype in ["float64", "complex128"]:
