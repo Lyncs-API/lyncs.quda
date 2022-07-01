@@ -319,11 +319,9 @@ class GaugeField(LatticeField):
         diag = [i * self.ncol + i for i in range(self.ncol)]
         field[:, :, diag, ...] = 1
 
-    def trace(self, **kwargs):
+    def trace(self, only_real=False):
         "Returns the trace in color of the field"
-        if self.reconstruct != "NO":
-            raise NotImplementedError
-        return self.default_view().trace(axis1=2, axis2=3, **kwargs)
+        return self.full().default_view().trace(axis1=2, axis2=3, dtype="float64" if only_real else "complex128")
 
     def dagger(self, out=None):
         "Returns the complex conjugate transpose of the field"
@@ -335,7 +333,7 @@ class GaugeField(LatticeField):
 
     def reduce(self, local=False, only_real=True, mean=True):
         "Reduction of a gauge field (real of mean of trace)"
-        out = self.trace(dtype="float64" if only_real else "complex128")
+        out = self.trace(only_real=only_real)
         if mean:
             out = out.mean() / self.ncol
         else:
