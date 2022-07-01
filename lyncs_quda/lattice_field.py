@@ -85,13 +85,20 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def new(self, empty=True, **kwargs):
         "Returns a new empty field based on the current"
-        return self.create(
+        out = self.create(
             self.lattice,
-            dofs=kwargs.get("dofs", self.dofs),
-            dtype=kwargs.get("dtype", self.dtype),
-            device=kwargs.get("device", self.device),
+            dofs=kwargs.pop("dofs", self.dofs),
+            dtype=kwargs.pop("dtype", self.dtype),
+            device=kwargs.pop("device", self.device),
             empty=empty,
+            **kwargs,
         )
+        out.__array_finalize__(self)
+        return out
+
+    def __array_finalize__(self, obj):
+        "Support for __array_finalize__ standard"
+        pass
 
     def copy(self, other=None, out=None, **kwargs):
         "Returns a copy of the field"
@@ -127,6 +134,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             other = self
         if not isinstance(other, cls):
             other = cls(other)
+        other.__array_finalize__(self)
         if check and not self.equivalent(other, **kwargs):
             if not copy:
                 raise ValueError("The given field is not appropriate")
@@ -144,7 +152,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             return self.cast(field, copy=False, **kwargs)
         return tuple(self.prepare(field, **kwargs) for field in fields)
 
-    def __init__(self, field, comm=None):
+    def __init__(self, field, comm=None, **kwargs):
         self.field = field
         self.comm = comm
         self._quda = None
@@ -343,7 +351,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
                 kwargs[key] = prepare(val)
 
         fnc = getattr(ufunc, method)
-        return type(self)(fnc(*args, **kwargs))
+        return self.cast(fnc(*args, **kwargs))
 
     def __bool__(self):
         return bool(self.field.all())
