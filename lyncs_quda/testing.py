@@ -7,6 +7,7 @@ __all__ = [
     "lattice_loop",
     "device_loop",
     "parallel_loop",
+    "mtype_loop",
     "mark_mpi",
 ]
 
@@ -20,7 +21,9 @@ from .spinor_field import SpinorField
 @fixture(scope="session")
 def fixlib():
     "A fixture to guarantee that in pytest lib is finalized at the end"
-    if not lib.initialized:
+    if QUDA_MPI and MPI.COMM_WORLD.Get_size()>1:
+        pass
+    elif not lib.initialized:
         lib.init_quda()
     yield lib
     if lib.initialized:

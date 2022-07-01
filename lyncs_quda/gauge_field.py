@@ -20,7 +20,7 @@ import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
 from lyncs_utils import prod, isiterable
 from .lib import lib, cupy
-from .lattice_field import LatticeField
+from .lattice_field import LatticeField, backend
 from .time_profile import default_profiler
 
 # TODO: Make array dims consistent with gauge order
@@ -259,9 +259,11 @@ class GaugeField(LatticeField):
     @property
     def quda_field(self):
         "Returns an instance of quda::(cpu/cuda)GaugeField for QUDA_(CPU/CUDA)_FIELD_LOCATION"
+        print("quda_field",cupy.cuda.runtime.getDevice(),lib.device_id,self.device,self.comm)
         self.activate()
         if self._quda is None:
             self._quda = make_shared(lib.GaugeField.Create(self.quda_params))
+            #self.activate()
         return self._quda
 
     def is_native(self):
@@ -280,10 +282,12 @@ class GaugeField(LatticeField):
             sites = [sites] * self.ndims
 
         sites = [site if dim > 1 else 0 for site, dim in zip(sites, self.comm.dims)]
+        #sites = [site for site, dim in zip(sites, self.comm.dims)]
+        print(sites,self.comm.dims)
         if sites == [0, 0, 0, 0]:
             return self.quda_field
-
-        if self.location is "CPU":
+        print("tenter ext f")
+        if self.location == "CPU":
             "Returns cpuGaugeField"
             """
               Remark:
@@ -303,8 +307,9 @@ class GaugeField(LatticeField):
                     self.ptr, self.quda_params, numpy.array(sites, dtype="int32")
                 )
             )
-        elif self.location is "CUDA":
+        elif self.location == "CUDA":
             "Returns cudaGaugeField"
+            print("ext fie",cupy.cuda.runtime.getDevice(),lib.device_id,self.device)
             return make_shared(
                 lib.createExtendedGauge(
                     self.quda_field,  # quda_field returns an instance of cudaGaugeField in this case
@@ -345,11 +350,17 @@ class GaugeField(LatticeField):
         "Set all field elements to unity"
         if self.reconstruct != "NO":
             raise NotImplementedError
-        field = self.default_view(split_col=False)
-        field[:] = 0
-        diag = [i * self.ncol + i for i in range(self.ncol)]
-        field[:, :, diag, ...] = 1
-
+        print(lib.device_id,self.device)
+        #with backend(self.device) as bck:
+        if True:
+        #self.zero()
+            field = self.default_view(split_col=False)
+            
+            field[:] = 0
+            print(self.device)
+            diag = [i * self.ncol + i for i in range(self.ncol)]
+            field[:, :, diag, ...] = 1
+            
     def trace(self, **kwargs):
         "Returns the trace in color of the field"
         if self.reconstruct != "NO":
@@ -397,7 +408,7 @@ class GaugeField(LatticeField):
         is a destructive operation.  The number of link failures is
         reported so appropriate action can be taken.
         """
-        if self.location is "CPU":
+        if self.location == "CPU":
             raise NotImplementedError(
                 "This method currently works only when running on GPUs"
             )
@@ -434,7 +445,7 @@ class GaugeField(LatticeField):
         tuple(total, spatial, temporal) plaquette site averaged and
             normalized such that each plaquette is in the range [0,1]
         """
-        if self.location is "CPU":  # I don't think double3 is defined without CUDA
+        if self.location == "CPU":  # I don't think double3 is defined without CUDA
             raise NotImplementedError(
                 "The underlying QUDA function will not work without GPU"
             )
@@ -450,9 +461,11 @@ class GaugeField(LatticeField):
             return self
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
-
+        print("fm")
         out = self.prepare(out, dofs=(6, 18))
+        print("fm2",out.location,self.location,self.device,out.device,lib.device_id,cupy.cuda.runtime.getDevice(),lib.comm_gpuid(),out.comm)
         lib.computeFmunu(out.quda_field, self.extended_field(1))
+        print("fm3")
         return out
 
     def topological_charge(self):
@@ -466,7 +479,11 @@ class GaugeField(LatticeField):
         """
         if self.geometry != "TENSOR":
             self = self.compute_fmunu()
+        print("aa")
         out = numpy.zeros(4, dtype="double")
+        print("bb")
+        #self.activate()
+        print("bb11")
         lib.computeQCharge(out[:3], out[3:], self.quda_field)
         return out[3], tuple(out[:3])
 

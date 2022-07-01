@@ -162,16 +162,20 @@ class Dirac:
         #  This constcutor seems to rely on initializeLazy when performing M, MdagM, etc.
         #  initializeLazy seems to assume that if gauge is allocated on LOCATION,
         #  then coarse_* is alredy allocated on LOCATION too if we use the follwing constructor
+        # Note
+        #  * clover_inv is necessary when doing clover inversion or applying prec coarse op
+        #  * coarse_precond is necessary when applying prec coarse op
+        assert self.coarse_clover is not None
         return lib.DiracCoarse(
             self.quda_params,
             self.gauge.cpu_field,
-            self.coarse_clover.cpu_field, #if self.coarse_clover else nullptr,  # if we give nullptr, (ok if gauge's location=CUDA) then cpuClass is internally allocated if an operand is located on cpu, but this is not accessible from Python side.  no accessor in DiracCoarse
-            self.coarse_clover_inv.cpu_field if self.coarse_clover_inv else nullptr,
-            self.coarse_precond.cpu_field if self.coarse_precond else nullptr,
+            self.coarse_clover.cpu_field,
+            self.coarse_clover_inv.cpu_field if self.coarse_clover_inv is not None else nullptr,
+            self.coarse_precond.cpu_field if self.coarse_precond is not None else nullptr,
             self.gauge.gpu_field,
-            self.coarse_clover.gpu_field if self.coarse_clover else nullptr,
-            self.coarse_clover_inv.gpu_field if self.coarse_clover_inv else nullptr,
-            self.coarse_precond.gpu_field if self.coarse_precond else nullptr,
+            self.coarse_clover.gpu_field,
+            self.coarse_clover_inv.gpu_field if self.coarse_clover_inv is not None else nullptr,
+            self.coarse_precond.gpu_field if self.coarse_precond is not None else nullptr,
         )
 
     def get_matrix(self, key="M"):

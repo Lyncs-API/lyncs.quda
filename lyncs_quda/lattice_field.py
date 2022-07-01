@@ -17,6 +17,9 @@ from .lib import lib, cupy
 from lyncs_cppyy import to_pointer
 import ctypes
 
+#debug
+from lyncs_mpi import MPI
+
 def get_precision(dtype):
     if dtype in ["float64", "complex128"]:
         return "double"
@@ -65,20 +68,23 @@ def reshuffle(field, N0, N1):
 
 @contextmanager
 def backend(device=True):
-    if device is False or device is None:
-        yield numpy
-    else:
-        if device is True:
-            device = lib.device_id
+    try:
+        if device is False or device is None:
+            yield numpy
+        else:
+            if device is True:
+                device = lib.device_id
+                
+            if not isinstance(device, int):
+                raise TypeError("Expected device to be an integer or None/True/False")
+            print("bck",device,lib.device_id,MPI.COMM_WORLD.Get_rank(),cupy.cuda.runtime.getDevice(),cupy.cuda.Device().id )
 
-        if not isinstance(device, int):
-            raise TypeError("Expected device to be an integer or None/True/False")
-
-        # ? is this safe?
-        lib.device_id = device
-        with cupy.cuda.Device(device):
-            yield cupy
-
+            lib.device_id = device
+            with cupy.cuda.Device(device) as d:
+                print("in_with",d.id)
+                yield cupy
+    finally: # I don't think this will be invked when exception occurs
+        cupy.cuda.runtime.setDevice(lib.device_id)
 
 class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     "Mimics the quda::LatticeField object"
@@ -100,7 +106,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             new = bck.empty if empty else bck.zeros
             shape = tuple(dofs) + tuple(lattice)
             return cls(new(shape, dtype=cls.get_dtype(dtype)), **kwargs)
-
+        
     def new(self, empty=True, **kwargs):
         "Returns a new empty field based on the current"
         return self.create(
@@ -108,6 +114,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             dofs=kwargs.get("dofs", self.dofs),
             dtype=kwargs.get("dtype", self.dtype),
             device=kwargs.get("device", self.device),
+            comm=kwargs.get("comm", self.comm),
             empty=empty,
         )
 
@@ -127,6 +134,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         except NotImplementedError: # at least, serial version calls exit(1) from qudaError, which is not catched by this
             assert False
             out = out.prepare((other.field.copy()), copy=False) #the orignal code may lead to infinite recursion
+        except Exception:
+            print("fatal")
+            assert False
         return out
 
     def equivalent(self, other, switch=False, **kwargs):
@@ -234,6 +244,13 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def complex_view(self):
         "Returns a complex view of the field"
+        #tmp fix
+        """
+        print("view",MPI.COMM_WORLD.Get_rank(),self.device,lib.device_id)
+        if self.device is not None:
+            print("com",self.device,lib.device_id)
+            cupy.cuda.Device(self.device).use()
+        """
         if self.iscomplex:
             return self.field
         if self.dtype == "float64":

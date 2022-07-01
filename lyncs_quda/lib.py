@@ -90,16 +90,21 @@ class QudaLib(Lib):
         return cupy.cuda.runtime.getDeviceCount()
 
     def init_quda(self, dev=None):
+        # ASSUME: self.comm is set when launching non-trivial MPI job
         if self.initialized:
             raise RuntimeError("Quda already initialized")
-        # As first we set initialized to True to avoid recursion
+        # At first, we set initialized to True to avoid recursion
         self._initialized = True
         if not self.loaded:
             self.load()
         if self.tune_dir:
             Path(self.tune_dir).mkdir(parents=True, exist_ok=True)
         if QUDA_MPI and self.comm is None:
+            #comm = MPI.COMM_WORLD.Create_cart((1, 1, 2, 1))
+            #self.set_comm(comm=comm)
             self.set_comm()
+            #dev = MPI.COMM_WORLD.Get_rank()
+            #print(dev,self.comm.Get_size())
         if QUDA_MPI:
             comm = get_comm(self.comm)
             comm_ptr = self._comm_ptr(comm)
@@ -113,9 +118,10 @@ class QudaLib(Lib):
             else:
                 dev = self.device_id
         self.initQuda(dev)
-        self.device_id = self.get_current_device()
+        self._device_id = self.get_current_device() #hack
 
-    def set_comm(self, comm=None):
+    def set_comm(self, comm=None): #nicer if it creates comm given the Cart toplogy?
+        # NOTE: comm==None taken as indication of single rank MPI job 
         if comm is not None and not QUDA_MPI:
             raise RuntimeError("Quda has not been compiled with MPI")
         if comm is None and not QUDA_MPI:
@@ -194,9 +200,11 @@ class QudaLib(Lib):
         if not self.initialized:
             raise RuntimeError("Quda has not been initialized")
         self.endQuda()
+        #self.comm.Barrier()
         self._comm = None
         self._initialized = False
-
+        print("END QUDA!!!")
+        
     def __getattr__(self, key):
         if key.startswith("_"):
             raise AttributeError(f"QudaLib does not have attribute '{key}'")
@@ -243,7 +251,7 @@ lib = QudaLib(
     namespace=["quda", "lyncs_quda"],
 )
 
-
+#used?
 try:
     from pytest import fixture
 
