@@ -321,7 +321,11 @@ class GaugeField(LatticeField):
 
     def trace(self, only_real=False):
         "Returns the trace in color of the field"
-        return self.full().default_view().trace(axis1=2, axis2=3, dtype="float64" if only_real else "complex128")
+        return (
+            self.full()
+            .default_view()
+            .trace(axis1=2, axis2=3, dtype="float64" if only_real else "complex128")
+        )
 
     def dagger(self, out=None):
         "Returns the complex conjugate transpose of the field"
