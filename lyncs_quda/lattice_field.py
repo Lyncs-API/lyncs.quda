@@ -249,7 +249,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def quda_dims(self):
         "Memory array with lattice dimensions"
-        return array("i", self.dims)
+        return array("i", reversed(self.dims))
 
     @property
     def dofs(self):
