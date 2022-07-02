@@ -86,7 +86,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     def new(self, empty=True, **kwargs):
         "Returns a new empty field based on the current"
         out = self.create(
-            self.lattice,
+            self.dims,
             dofs=kwargs.pop("dofs", self.dofs),
             dtype=kwargs.pop("dtype", self.dtype),
             device=kwargs.pop("device", self.device),
