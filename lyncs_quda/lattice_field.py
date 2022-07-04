@@ -77,11 +77,9 @@ def backend(device=True):
                 
             if not isinstance(device, int):
                 raise TypeError("Expected device to be an integer or None/True/False")
-            print("bck",device,lib.device_id,MPI.COMM_WORLD.Get_rank(),cupy.cuda.runtime.getDevice(),cupy.cuda.Device().id )
 
             lib.device_id = device
             with cupy.cuda.Device(device) as d:
-                print("in_with",d.id)
                 yield cupy
     finally: # I don't think this will be invked when exception occurs
         cupy.cuda.runtime.setDevice(lib.device_id)
@@ -213,6 +211,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def activate(self):
         "Activates the current field. To be called before using the object in quda"
+        "to make sure the communicator is set for MPI"
         lib.set_comm(self.comm)
 
     @property
@@ -244,13 +243,6 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def complex_view(self):
         "Returns a complex view of the field"
-        #tmp fix
-        """
-        print("view",MPI.COMM_WORLD.Get_rank(),self.device,lib.device_id)
-        if self.device is not None:
-            print("com",self.device,lib.device_id)
-            cupy.cuda.Device(self.device).use()
-        """
         if self.iscomplex:
             return self.field
         if self.dtype == "float64":

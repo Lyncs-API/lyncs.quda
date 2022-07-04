@@ -17,9 +17,11 @@ def test_solve_random(lib, lattice, device, gamma, dtype=None):
     dirac = gf.Dirac(kappa=0.01)
     rhs = spinor(lattice, dtype=dtype, device=device, gamma_basis=gamma)
     rhs.uniform()
+    print(rhs.norm())
     mat = dirac.M
     out = mat.solve(rhs)
     res = mat(out)
     res.field -= rhs.field
+    print(res.norm() ,rhs.norm())
     res = res.norm() / rhs.norm()
     assert res < 1e-9

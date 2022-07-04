@@ -100,11 +100,7 @@ class QudaLib(Lib):
         if self.tune_dir:
             Path(self.tune_dir).mkdir(parents=True, exist_ok=True)
         if QUDA_MPI and self.comm is None:
-            #comm = MPI.COMM_WORLD.Create_cart((1, 1, 2, 1))
-            #self.set_comm(comm=comm)
             self.set_comm()
-            #dev = MPI.COMM_WORLD.Get_rank()
-            #print(dev,self.comm.Get_size())
         if QUDA_MPI:
             comm = get_comm(self.comm)
             comm_ptr = self._comm_ptr(comm)
@@ -138,6 +134,7 @@ class QudaLib(Lib):
         if comm.ndim != 4:
             raise ValueError("comm expected to be a 4D Cartcomm")
         if self._comm is not None:
+            # when ending and starting over QUDA, strange things happen
             self.end_quda()
         self._comm = comm
 
@@ -200,10 +197,8 @@ class QudaLib(Lib):
         if not self.initialized:
             raise RuntimeError("Quda has not been initialized")
         self.endQuda()
-        #self.comm.Barrier()
         self._comm = None
         self._initialized = False
-        print("END QUDA!!!")
         
     def __getattr__(self, key):
         if key.startswith("_"):

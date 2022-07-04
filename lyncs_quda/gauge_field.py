@@ -259,11 +259,9 @@ class GaugeField(LatticeField):
     @property
     def quda_field(self):
         "Returns an instance of quda::(cpu/cuda)GaugeField for QUDA_(CPU/CUDA)_FIELD_LOCATION"
-        print("quda_field",cupy.cuda.runtime.getDevice(),lib.device_id,self.device,self.comm)
         self.activate()
         if self._quda is None:
             self._quda = make_shared(lib.GaugeField.Create(self.quda_params))
-            #self.activate()
         return self._quda
 
     def is_native(self):
@@ -282,11 +280,9 @@ class GaugeField(LatticeField):
             sites = [sites] * self.ndims
 
         sites = [site if dim > 1 else 0 for site, dim in zip(sites, self.comm.dims)]
-        #sites = [site for site, dim in zip(sites, self.comm.dims)]
-        print(sites,self.comm.dims)
         if sites == [0, 0, 0, 0]:
             return self.quda_field
-        print("tenter ext f")
+
         if self.location == "CPU":
             "Returns cpuGaugeField"
             """
@@ -309,7 +305,6 @@ class GaugeField(LatticeField):
             )
         elif self.location == "CUDA":
             "Returns cudaGaugeField"
-            print("ext fie",cupy.cuda.runtime.getDevice(),lib.device_id,self.device)
             return make_shared(
                 lib.createExtendedGauge(
                     self.quda_field,  # quda_field returns an instance of cudaGaugeField in this case
@@ -350,16 +345,13 @@ class GaugeField(LatticeField):
         "Set all field elements to unity"
         if self.reconstruct != "NO":
             raise NotImplementedError
-        print(lib.device_id,self.device)
-        #with backend(self.device) as bck:
-        if True:
-        #self.zero()
-            field = self.default_view(split_col=False)
-            
-            field[:] = 0
-            print(self.device)
-            diag = [i * self.ncol + i for i in range(self.ncol)]
-            field[:, :, diag, ...] = 1
+
+        field = self.default_view(split_col=False)
+        
+        field[:] = 0
+        print(self.device)
+        diag = [i * self.ncol + i for i in range(self.ncol)]
+        field[:, :, diag, ...] = 1
             
     def trace(self, **kwargs):
         "Returns the trace in color of the field"
@@ -479,11 +471,8 @@ class GaugeField(LatticeField):
         """
         if self.geometry != "TENSOR":
             self = self.compute_fmunu()
-        print("aa")
+
         out = numpy.zeros(4, dtype="double")
-        print("bb")
-        #self.activate()
-        print("bb11")
         lib.computeQCharge(out[:3], out[3:], self.quda_field)
         return out[3], tuple(out[:3])
 
