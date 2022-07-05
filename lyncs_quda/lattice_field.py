@@ -126,13 +126,20 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def new(self, empty=True, **kwargs):
         "Returns a new empty field based on the current"
-        return self.create(
-            self.lattice,
-            dofs=kwargs.get("dofs", self.dofs),
-            dtype=kwargs.get("dtype", self.dtype),
-            device=kwargs.get("device", self.device),
+        out = self.create(
+            self.dims,
+            dofs=kwargs.pop("dofs", self.dofs),
+            dtype=kwargs.pop("dtype", self.dtype),
+            device=kwargs.pop("device", self.device),
             empty=empty,
+            **kwargs,
         )
+        out.__array_finalize__(self)
+        return out
+
+    def __array_finalize__(self, obj):
+        "Support for __array_finalize__ standard"
+        pass
 
     def copy(self, other=None, out=None, **kwargs):
         "Returns out, a copy+=kwargs, of other if given, else of self"
@@ -199,6 +206,8 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         # (T, F): copy but no check       check & not copy
         # (F, T): does nothing            no check & just copy
         # (F, F): does nothing            does nothing
+
+        other.__array_finalize__(self)
         if check and not self.equivalent(other, **kwargs):
             if copy:
                 raise ValueError("The given field is not appropriate")
@@ -224,7 +233,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             return field
         return tuple(self.prepare(field, **kwargs) for field in fields)
 
-    def __init__(self, field, comm=None):
+    def __init__(self, field, comm=None, **kwargs):
         self.field = field
         self.comm = comm
         self._quda = None
@@ -320,8 +329,13 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     @property
     def quda_dims(self):
+<<<<<<< HEAD
         "Memory array with lattice dimensions including halo width"
         return array("i", self.dims)
+=======
+        "Memory array with lattice dimensions"
+        return array("i", reversed(self.dims))
+>>>>>>> ab3c469a91ee1d2ad6b6565083a98412490a968b
 
     @property
     def dofs(self):
@@ -427,7 +441,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
                 kwargs[key] = prepare(val)
 
         fnc = getattr(ufunc, method)
-        return type(self)(fnc(*args, **kwargs))
+        return self.cast(fnc(*args, **kwargs))
 
     def __bool__(self):
         return bool(self.field.all())
