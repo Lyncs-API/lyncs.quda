@@ -1,5 +1,5 @@
 diff --git a/include/gauge_force_quda.h b/include/gauge_force_quda.h
-index 6bf0477..32507e8 100644
+index 6bf0477..4d3b58f 100644
 --- a/include/gauge_force_quda.h
 +++ b/include/gauge_force_quda.h
 @@ -13,9 +13,11 @@ namespace quda {
@@ -42,30 +42,32 @@ index 6bf0477..32507e8 100644
 +                        or as a list of path where the first value indicates the direction
 +   */
 +  void gaugeForceGradient(GaugeField& mom, const GaugeField& u, const GaugeField& du, double coeff, int ***input_path,
-+		  int *length, double *path_coeff, int num_paths, int max_length, bool per_dir=true);
++			  int *length, double *path_coeff, int num_paths, int max_length, bool per_dir=true, bool left=false);
 +
  } // namespace quda
  
  
 diff --git a/include/kernels/gauge_force.cuh b/include/kernels/gauge_force.cuh
-index 09b7f97..e69f464 100644
+index 09b7f97..f4e3f9a 100644
 --- a/include/kernels/gauge_force.cuh
 +++ b/include/kernels/gauge_force.cuh
-@@ -16,14 +16,19 @@ namespace quda {
+@@ -16,14 +16,21 @@ namespace quda {
      const double *path_coeff;
      int *buffer;
      int count;
 +    bool per_dir;
 +    bool run_dir[4];
++    bool left;
  
 -    paths(int ***input_path, int *length_h, double *path_coeff_h, int num_paths, int max_length) :
-+    paths(int ***input_path, int *length_h, double *path_coeff_h, int num_paths, int max_length, bool per_dir) :
++    paths(int ***input_path, int *length_h, double *path_coeff_h, int num_paths, int max_length, bool per_dir, bool left=false) :
        num_paths(num_paths),
        max_length(max_length),
 -      count(0)
 +      count(0),
 +      per_dir(per_dir),
-+      run_dir({per_dir,per_dir,per_dir,per_dir})
++      run_dir({per_dir,per_dir,per_dir,per_dir}),
++      left(left)
      {
        // create path struct in a single allocation
 -      size_t bytes = 4 * num_paths * max_length * sizeof(int) + num_paths * sizeof(int);
@@ -74,7 +76,7 @@ index 09b7f97..e69f464 100644
        int pad = ((sizeof(double) - bytes % sizeof(double)) % sizeof(double))/sizeof(int);
        bytes += pad*sizeof(int) + num_paths*sizeof(double);
  
-@@ -31,10 +36,17 @@ namespace quda {
+@@ -31,10 +38,17 @@ namespace quda {
        int *path_h = static_cast<int*>(safe_malloc(bytes));
        memset(path_h, 0, bytes);
  
@@ -93,7 +95,7 @@ index 09b7f97..e69f464 100644
              path_h[dir*num_paths*max_length + i*max_length + j] = input_path[dir][i][j];
              if (dir==0) count++;
            }
-@@ -42,18 +54,18 @@ namespace quda {
+@@ -42,18 +56,18 @@ namespace quda {
        }
  
        // length array
@@ -117,7 +119,7 @@ index 09b7f97..e69f464 100644
      }
      void free() {
        pool_device_free(buffer);
-@@ -61,16 +73,18 @@ namespace quda {
+@@ -61,16 +75,18 @@ namespace quda {
    };
  
  
@@ -137,7 +139,7 @@ index 09b7f97..e69f464 100644
      const Gauge u;
  
      int X[4]; // the regular volume parameters
-@@ -80,10 +94,11 @@ namespace quda {
+@@ -80,10 +96,11 @@ namespace quda {
      Float epsilon; // stepsize and any other overall scaling factor
      const paths p;
  
@@ -150,7 +152,7 @@ index 09b7f97..e69f464 100644
        epsilon(epsilon),
        p(p)
      {
-@@ -103,6 +118,8 @@ namespace quda {
+@@ -103,6 +120,8 @@ namespace quda {
    {
      using real = typename Arg::Float;
      typedef Matrix<complex<real>,Arg::nColor> Link;
@@ -159,7 +161,7 @@ index 09b7f97..e69f464 100644
  
      int x[4] = {0, 0, 0, 0};
      getCoords(x, idx, arg.X, parity);
-@@ -111,60 +128,74 @@ namespace quda {
+@@ -111,60 +130,78 @@ namespace quda {
      //linkA: current matrix
      //linkB: the loaded matrix in this round
      Link linkA, linkB, staple;
@@ -250,7 +252,11 @@ index 09b7f97..e69f464 100644
 -    linkA = linkA * staple;
 +    if constexpr(Arg::compute_gradient) {
 +      linkC = arg.du(dir, linkIndex(x,arg.E), parity);
-+      linkA = linkA * staple2 + linkC * linkA * staple;
++      if (arg.p.left) {
++	linkA = linkA * staple2 + linkA * staple * linkC;
++      } else {
++	linkA = linkA * staple2 + linkC * linkA * staple;
++      }
 +    } else {
 +      linkA = linkA * staple;
 +    }
@@ -262,7 +268,7 @@ index 09b7f97..e69f464 100644
        mom = mom - arg.epsilon * linkA;
        makeAntiHerm(mom);
      }
-@@ -182,6 +213,7 @@ namespace quda {
+@@ -182,6 +219,7 @@ namespace quda {
  
      __device__ __host__ void operator()(int x_cb, int parity, int dir)
      {
@@ -271,7 +277,7 @@ index 09b7f97..e69f464 100644
        case 0: GaugeForceKernel<Arg,0>(arg, x_cb, parity); break;
        case 1: GaugeForceKernel<Arg,1>(arg, x_cb, parity); break;
 diff --git a/lib/gauge_force.cu b/lib/gauge_force.cu
-index 476de20..6b6fb83 100644
+index 476de20..b8ecfd2 100644
 --- a/lib/gauge_force.cu
 +++ b/lib/gauge_force.cu
 @@ -4,18 +4,20 @@
@@ -320,14 +326,14 @@ index 476de20..6b6fb83 100644
  
  #ifdef GPU_GAUGE_FORCE
 +  void gaugeForceGradient(GaugeField& mom, const GaugeField& u, const GaugeField& du, double epsilon, int ***input_path,
-+                  int *length_h, double *path_coeff_h, int num_paths, int path_max_length, bool per_dir)
++			  int *length_h, double *path_coeff_h, int num_paths, int path_max_length, bool per_dir, bool left)
 +  {
 +    checkPrecision(mom, u, du);
 +    checkLocation(mom, u, du);
 +    if (mom.Reconstruct() != QUDA_RECONSTRUCT_10) errorQuda("Reconstruction type %d not supported", mom.Reconstruct());
 +    if (du.Reconstruct() != QUDA_RECONSTRUCT_10) errorQuda("Reconstruction type %d not supported", du.Reconstruct());
 +
-+    paths p(input_path, length_h, path_coeff_h, num_paths, path_max_length, per_dir);
++    paths p(input_path, length_h, path_coeff_h, num_paths, path_max_length, per_dir, left);
 +
 +    // gauge field must be passed as first argument so we peel off its reconstruct type
 +    instantiate<GaugeForceGradient,ReconstructNo12>(u, mom, du, epsilon, p);

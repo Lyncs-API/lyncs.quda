@@ -92,16 +92,18 @@ class GaugeField(LatticeField):
         out.is_momentum = is_momentum
         return out
 
-    def equivalent(self, other, **kwargs):
+    def equivalent(self, other, switch=False, **kwargs):
         "Whether a field is equivalent to the current"
-        if not super().equivalent(other, **kwargs):
+        if not super().equivalent(other, switch=switch, **kwargs):
             return False
+        if switch:
+            self, other = other, self
         reconstruct = kwargs.get("reconstruct", self.reconstruct)
         if other.reconstruct != str(reconstruct):
             return False
         return True
 
-    def cast(self, other, **kwargs):
+    def cast(self, other=None, **kwargs):
         "Cast a field into its type and check for compatibility"
         other = super().cast(other, **kwargs)
         is_momentum = kwargs.get("is_momentum", self.is_momentum)
@@ -151,10 +153,11 @@ class GaugeField(LatticeField):
     def order(self):
         "Data order of the field"
         dofs = self.dofs_per_link
-        if dofs == 8 or dofs == 12:
+        if self.precision != "double" and (
+            dofs == 8 or dofs == 12
+        ):  # if FLOAT8 defined, if prec=half/quarter and recon=8, FLOAT8
             return "FLOAT4"
-        else:
-            return "FLOAT2"
+        return "FLOAT2"
 
     @property
     def quda_order(self):
@@ -238,6 +241,9 @@ class GaugeField(LatticeField):
     @property
     def quda_params(self):
         "Returns an instance of quda::GaugeFieldParams"
+        # TODO: Support MILC gauge order (site_offset, site_size)
+        # TODO: Support Staggered phase (staggeredPhaseType, staggeredPhaseApplied)
+        # TODO: Allow control on QudaGaugeFixed, i_mu, nFace, anisotropy, tadpole, compute_fat_link_max,
         params = lib.GaugeFieldParam()
         lib.copy_struct(params, super().quda_params)
         params.reconstruct = self.quda_reconstruct
@@ -318,9 +324,13 @@ class GaugeField(LatticeField):
         "Returns a full matrix version of the field (with reconstruct=NO)"
         return self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
 
+    def to_momentum(self):
+        "Returns a momentum version of the field (with reconstruct=NO)"
+        return self if self.reconstruct == "10" else self.copy(reconstruct="10")
+
     def default_view(self, split_col=True):
         "Returns the default view of the field including reshaping"
-        # ? order?
+        # ? if we take into account FLAOT4 order, unity, etc shoud not depend on this; tr,dag might need reshuffle
         shape = (2,)  # even-odd
         # geometry
         if len(self.dofs) == 1:
@@ -334,12 +344,13 @@ class GaugeField(LatticeField):
             shape += (self.dofs_per_link // 2,)
         # lattice
         shape += (-1,)
+        if self.reconstruct == "10":
+            shape += (2,)
+            return super().float_view().reshape(shape)
         return super().complex_view().reshape(shape)
 
     def unity(self):
         "Set all field elements to unity"
-        if self.geometry != "VECTOR":
-            raise NotImplementedError
         if self.reconstruct != "NO":
             raise NotImplementedError
         field = self.default_view(split_col=False)
@@ -368,19 +379,16 @@ class GaugeField(LatticeField):
             out = out.mean() / self.ncol
         else:
             out = out.sum()
-        if not local and self.comm is not None:
-            # TODO: global reduction
-            raise NotImplementedError
+        if not local:
+            return super().reduce(out)
         return out
 
     def dot(self, other, out=None):
         "Matrix product between two gauge fields"
         if not isinstance(other, GaugeField):
             raise ValueError
-        # if self.reconstruct != "NO" or other.reconstruct != "NO":
-        #    raise NotImplementedError
-        self = self.cast(self, reconstruct="NO")
-        other = self.cast(other, reconstruct="NO")
+        self = self.full()
+        other = other.full()
         out = self.prepare(out)
         self.backend.matmul(
             self.default_view(),
@@ -406,7 +414,7 @@ class GaugeField(LatticeField):
 
         with cupy.cuda.Device(self.device):
             fails = cupy.zeros((1,), dtype="int32")
-            lib.projectSU3(self.quda_field, tol, to_pointer(dfails.data.ptr, "int *"))
+            lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
         return fails.get()[0]
 
     def gaussian(self, epsilon=1, seed=None):
@@ -501,6 +509,11 @@ class GaugeField(LatticeField):
             raise ValueError(
                 f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
             )
+        if self.reconstruct == "10":
+            # TODO: patch quda, reconstruct 10 not supported
+            norm2 = (self.default_view() ** 2).sum(axis=(0, 1, 3, 4)).get()
+            norm2 = norm2.sum() - norm2[-1] / 2 - norm2[-2] / 2
+            return 4 * super().reduce(norm2)
         return self.quda_field.norm2(link_dir)
 
     def abs_max(self, link_dir=-1):
@@ -568,7 +581,14 @@ class GaugeField(LatticeField):
         return tuple(out.keys()), tuple(out.values())
 
     def compute_paths(
-        self, paths, coeffs=None, out=None, add_coeff=1, force=False, grad=None
+        self,
+        paths,
+        coeffs=None,
+        out=None,
+        add_coeff=1,
+        force=False,
+        grad=None,
+        left_grad=False,
     ):
         """
         Computes the gauge paths on the lattice.
@@ -601,7 +621,11 @@ class GaugeField(LatticeField):
             force = True
             grad = self.cast(grad, reconstruct=10)
             fnc = lambda out, u, *args: lib.gaugeForceGradient(
-                out, u, grad.quda_field, *args
+                out,
+                u,
+                grad.quda_field,
+                *args,
+                left=left_grad,
             )
         elif force:
             fnc = lib.gaugeForce
@@ -643,9 +667,9 @@ class GaugeField(LatticeField):
             for nu in range(mu + 1, self.ndims + 1)
         )
 
-    def plaquette_field(self, force=False, grad=None):
+    def plaquette_field(self, **kwargs):
         "Computes the plaquette field"
-        return self.compute_paths(self.plaquette_paths, force=force, grad=grad)
+        return self.compute_paths(self.plaquette_paths, **kwargs)
 
     def plaquettes(self, **kwargs):
         "Returns the average over plaquettes (Note: plaquette should performs better)"
@@ -660,15 +684,15 @@ class GaugeField(LatticeField):
             for nu in range(mu + 1, self.ndims + 1)
         )
 
-    def rectangle_field(self, force=False, grad=None):
+    def rectangle_field(self, **kwargs):
         "Computes the rectangle field"
-        return self.compute_paths(self.rectangle_paths, force=force, grad=grad)
+        return self.compute_paths(self.rectangle_paths, **kwargs)
 
     def rectangles(self, **kwargs):
         "Returns the average over rectangles"
         return self.rectangle_field().reduce(**kwargs)
 
-    def exponentiate(self, coeff=1, mul_to=None, out=None, conj=False, exact=False):
+    def exponentiate(self, coeff=1.0, mul_to=None, out=None, conj=False, exact=False):
         """
         Exponentiates a momentum field
         """

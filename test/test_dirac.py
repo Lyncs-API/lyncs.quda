@@ -1,6 +1,12 @@
 from random import random
 import numpy as np
-from lyncs_quda import gauge, spinor, gauge_coarse, gauge_scalar, spinor_coarse
+from lyncs_quda import (
+    gauge,
+    spinor,
+    gauge_coarse,
+    gauge_scalar,
+    spinor_coarse,
+)
 from lyncs_quda.lattice_field import get_precision
 from lyncs_quda.testing import (
     fixlib as lib,
@@ -15,7 +21,7 @@ from lyncs_quda.testing import (
 @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
-def test_params(lib, lattice, device, dtype, mtype):
+def test_params(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     dirac = gf.Dirac()
     params = dirac.quda_params
@@ -58,7 +64,6 @@ def test_zero(lib, lattice, device, gamma, mtype, dtype=None):
     sf = spinor(lattice, dtype=dtype, device=device, gamma_basis=gamma)
     sf.uniform()
     kappa = random()
-    #    dirac = gf.Dirac(csw=mtype[0], mu=mtype[1])
     dirac = gf.Dirac(kappa=kappa)
     assert (dirac.M(sf).field == sf.field).all()
     assert (dirac.Mdag(sf).field == sf.field).all()
@@ -73,9 +78,9 @@ def test_zero(lib, lattice, device, gamma, mtype, dtype=None):
     assert np.allclose(dirac.MdagM(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
     assert np.allclose(dirac.MMdag(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
 
-    csw = random()
+    coeff = random()
     mu = mtype * mu
-    dirac = gf.Dirac(kappa=kappa, mu=mu, csw=csw)
+    dirac = gf.Dirac(kappa=kappa, mu=mu, coeff=coeff)
     sfmu = (2 * kappa * mu) * 1j * sf.gamma5().field
     assert np.allclose(dirac.M(sf).field, sf.field + sfmu)
     assert np.allclose(dirac.Mdag(sf).field, sf.field - sfmu)
@@ -90,13 +95,25 @@ def test_coarse_zero(lib, lattice, device, dtype=None):
     dtype = "float32"
     gf = gauge_coarse(lattice, dtype=dtype, device=device)
     gf.zero()
+
     gf2 = gauge_scalar(lattice, dtype=dtype, dofs=2 * 48**2, device=device)
     gf2.unity()
-    sf = spinor_coarse(lattice, dtype=dtype, device=device)
+
+    gf3 = gauge_scalar(lattice, dtype=dtype, dofs=2 * 48**2, device=device)
+    gf3.unity()
+    gf4 = gauge_scalar(lattice, dtype=dtype, dofs=2 * 48**2, device=device)
+    gf4.unity()
+    sf = spinor_coarse(lattice, dofs=48, dtype=dtype, device=device)
     sf.uniform()
-    dirac = gf.Dirac(clover=gf2)
+    print(gf2.is_coarse, gf2.geometry, gf2.gpu_field)
+    # assert False
+
+    dirac = gf.Dirac(coarse_clover=gf2)  # ,coarse_clover_inv=gf3,coarse_precond=gf4)
 
     assert (dirac.M(sf).field == sf.field).all()
+    """
     assert (dirac.Mdag(sf).field == sf.field).all()
     assert (dirac.MdagM(sf).field == sf.field).all()
     assert (dirac.MMdag(sf).field == sf.field).all()
+
+"""

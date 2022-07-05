@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 from functools import wraps
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, InitVar
 from numpy import sqrt
 from dataclasses import dataclass
 from lyncs_cppyy import make_shared, nullptr
@@ -36,13 +36,22 @@ class Dirac:
     epsilon: float = 0
 
     # For LYNCS CloverField class
-    csw: float = 0
+    coeff: float = 0
     rho: float = 0
     computeTrLog: bool = False
-    clover: CloverField = None
+
+    clover: InitVar[CloverField] = None
     _clover: CloverField = field(
         init=False, repr=False
     )  # Do not define __getattribute__ to make this work, unless designed wisely
+
+    def __post_init__(
+        self, clover
+    ):  # this is to overcome default overwritten as a property
+        if clover is self.__dataclass_fields__["clover"].default:
+            clover = None
+
+        self.clover = clover
 
     @property
     def gauge(self):
@@ -65,8 +74,9 @@ class Dirac:
             )
 
         self._clover = clover
+
         if clover is not None:
-            self.csw = clover.csw
+            self.coeff = clover.coeff
             self.mu = sqrt(clover.mu2)
             self.rho = clover.rho
             self.computeTrLog = clover.computeTrLog
@@ -81,7 +91,7 @@ class Dirac:
         "Type of the operator"
         if self.gauge.is_coarse:
             return "COARSE"
-        if self.csw == 0:
+        if self.coeff == 0:
             if self.mu == 0:
                 return "WILSON"
             return "TWISTED_MASS"
@@ -127,16 +137,19 @@ class Dirac:
         # Needs to prevent the gauge field to get destroyed
         self.quda_gauge = self.gauge.quda_field
         params.gauge = self.quda_gauge
-        if self.csw != 0.0:
+
+        if self.coeff != 0.0 and not self.gauge.is_coarse:
             if self.clover is None:
                 self.clover = CloverField(
                     self.gauge,
-                    csw=self.csw,
+                    coeff=self.coeff,
                     twisted=(self.mu != 0),
+                    tf=("SINGLET" if "TWISTED" in self.type else "NO"),
                     mu2=self.mu**2,
                     rho=self.rho,
                     computeTrLog=self.computeTrLog,
                 )
+                self.clover.clover_field
             params.clover = self.clover.quda_field
 
         return params
@@ -152,9 +165,7 @@ class Dirac:
         return lib.DiracCoarse(
             self.quda_params,
             self.gauge.cpu_field,
-            self.coarse_clover.cpu_field
-            if self.coarse_clover
-            else nullptr,  # if we give nullptr, (ok if gauge's location=CUDA) then cpuClass is internally allocated if an operand is located on cpu, but this is not accessible from Python side.  no accessor in DiracCoarse
+            self.coarse_clover.cpu_field,  # if self.coarse_clover else nullptr,  # if we give nullptr, (ok if gauge's location=CUDA) then cpuClass is internally allocated if an operand is located on cpu, but this is not accessible from Python side.  no accessor in DiracCoarse
             self.coarse_clover_inv.cpu_field if self.coarse_clover_inv else nullptr,
             self.coarse_precond.cpu_field if self.coarse_precond else nullptr,
             self.gauge.gpu_field,

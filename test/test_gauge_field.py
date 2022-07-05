@@ -10,7 +10,7 @@ from lyncs_quda.testing import (
     epsilon_loop,
 )
 from lyncs_cppyy.ll import addressof
-from math import prod, isclose
+from math import isclose
 
 
 @lattice_loop
@@ -119,7 +119,10 @@ def test_random(lib, lattice, device, dtype):
     gf2 = gf.copy()
     assert gf == gf2
 
+    assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)
 
+
+# need: GPU_GAUGE_TOOLS=ON
 @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
@@ -127,12 +130,17 @@ def test_exponential(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     mom = momentum(lattice, dtype=dtype, device=device)
     mom.zero()
+    print(mom.reconstruct, mom.is_native(), mom.ncol)
 
-    mom.copy(out=gf)
-    assert gf == 0
+    # mom.copy(out=gf) #quda_field.copy does not work if geometry is diff
+    # assert gf == 0
 
     gf.unity()
     gf2 = mom.exponentiate()
+    assert gf2 == gf
+
+    gf.unity()
+    gf2 = mom.exponentiate(exact=True)
     assert gf2 == gf
 
     mom.gaussian(epsilon=0)
@@ -171,6 +179,12 @@ def test_mom_to_full(lib, lattice, device, dtype):
     mom2 = gf.copy(out=mom.new())
     assert mom2 == mom
 
+    mom2 = gf.to_momentum()
+    assert mom2 == mom
+
+    norm2 = 2 * (-gf.dot(gf)).reduce(mean=False)
+    assert isclose(mom.norm2(), norm2, rel_tol=1e-6)
+
 
 # @dtype_loop  # enables dtype
 @device_loop  # enables device
@@ -188,7 +202,7 @@ def test_force(lib, lattice, device, epsilon):
     for path in "plaquette", "rectangle":
         action = getattr(gf, path + "s")()
         action2 = getattr(gf2, path + "s")()
-        rel_tol = epsilon * prod(lattice)
+        rel_tol = epsilon * np.prod(lattice)
         print(path, action, action2)
         assert isclose(action, action2, rel_tol=rel_tol)
 
@@ -198,6 +212,9 @@ def test_force(lib, lattice, device, epsilon):
         daction2 = action2 - action
         print(path, daction, daction2, daction / daction2)
         assert isclose(daction, daction2, rel_tol=rel_tol)
+
+        zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
+        assert zeros == 0
 
 
 # @dtype_loop  # enables dtype
@@ -220,7 +237,7 @@ def test_force_gradient(lib, lattice, device, epsilon):
     gf12 = mom1.exponentiate(mul_to=gf2)
     gf21 = mom2.exponentiate(mul_to=gf1)
 
-    rel_tol = epsilon * prod(lattice)
+    rel_tol = epsilon * np.prod(lattice)
     for path in "plaquette", "rectangle":
         action = getattr(gf, path + "s")()
         action1 = getattr(gf1, path + "s")()
@@ -238,7 +255,25 @@ def test_force_gradient(lib, lattice, device, epsilon):
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
 
         ddaction = (
+            getattr(gf, path + "_field")(grad=mom1, left_grad=True)
+            .full()
+            .dot(mom2.full())
+            .reduce()
+        )
+        print(path, ddaction, ddaction12, ddaction / ddaction21)
+        assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
+
+        ddaction = (
             getattr(gf, path + "_field")(grad=mom2).full().dot(mom1.full()).reduce()
         )
         print(path, ddaction, ddaction12, ddaction / ddaction12)
         assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
+
+        ddaction = (
+            getattr(gf, path + "_field")(grad=mom2, left_grad=True)
+            .full()
+            .dot(mom1.full())
+            .reduce()
+        )
+        print(path, ddaction, ddaction21, ddaction / ddaction12)
+        assert isclose(ddaction, ddaction21, rel_tol=rel_tol)

@@ -10,8 +10,12 @@ from array import array
 from contextlib import contextmanager
 import numpy
 from lyncs_cppyy import nullptr
+from lyncs_utils import prod
 from .enums import QudaPrecision
 from .lib import lib, cupy
+
+from lyncs_cppyy import to_pointer
+import ctypes
 
 
 def get_precision(dtype):
@@ -19,9 +23,31 @@ def get_precision(dtype):
         return "double"
     if dtype in ["float32", "complex64"]:
         return "single"
-    if dtype in ["float16"]:  # , "complex32"
+    if dtype in ["float16", "complex32"]:
         return "half"
     raise ValueError
+
+
+def get_complex_dtype(dtype):
+    "Return equivalent complex dtype"
+    if dtype in ["float64", "complex128"]:
+        return "complex128"
+    if dtype in ["float32", "complex64"]:
+        return "complex64"
+    if dtype in ["float16", "complex32"]:
+        return "complex32"
+    raise TypeError(f"Cannot convert {self.dtype} to complex")
+
+
+def get_float_dtype(dtype):
+    "Return equivalent float dtype"
+    if dtype in ["float64", "complex128"]:
+        return "float64"
+    if dtype in ["float32", "complex64"]:
+        return "float32"
+    if dtype in ["float16", "complex32"]:
+        return "float16"
+    raise TypeError(f"Cannot convert {self.dtype} to float")
 
 
 def get_ptr(array):
@@ -29,6 +55,35 @@ def get_ptr(array):
     if isinstance(array, numpy.ndarray):
         return array.__array_interface__["data"][0]
     return array.data.ptr
+
+
+def reshuffle(field, N0, N1):
+    #### PROPOSAL - template #### not sure if this is better than manual for-loop in Python
+    # TODO: write safegurds
+    # ASSUME: array in field has shape= dofs+lattice so that self.dofs, etc works; add dofs attribute if not
+    # ASSUME: Given array is actually ordered so that parity is slowest running index; currently is default; see below
+
+    xp = field.backend
+
+    sub = []
+    sub.append(field.field.reshape((2, -1))[0, :])
+    sub.append(field.field.reshape((2, -1))[1, :])
+
+    dof = (1,) + field.dofs if len(field.dofs) == 1 else field.dofs
+    idof = prod(field.dofs[1:])
+    dof0 = (dof[0],) + (idof // N0,)
+    dof1 = (dof[0],) + (idof // N1,)
+    for i in range(2):
+        sub[i] = xp.transpose(
+            xp.transpose(sub[i].reshape(dof0 + (-1, N0)), axes=(0, 2, 1, 3)).reshape(
+                (dof[0],) + (-1, dof1[1], N1)
+            ),
+            axes=(0, 2, 1, 3),
+        )
+
+    field.field = xp.concatenate(
+        sub[0] + sub[1]
+    )  # ATTENTION: this will affects self.dofs, etc
 
 
 @contextmanager
@@ -80,22 +135,34 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         )
 
     def copy(self, other=None, out=None, **kwargs):
-        "Returns a copy of the field"
-        # if out != None, the user is responsible for making sure our has a correct shape
-        # if out is None but other != None, other needs to be equivalent to self
-        out = self.prepare(out, check=False, **kwargs)
+        "Returns out, a copy+=kwargs, of other if given, else of self"
+        # ASSUME: if out != None, out <=> other/self+=kwargs
+        # if other and out are both given, this behaves like a classmethod except out&other are casted into type(self)
+
+        out = self.prepare(
+            out, copy=False, check=False, **kwargs
+        )  # check=False => if out!=None, converts from type(out) to type(self); else create a new one with kwargs
+
         if other is None:
             other = self
-        other = out.cast(
-            other, check=False
-        )  # check=True leads to recursion if out not equivalent to other, but this line just wraps field by a Python class
-        out.quda_field.copy(
-            other.quda_field
-        )  # Attention!: not present in lattice_field.h. So only some children support this
+        other = out.cast(other, copy=False, check=False, **kwargs)
+
+        try:
+            out.quda_field.copy(other.quda_field)
+        except NotImplementedError:  # at least, serial version calls exit(1) from qudaError, which is not catched by this
+            assert False
+            out = out.prepare(
+                (other.field.copy()), copy=False
+            )  # the orignal code may lead to infinite recursion
         return out
 
-    def equivalent(self, other, **kwargs):
-        "Whether a field is equivalent to the current"
+    def equivalent(self, other, switch=False, **kwargs):
+        "Whether other is equivalent to self with kwargs"
+        # Check if self+kwargs <=> other
+
+        if switch:
+            self, other = other, self
+
         if not isinstance(other, type(self)):
             return False
         dtype = kwargs.get("dtype", self.dtype)
@@ -104,35 +171,57 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         device = kwargs.get("device", self.device)
         if other.device != device:
             return False
-        # ? why do you take dofs from kwards instead of from self?
-        dofs = kwargs.get("dofs", None)
+        dofs = kwargs.get(
+            "dofs", self.dofs
+        )  # None) #? to force to specify dof in kwargs?
         if dofs and other.dofs != dofs:
             return False
         return True
 
-    def cast(self, other, copy=True, check=True, **kwargs):  # mostly for "prepare"
-        "Cast a field in other into an instance of type(self) and check for compatibility"
+    def cast(self, other=None, copy=True, check=False, **kwargs):
+        "Cast other (self if not given) into type(self) and copy or check for compatibility"
+
+        if other is None:
+            other = self
+        return self.prepare(other, copy=copy, check=check, **kwargs)
+
+    """
+    def cast(self, other=None, copy=True, check=True, **kwargs):
+        "Cast a field into its type and check for compatibility"
         cls = type(self)
+        if other is None:
+            other = self
         if not isinstance(other, cls):
             other = cls(other)
-        if check and not self.equivalent(other, **kwargs):
-            if not copy:
-                raise ValueError("The given field is not appropriate")
-            # copy other onto a newly allocated memory in the new instance returned by copy
-            return self.copy(
-                other, **kwargs
-            )  # ? other is not equivalent to self -> is copying done properly?
-        return other
 
-    def prepare(self, *fields, **kwargs):
-        "Prepares the fields by creating new one (None) or making them compatible"
+        # (check, copy)                 expect
+        # (T, T): check but not copy      check & copy
+        # (T, F): copy but no check       check & not copy
+        # (F, T): does nothing            no check & just copy
+        # (F, F): does nothing            does nothing
+        if check and not self.equivalent(other, **kwargs):
+            if copy:
+                raise ValueError("The given field is not appropriate")
+            return self.copy(other, **kwargs) 
+        return other
+    """
+
+    def prepare(self, *fields, copy=True, check=False, switch=False, **kwargs):
+        "Prepares the fields by creating new one if None given else casting them to type(self) then  checking them if compatible with self and/or copying them"
         if not fields:
             return self  # Needed? or raise error
         if len(fields) == 1:
             field = fields[0]
             if field is None:
                 return self.new(**kwargs)
-            return self.cast(field, copy=False, **kwargs)
+            cls = type(self)
+            if not isinstance(field, cls):
+                field = cls(field)
+            if check and not self.equivalent(field, switch=switch, **kwargs):
+                raise ValueError("The given field is not appropriate")
+            if copy:
+                return self.copy(other=field, **kwargs)
+            return field
         return tuple(self.prepare(field, **kwargs) for field in fields)
 
     def __init__(self, field, comm=None):
@@ -176,11 +265,13 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         "Returns a complex view of the field"
         if self.iscomplex:
             return self.field
-        if self.dtype == "float64":
-            return self.field.view("complex128")
-        elif self.dtype == "float32":
-            return self.field.view("complex64")
-        raise TypeError(f"Cannot convert {self.dtype} to complex")
+        return self.field.view(get_complex_dtype(self.dtype))
+
+    def float_view(self):
+        "Returns a complex view of the field"
+        if not self.iscomplex:
+            return self.field
+        return self.field.view(get_float_dtype(self.dtype))
 
     def default_view(self):
         "Returns the default view of the field including reshaping"
@@ -325,11 +416,16 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         prepare = (
-            lambda arg: self.prepare(arg).field
-            if isinstance(arg, LatticeField)
-            else arg
+            lambda arg: self.cast(arg).field if isinstance(arg, LatticeField) else arg
         )
         args = tuple(map(prepare, args))
+
+        for key, val in kwargs.items():
+            if isinstance(val, (tuple, list)):
+                kwargs[key] = type(val)(map(prepare, val))
+            else:
+                kwargs[key] = prepare(val)
+
         fnc = getattr(ufunc, method)
         return type(self)(fnc(*args, **kwargs))
 
