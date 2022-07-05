@@ -51,7 +51,7 @@ def gauge_tensor(lattice, dofs=18, **kwargs):
     return gauge_field(lattice, dofs=(6, dofs), **kwargs)
 
 
-def gauge_coarse(lattice, dofs=2 * 48 ** 2, **kwargs):
+def gauge_coarse(lattice, dofs=2 * 48**2, **kwargs):
     "Constructs a new coarse gauge field"
     return gauge_field(lattice, dofs=(8, dofs), **kwargs)
 
@@ -76,7 +76,7 @@ class GaugeField(LatticeField):
         elif reconstruct == self.reconstruct:
             pass
         elif reconstruct == "NO":  # ? what if geometry == COARSE?
-            size = self.ncol ** 2
+            size = self.ncol**2
             kwargs["dofs"] = (self.geometry_size, size if self.iscomplex else size * 2)
         else:
             try:

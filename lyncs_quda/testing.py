@@ -58,7 +58,7 @@ dtype_loop = mark.parametrize(
 mu_loop = mark.parametrize(
     "mu",
     [
-        0.,
+        0.0,
         random(),
     ],
 )

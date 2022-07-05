@@ -63,9 +63,7 @@ def continous(arr, axes=None, swap=False, out=None):
     arr = to_numpy(arr)
     if out is None:
         out = numpy.empty_like(arr)
-    lib.continous(
-        out, arr, len(shape), array("i", shape), outer, inner, swap=swap
-    )
+    lib.continous(out, arr, len(shape), array("i", shape), outer, inner, swap=swap)
     return out
 
 
@@ -91,18 +89,14 @@ def to_quda(arr, axes=tuple(range(4)), swap=False):
     )
     arr = evenodd(arr, axes, swap)
     # Flattening the lattice
-    shape = numpy.array(
-        arr.shape
-    )
+    shape = numpy.array(arr.shape)
     arr = arr.reshape(*shape[: min(axes)], 2, -1, *shape[max(axes) + 1 :])
     # Transposing lattice (min(axes)+1) and inner dofs
     arr = arr.transpose(
         *range(min(axes) + 1), *range(min(axes) + 2, len(arr.shape)), min(axes) + 1
     )
     # Reshaping to expected shape
-    arr = arr.reshape(
-        *shape[: min(axes)], *shape[max(axes) + 1 :], *shape[axes]
-    )
+    arr = arr.reshape(*shape[: min(axes)], *shape[max(axes) + 1 :], *shape[axes])
     with backend() as bck:
         return bck.asarray(arr)
 
@@ -112,9 +106,7 @@ def from_quda(arr, axes=tuple(range(4)), swap=False):
     Converts QUDA array to standard CPU format.
     I.E. (extra, EO, dofs, lattice/2) on GPU -> (extra, lattice, dofs) on CPU
     """
-    axes = _get_axes(
-        arr, axes
-    )
+    axes = _get_axes(arr, axes)
     arr = to_numpy(arr)
     shape = arr.shape
     # Flattening the lattice
