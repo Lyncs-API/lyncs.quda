@@ -65,12 +65,11 @@ def continous(arr, axes=None, swap=False, out=None):
         out = numpy.empty_like(arr)
     lib.continous(
         out, arr, len(shape), array("i", shape), outer, inner, swap=swap
-    )  # so does not need to use __array_interface__["data"][0]?
+    )
     return out
 
 
 def to_numpy(arr):
-    # seems to assume isinstance(arr, LatticeField) is True
     "Converts any input to numpy array"
     try:
         arr = arr.get()
@@ -80,11 +79,11 @@ def to_numpy(arr):
 
 
 def to_quda(arr, axes=tuple(range(4)), swap=False):
-    # ? CPU: T,Z,Y,X; QUDA: X,Y,Z,T?
     """
     Converts standard CPU array to QUDA format.
     I.E. (extra, lattice, dofs) on CPU -> (extra, EO, dofs, lattice/2) on GPU
     """
+    # CPU: T,Z,Y,X; QUDA: X,Y,Z,T
     axes = _get_axes(arr, axes)
     arr = to_numpy(arr)
     arr = arr.transpose(
@@ -94,7 +93,7 @@ def to_quda(arr, axes=tuple(range(4)), swap=False):
     # Flattening the lattice
     shape = numpy.array(
         arr.shape
-    )  # ? I suppose evenodd(...) does not change the meta data like shape
+    )
     arr = arr.reshape(*shape[: min(axes)], 2, -1, *shape[max(axes) + 1 :])
     # Transposing lattice (min(axes)+1) and inner dofs
     arr = arr.transpose(
@@ -103,7 +102,7 @@ def to_quda(arr, axes=tuple(range(4)), swap=False):
     # Reshaping to expected shape
     arr = arr.reshape(
         *shape[: min(axes)], *shape[max(axes) + 1 :], *shape[axes]
-    )  # ? where does 2 for EO go?  what about lattice/2?
+    )
     with backend() as bck:
         return bck.asarray(arr)
 
@@ -115,9 +114,9 @@ def from_quda(arr, axes=tuple(range(4)), swap=False):
     """
     axes = _get_axes(
         arr, axes
-    )  # ? should axes be the array of lattice-site axes? or should it specify axes for dofs?
+    )
     arr = to_numpy(arr)
-    shape = arr.shape  # ? do we get shape=(extra,idof,lattice) as in LatticeField?
+    shape = arr.shape
     # Flattening the lattice
     arr = arr.reshape(*shape[: min(axes)], 2, *shape[min(axes) : -len(axes)], -1)
     # Transposing lattice len(arr.shape) - 1  and inner dofs
