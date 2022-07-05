@@ -13,7 +13,7 @@ from lyncs_quda.testing import (
     lattice_loop,
     device_loop,
     dtype_loop,
-    mtype_loop,
+    mu_loop,
     gamma_loop,
 )
 
@@ -53,12 +53,12 @@ def test_matrix(lib, lattice, device, dtype):
     assert matrix.is_coarse == False
 
 
-@mtype_loop  # enables matrix type
+@mu_loop  # enables matrix type
 # @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 @gamma_loop  # enables gamma
-def test_zero(lib, lattice, device, gamma, mtype, dtype=None):
+def test_zero(lib, lattice, device, gamma, mu, dtype=None):
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.zero()
     sf = spinor(lattice, dtype=dtype, device=device, gamma_basis=gamma)
@@ -79,7 +79,6 @@ def test_zero(lib, lattice, device, gamma, mtype, dtype=None):
     assert np.allclose(dirac.MMdag(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
 
     coeff = random()
-    mu = mtype * mu
     dirac = gf.Dirac(kappa=kappa, mu=mu, coeff=coeff)
     sfmu = (2 * kappa * mu) * 1j * sf.gamma5().field
     assert np.allclose(dirac.M(sf).field, sf.field + sfmu)

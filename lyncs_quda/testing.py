@@ -10,6 +10,7 @@ __all__ = [
     "mark_mpi",
 ]
 
+from random import random
 from itertools import product
 from pytest import fixture, mark
 from lyncs_utils import factors, prod
@@ -54,11 +55,11 @@ dtype_loop = mark.parametrize(
     ],
 )
 
-mtype_loop = mark.parametrize(
-    "mtype",
+mu_loop = mark.parametrize(
+    "mu",
     [
-        0,
-        1,
+        0.,
+        random(),
     ],
 )
 
