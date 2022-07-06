@@ -349,7 +349,6 @@ class GaugeField(LatticeField):
         field = self.default_view(split_col=False)
         
         field[:] = 0
-        print(self.device)
         diag = [i * self.ncol + i for i in range(self.ncol)]
         field[:, :, diag, ...] = 1
             
@@ -453,11 +452,8 @@ class GaugeField(LatticeField):
             return self
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
-        print("fm")
         out = self.prepare(out, dofs=(6, 18))
-        print("fm2",out.location,self.location,self.device,out.device,lib.device_id,cupy.cuda.runtime.getDevice(),lib.comm_gpuid(),out.comm)
         lib.computeFmunu(out.quda_field, self.extended_field(1))
-        print("fm3")
         return out
 
     def topological_charge(self):

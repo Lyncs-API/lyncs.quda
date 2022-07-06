@@ -255,7 +255,6 @@ class DiracMatrix:
     def shift(self, value):
         self.quda.shift = value
 
-    # why is it here?
     @property
     def precision(self):
         "The precision of the operator (same as the gauge field)"
