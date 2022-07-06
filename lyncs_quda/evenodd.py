@@ -63,12 +63,11 @@ def continous(arr, axes=None, swap=False, out=None):
     arr = to_numpy(arr)
     if out is None:
         out = numpy.empty_like(arr)
-    lib.continous(out, arr, len(shape), array("i", shape), outer, inner, swap=swap) #so does not need to use __array_interface__["data"][0]?
+    lib.continous(out, arr, len(shape), array("i", shape), outer, inner, swap=swap)
     return out
 
 
 def to_numpy(arr):
-    # seems to assume isinstance(arr, LatticeField) is True
     "Converts any input to numpy array"
     try:
         arr = arr.get()
@@ -90,7 +89,7 @@ def to_quda(arr, axes=tuple(range(4)), swap=False):
     )
     arr = evenodd(arr, axes, swap)
     # Flattening the lattice
-    shape = numpy.array(arr.shape) #? I suppose evenodd(...) does not change the meta data like shape
+    shape = numpy.array(arr.shape)
     arr = arr.reshape(*shape[: min(axes)], 2, -1, *shape[max(axes) + 1 :])
     # Transposing lattice (min(axes)+1) and inner dofs
     arr = arr.transpose(

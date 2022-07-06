@@ -17,9 +17,6 @@ from .lib import lib, cupy
 from lyncs_cppyy import to_pointer
 import ctypes
 
-#debug
-from lyncs_mpi import MPI
-
 def get_precision(dtype):
     if dtype in ["float64", "complex128"]:
         return "double"
