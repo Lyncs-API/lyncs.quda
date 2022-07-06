@@ -400,7 +400,7 @@ class GaugeField(LatticeField):
         return plaq.x, plaq.y, plaq.z
 
     def compute_fmunu(self, out=None):
-        out = self.prepare(out, dofs=(6, 18))
+        out = self.prepare(out, dofs=(6, 9 if self.iscomplex else 18))
         lib.computeFmunu(out.quda_field, self.extended_field(1))
         return out
 
