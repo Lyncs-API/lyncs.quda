@@ -121,7 +121,7 @@ class Dirac:
         # Note
         #  * clover_inv is necessary when doing clover inversion or applying prec coarse op
         #  * coarse_precond is necessary when applying prec coarse op
-        assert self.coarse_clover is not None
+        assert self.clover is not None and isinstance(self.clover, GaugeField)
         return lib.DiracCoarse(
             self.quda_params,
             self.gauge.cpu_field,
