@@ -99,7 +99,7 @@ def backend(device=True):
                 raise TypeError("Expected device to be an integer or None/True/False")
 
             lib.device_id = device
-            with cupy.cuda.Device(device) as d:
+            with cupy.cuda.Device(device):
                 yield cupy
     finally: # I don't think this will be invked when exception occurs
         cupy.cuda.runtime.setDevice(lib.device_id)
@@ -149,9 +149,8 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         # ASSUME: if out != None, out <=> other/self+=kwargs
         # if other and out are both given, this behaves like a classmethod except out&other are casted into type(self)
 
-        out = self.prepare(
-            out, copy=False, check=False, **kwargs
-        )  # check=False => if out!=None, converts from type(out) to type(self); else create a new one with kwargs
+        # check=False => if out!=None, converts from type(out) to type(self); else create a new one with kwargs
+        out = self.prepare(out, copy=False, check=False, **kwargs)  
 
         if other is None:
             other = self
@@ -161,9 +160,8 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             out.quda_field.copy(other.quda_field)
         except NotImplementedError:  # at least, serial version calls exit(1) from qudaError, which is not catched by this
             assert False
-            out = out.prepare(
-                (other.field.copy()), copy=False
-            )  # the orignal code may lead to infinite recursion
+            # the orignal code may lead to infinite recursion
+            out = out.prepare((other.field.copy()), copy=False)
         except Exception:
             print("fatal")
             assert False
@@ -232,6 +230,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             cls = type(self)
             if not isinstance(field, cls):
                 field = cls(field)
+            field.__array_finalize__(self)  
             if check and not self.equivalent(field, switch=switch, **kwargs):
                 raise ValueError("The given field is not appropriate")
             if copy:

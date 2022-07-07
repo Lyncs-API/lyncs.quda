@@ -417,9 +417,9 @@ class GaugeField(LatticeField):
         if tol is None:
             tol = numpy.finfo(self.dtype).eps
 
-        with cupy.cuda.Device(self.device):
-            fails = cupy.zeros((1,), dtype="int32")
-            lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
+        assert self.device == cupy.cuda.runtime.getDevice()
+        fails = cupy.zeros((1,), dtype="int32")
+        lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
         return fails.get()[0]
 
     def gaussian(self, epsilon=1, seed=None):
@@ -516,6 +516,7 @@ class GaugeField(LatticeField):
             )
         if self.reconstruct == "10":
             # TODO: patch quda, reconstruct 10 not supported
+            #? assume cupy?
             norm2 = (self.default_view() ** 2).sum(axis=(0, 1, 3, 4)).get()
             norm2 = norm2.sum() - norm2[-1] / 2 - norm2[-2] / 2
             return 4 * super().reduce(norm2)
