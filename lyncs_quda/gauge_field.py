@@ -454,13 +454,12 @@ class GaugeField(LatticeField):
         return plaq.x, plaq.y, plaq.z
 
     def compute_fmunu(self, out=None):
-
         if self.geometry == "TENSOR":
             return self
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
-
-        out = self.prepare(out, dofs=(6, 18))
+        
+        out = self.prepare(out, dofs=(6, 9 if self.iscomplex else 18))
         lib.computeFmunu(out.quda_field, self.extended_field(1))
         return out
 
