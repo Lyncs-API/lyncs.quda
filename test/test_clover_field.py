@@ -67,7 +67,7 @@ def test_zero(lib, lattice, device, dtype):
     clv.diagonal = 0
 
     idof = int(((clv.ncol * clv.nspin) ** 2 / 2))
-    if dtype is "float64":
+    if dtype == "float64":
         tmp = np.zeros((idof,) + lattice, dtype=dtype).reshape((2, 2, 36, -1))
         tmp[:, :, 0:6, :] = 0.5
     else:
@@ -75,7 +75,7 @@ def test_zero(lib, lattice, device, dtype):
         tmp[:, :, 0, :, :] = 0.5
         tmp[:, :, 1, :, 0:2] = 0.5
     assert np.allclose(clv.clover_field.flatten(), tmp.flatten())
-    if dtype is "float64":
+    if dtype == "float64":
         tmp = np.zeros((idof,) + lattice, dtype=dtype).reshape((2, 2, 36, -1))
         tmp[:, :, 0:6, :] = d
     else:
@@ -120,7 +120,7 @@ def test_unit(lib, lattice, device, dtype):
 
     assert (clv.field == 0).all()
     idof = int(((clv.ncol * clv.nspin) ** 2 / 2))
-    if dtype is "float64":
+    if dtype == "float64":
         tmp = np.zeros((idof,) + lattice, dtype=dtype).reshape((2, 2, 36, -1))
         tmp[:, :, 0:6, :] = 0.5
     else:
@@ -128,7 +128,7 @@ def test_unit(lib, lattice, device, dtype):
         tmp[:, :, 0, :, :] = 0.5
         tmp[:, :, 1, :, 0:2] = 0.5
     assert np.allclose(clv.clover_field.flatten(), tmp.flatten())
-    if dtype is "float64":
+    if dtype == "float64":
         tmp = np.zeros((idof,) + lattice, dtype=dtype).reshape((2, 2, 36, -1))
         tmp[:, :, 0:6, :] = d
     else:
@@ -145,7 +145,6 @@ def test_unit(lib, lattice, device, dtype):
     assert np.isclose(clv.abs_max(True), 2 * d)
     assert np.isclose(clv.abs_min(True), 0.0)
     if clv.computeTrLog:
-
         assert np.allclose(
             clv.trLog, np.log(1 / (2 * d)) * prod(lattice) * 6 * np.ones(2)
         )

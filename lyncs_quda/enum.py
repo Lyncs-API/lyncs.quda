@@ -42,7 +42,7 @@ class EnumMeta(type):
         return cls._values.items()
 
     def clean(cls, key):
-        "Cleans a key from prefix and suffix"
+        "Strips away prefix and suffix from key"
         if isinstance(key, EnumValue):
             key = str(key)
         if isinstance(key, str):
@@ -129,7 +129,6 @@ class Enum(metaclass=EnumMeta):
         key = self.key.split(".")[-1]
         old = int(getattr(out, key))
 
-        if old != new:
-            setattr(out, key, new)
-            if self.callback:
-                self.callback(instance, old, new)
+        setattr(out, key, new)
+        if self.callback:
+            self.callback(instance, old, new)

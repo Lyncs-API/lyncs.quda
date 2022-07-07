@@ -90,9 +90,10 @@ class QudaLib(Lib):
         return cupy.cuda.runtime.getDeviceCount()
 
     def init_quda(self, dev=None):
+        # ASSUME: self.comm is set when launching non-trivial MPI job
         if self.initialized:
             raise RuntimeError("Quda already initialized")
-        # As first we set initialized to True to avoid recursion
+        # At first, we set initialized to True to avoid recursion
         self._initialized = True
         if not self.loaded:
             self.load()
@@ -113,9 +114,10 @@ class QudaLib(Lib):
             else:
                 dev = self.device_id
         self.initQuda(dev)
-        self.device_id = self.get_current_device()
+        self._device_id = self.get_current_device() #hack
 
-    def set_comm(self, comm=None):
+    def set_comm(self, comm=None): #nicer if it creates comm given the Cart toplogy?
+        # NOTE: comm==None taken as indication of single rank MPI job 
         if comm is not None and not QUDA_MPI:
             raise RuntimeError("Quda has not been compiled with MPI")
         if comm is None and not QUDA_MPI:
@@ -132,6 +134,7 @@ class QudaLib(Lib):
         if comm.ndim != 4:
             raise ValueError("comm expected to be a 4D Cartcomm")
         if self._comm is not None:
+            # when ending and starting over QUDA, strange things happen
             self.end_quda()
         self._comm = comm
 
@@ -196,7 +199,7 @@ class QudaLib(Lib):
         self.endQuda()
         self._comm = None
         self._initialized = False
-
+        
     def __getattr__(self, key):
         if key.startswith("_"):
             raise AttributeError(f"QudaLib does not have attribute '{key}'")
@@ -243,7 +246,7 @@ lib = QudaLib(
     namespace=["quda", "lyncs_quda"],
 )
 
-
+#used?
 try:
     from pytest import fixture
 

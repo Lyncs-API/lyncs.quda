@@ -88,20 +88,21 @@ def reshuffle(field, N0, N1):
 
 @contextmanager
 def backend(device=True):
-    if device is False or device is None:
-        yield numpy
-    else:
-        if device is True:
-            device = lib.device_id
+    try:
+        if device is False or device is None:
+            yield numpy
+        else:
+            if device is True:
+                device = lib.device_id
+                
+            if not isinstance(device, int):
+                raise TypeError("Expected device to be an integer or None/True/False")
 
-        if not isinstance(device, int):
-            raise TypeError("Expected device to be an integer or None/True/False")
-
-        # ? is this safe?
-        lib.device_id = device
-        with cupy.cuda.Device(device):
-            yield cupy
-
+            lib.device_id = device
+            with cupy.cuda.Device(device) as d:
+                yield cupy
+    finally: # I don't think this will be invked when exception occurs
+        cupy.cuda.runtime.setDevice(lib.device_id)
 
 class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     "Mimics the quda::LatticeField object"
@@ -123,14 +124,16 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             new = bck.empty if empty else bck.zeros
             shape = tuple(dofs) + tuple(lattice)
             return cls(new(shape, dtype=cls.get_dtype(dtype)), **kwargs)
-
+        
     def new(self, empty=True, **kwargs):
         "Returns a new empty field based on the current"
+
         out = self.create(
             self.dims,
             dofs=kwargs.pop("dofs", self.dofs),
             dtype=kwargs.pop("dtype", self.dtype),
             device=kwargs.pop("device", self.device),
+            comm=kwargs.pop("comm", self.comm),
             empty=empty,
             **kwargs,
         )
@@ -161,6 +164,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             out = out.prepare(
                 (other.field.copy()), copy=False
             )  # the orignal code may lead to infinite recursion
+        except Exception:
+            print("fatal")
+            assert False
         return out
 
     def equivalent(self, other, switch=False, **kwargs):
@@ -241,6 +247,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def activate(self):
         "Activates the current field. To be called before using the object in quda"
+        "to make sure the communicator is set for MPI"
         lib.set_comm(self.comm)
 
     @property

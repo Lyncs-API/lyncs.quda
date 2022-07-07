@@ -18,7 +18,7 @@ def test_solve_random(lib, lattice, device, gamma, dtype=None):
     rhs = spinor(lattice, dtype=dtype, device=device, gamma_basis=gamma)
     rhs.uniform()
     mat = dirac.M
-    out = mat.solve(rhs)
+    out = mat.solve(rhs, delta=10.)
     res = mat(out)
     res.field -= rhs.field
     res = res.norm() / rhs.norm()

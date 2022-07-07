@@ -20,7 +20,7 @@ import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
 from lyncs_utils import prod, isiterable
 from .lib import lib, cupy
-from .lattice_field import LatticeField
+from .lattice_field import LatticeField, backend
 from .time_profile import default_profiler
 
 # TODO: Make array dims consistent with gauge order
@@ -353,10 +353,13 @@ class GaugeField(LatticeField):
         "Set all field elements to unity"
         if self.reconstruct != "NO":
             raise NotImplementedError
+
         field = self.default_view(split_col=False)
+        
         field[:] = 0
         diag = [i * self.ncol + i for i in range(self.ncol)]
         field[:, :, diag, ...] = 1
+
 
     def trace(self, only_real=False):
         "Returns the trace in color of the field"
@@ -458,7 +461,7 @@ class GaugeField(LatticeField):
             return self
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
-        
+
         out = self.prepare(out, dofs=(6, 9 if self.iscomplex else 18))
         lib.computeFmunu(out.quda_field, self.extended_field(1))
         return out
@@ -474,6 +477,7 @@ class GaugeField(LatticeField):
         """
         if self.geometry != "TENSOR":
             self = self.compute_fmunu()
+
         out = numpy.zeros(4, dtype="double")
         lib.computeQCharge(out[:3], out[3:], self.quda_field)
         return out[3], tuple(out[:3])
