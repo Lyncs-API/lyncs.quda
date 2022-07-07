@@ -33,7 +33,7 @@ def _get_params(arr, axes=None):
 
 def evenodd(arr, axes=None, swap=False, out=None):
     """
-    From continous to evenodd ordering.
+    From continous to evenodd ordering (EO,outer dofs,volume/2,inner dofs).
 
     Parameters
     ----------
@@ -51,7 +51,7 @@ def evenodd(arr, axes=None, swap=False, out=None):
 
 def continous(arr, axes=None, swap=False, out=None):
     """
-    From evenodd to continous ordering.
+    From evenodd to continous ordering (outer dofs, volume, inner dofs).
 
     Parameters
     ----------
@@ -78,9 +78,12 @@ def to_numpy(arr):
 
 def to_quda(arr, axes=tuple(range(4)), swap=False):
     """
-    Converts standard CPU array to QUDA format.
+    Converts standard CPU array to QUDA format with QUDA_FLOAT_FIELD_ORDER.
     I.E. (extra, lattice, dofs) on CPU -> (extra, EO, dofs, lattice/2) on GPU
     """
+    #? what is extra?  QUDA distinguishes inner and out dofs
+    # extra initially echos with outer but not in the end...
+    
     # CPU: T,Z,Y,X; QUDA: X,Y,Z,T
     axes = _get_axes(arr, axes)
     arr = to_numpy(arr)

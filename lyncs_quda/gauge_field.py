@@ -288,7 +288,7 @@ class GaugeField(LatticeField):
             "Returns cpuGaugeField"
             """
               Remark:
-                * createExtendedGaugr takes (void **) as its first argument
+                * createExtendedGauge takes (void **) as its first argument
                 * However, it is used to set (void *gauge) in GaugeFieldParam
                 * (void **gauge) is defined as a private member in cpuGaugeField
                 * This private member does not seem relevant in createExtendedGauge as it sets

@@ -10,6 +10,7 @@ from functools import wraps
 from dataclasses import dataclass, field, InitVar
 from numpy import sqrt
 from dataclasses import dataclass
+from typing import Union
 from lyncs_cppyy import make_shared, nullptr
 from .gauge_field import gauge, GaugeField
 from .clover_field import CloverField
@@ -18,68 +19,22 @@ from .lib import lib
 from .enums import QudaPrecision
 
 
-@dataclass
+@dataclass(frozen=True)
 class Dirac:
 
     # For QUDA DiracParam class:
     gauge: GaugeField  # TODO: check acceptable geometry of gauge as an argument to QUDA Dirac class
-    _gauge: GaugeField = field(
-        init=False, repr=False
-    )  # Do not define __getattribute__ to make this work, unless designed wisely
-    coarse_clover: GaugeField = None
+    clover: Union[CloverField, GaugeField] = None
     coarse_clover_inv: GaugeField = None
     coarse_precond: GaugeField = None
     kappa: float = 1
     m5: float = 0
     Ls: int = 1
+    csw: float = 0
     mu: float = 0
     epsilon: float = 0
-
-    # For LYNCS CloverField class
-    coeff: float = 0
     rho: float = 0
     computeTrLog: bool = False
-
-    clover: InitVar[CloverField] = None
-    _clover: CloverField = field(
-        init=False, repr=False
-    )  # Do not define __getattribute__ to make this work, unless designed wisely
-
-    def __post_init__(
-        self, clover
-    ):  # this is to overcome default overwritten as a property
-        if clover is self.__dataclass_fields__["clover"].default:
-            clover = None
-
-        self.clover = clover
-
-    @property
-    def gauge(self):
-        return self._gauge
-
-    @gauge.setter
-    def gauge(self, gauge: GaugeField):
-        self._gauge = gauge
-        self.clover = None
-
-    @property
-    def clover(self):
-        return self._clover
-
-    @clover.setter
-    def clover(self, clover: CloverField):
-        if clover is not None and not isinstance(clover, CloverField):
-            raise TypeError(
-                "This class expects its clover argument to be an instance of CloverField"
-            )
-
-        self._clover = clover
-
-        if clover is not None:
-            self.coeff = clover.coeff
-            self.mu = sqrt(clover.mu2)
-            self.rho = clover.rho
-            self.computeTrLog = clover.computeTrLog
 
     # ? do we want to support more methods for Dirac?
 
@@ -91,7 +46,7 @@ class Dirac:
         "Type of the operator"
         if self.gauge.is_coarse:
             return "COARSE"
-        if self.coeff == 0:
+        if self.csw == 0:
             if self.mu == 0:
                 return "WILSON"
             return "TWISTED_MASS"
@@ -135,17 +90,19 @@ class Dirac:
         params.dagger = self.quda_dagger
 
         # Needs to prevent the gauge field to get destroyed
+        #? now we store QUDA gauge object in _quda
         self.quda_gauge = self.gauge.quda_field
         params.gauge = self.quda_gauge
 
-        if self.coeff != 0.0 and not self.gauge.is_coarse:
+        if self.csw != 0.0 and not self.gauge.is_coarse:
             if self.clover is None:
                 self.clover = CloverField(
                     self.gauge,
-                    coeff=self.coeff,
+                    coeff=self.kappa*self.csw/4,
                     twisted=(self.mu != 0),
                     tf=("SINGLET" if "TWISTED" in self.type else "NO"),
                     mu2=self.mu**2,
+                    eps2=self.epsilon**2,
                     rho=self.rho,
                     computeTrLog=self.computeTrLog,
                 )
@@ -158,20 +115,23 @@ class Dirac:
     def quda_dirac(self):
         if not self.is_coarse:
             return make_shared(lib.Dirac.create(self.quda_params))
-        # Creating coarse operator
         #  This constcutor seems to rely on initializeLazy when performing M, MdagM, etc.
         #  initializeLazy seems to assume that if gauge is allocated on LOCATION,
         #  then coarse_* is alredy allocated on LOCATION too if we use the follwing constructor
+        # Note
+        #  * clover_inv is necessary when doing clover inversion or applying prec coarse op
+        #  * coarse_precond is necessary when applying prec coarse op
+        assert self.coarse_clover is not None
         return lib.DiracCoarse(
             self.quda_params,
             self.gauge.cpu_field,
-            self.coarse_clover.cpu_field,  # if self.coarse_clover else nullptr,  # if we give nullptr, (ok if gauge's location=CUDA) then cpuClass is internally allocated if an operand is located on cpu, but this is not accessible from Python side.  no accessor in DiracCoarse
-            self.coarse_clover_inv.cpu_field if self.coarse_clover_inv else nullptr,
-            self.coarse_precond.cpu_field if self.coarse_precond else nullptr,
+            self.clover.cpu_field,
+            self.coarse_clover_inv.cpu_field if self.coarse_clover_inv is not None else nullptr,
+            self.coarse_precond.cpu_field if self.coarse_precond is not None else nullptr,
             self.gauge.gpu_field,
-            self.coarse_clover.gpu_field if self.coarse_clover else nullptr,
-            self.coarse_clover_inv.gpu_field if self.coarse_clover_inv else nullptr,
-            self.coarse_precond.gpu_field if self.coarse_precond else nullptr,
+            self.clover.gpu_field,
+            self.coarse_clover_inv.gpu_field if self.coarse_clover_inv is not None else nullptr,
+            self.coarse_precond.gpu_field if self.coarse_precond is not None else nullptr,
         )
 
     def get_matrix(self, key="M"):
@@ -216,13 +176,11 @@ class DiracMatrix:
     __slots__ = ["_dirac", "_gauge", "_matrix", "_key"]
 
     def __init__(self, dirac, key="M"):
-        self._dirac = dirac.quda_dirac  # necessary?
+        self._dirac = dirac.quda_dirac  # necessary? not used anywhere except in the below line
         self._matrix = getattr(lib, "Dirac" + key)(self._dirac)
-        self._gauge = dirac.quda_gauge  # necessary?
+        self._gauge = dirac.quda_gauge  # necessary? used just for precision, can you not store this instead?
         self._key = key
-        del (
-            dirac.quda_gauge
-        )  # ? why?  if an instance of Dirac tries to construct DiracMatrix next time, it will fail
+        del dirac.quda_gauge #? can be remvoed if Dirac removes it
 
     def __call__(self, rhs, out=None):
         rhs = spinor(rhs)
@@ -251,7 +209,6 @@ class DiracMatrix:
     def shift(self, value):
         self.quda.shift = value
 
-    # why is it here?
     @property
     def precision(self):
         "The precision of the operator (same as the gauge field)"
