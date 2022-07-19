@@ -48,6 +48,7 @@ def test_params(lib, lattice, device, dtype):
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 def test_zero(lib, lattice, device, dtype):
+    print(dtype)
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.zero()
     assert gf == 0
@@ -132,36 +133,28 @@ def test_exponential(lib, lattice, device, dtype):
     mom.zero()
     print(mom.reconstruct, mom.is_native(), mom.ncol)
 
-
-    # mom.copy(out=gf) #quda_field.copy does not work if geometry is diff
-    # assert gf == 0
+    gf.unity()
+    mom.copy(out=gf)
+    assert gf == 0
 
     gf.unity()
     gf2 = mom.exponentiate()
-    print(1,gf2.shape,gf.shape)
-    assert np.equal(gf2.field.flatten(),gf.field.flatten()).all()
-    #assert gf2 == gf
+    assert gf2 == gf
 
     gf.unity()
     gf2 = mom.exponentiate(exact=True)
-    print(2,gf2.shape,gf.shape)
-    #assert gf2 == gf
-    assert np.array_equal(gf2.field.flatten(),gf.field.flatten())
+    assert gf2 == gf
     
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
-    print(3,gf2.shape,gf.shape)
-    #assert gf2 == gf
-    assert np.array_equal(gf2.field.flatten(),gf.field.flatten())
+    assert gf2 == gf
     
     gf.gaussian()
     gf2 = mom.exponentiate(mul_to=gf)
-    assert np.allclose(gf2.field.flatten(),gf.field.flatten())
-    #assert gf2 == gf
+    assert gf2 == gf
 
     gf2 = gf.update_gauge(mom)
-    assert np.allclose(gf2.field.flatten(),gf.field.flatten())
-    #assert gf2 == gf
+    assert gf2 == gf
 
 
 @dtype_loop  # enables dtype
@@ -171,18 +164,14 @@ def test_mom_to_full(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     mom = momentum(lattice, dtype=dtype, device=device)
     mom.zero()
-    #mom.copy(out=gf)
+    mom.copy(out=gf)
 
-    #assert gf == 0
-    gf.zero()
+    assert gf == 0
     assert (gf.trace() == 0).all()
 
     mom.gaussian()
-    print(mom.ncol,mom.geometry,mom.shape,gf.ncol,gf.geometry,gf.shape)
-    assert False
     mom.copy(out=gf)
 
-    """    
     assert gf.dagger() == -gf
     assert np.allclose(gf.trace().real, 0, atol=1e-9)
 
@@ -290,3 +279,4 @@ def test_force_gradient(lib, lattice, device, epsilon):
         )
         print(path, ddaction, ddaction21, ddaction / ddaction12)
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
+

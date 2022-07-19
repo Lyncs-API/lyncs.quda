@@ -8,14 +8,15 @@ from random import random
 from argparse import Namespace
 import click
 from tqdm import tqdm
-from lyncs_quda import gauge_field, momentum
+from lyncs_quda import gauge_field, momentum, lib, get_cart, MPI
 
 
 @dataclass
 class HMCHelper:
     beta: float = 5
     lattice: tuple = (4, 4, 4, 4)
-
+    glattice: tuple = (4, 4, 4, 4)
+    comm: MPI.Comm = None
     # Log
     last_action: float = field(init=False, default=None)
 
@@ -26,7 +27,7 @@ class HMCHelper:
     @property
     def plaq_coeff(self):
         "Plaquette coefficient"
-        return -self.beta / 6
+        return -self.beta / 6 #= -1/g_0^2
 
     @property
     def plaq_paths(self):
@@ -56,19 +57,19 @@ class HMCHelper:
 
     def unity_gauge(self):
         "Returns a unity geuge"
-        out = gauge_field(self.lattice)
+        out = gauge_field(self.lattice, comm=self.comm)
         out.unity()
         return out
 
     def random_gauge(self):
         "Returns a random mom"
-        out = gauge_field(self.lattice)
+        out = gauge_field(self.lattice, comm=self.comm)
         out.gaussian(10)
         return out
 
     def random_mom(self):
         "Returns a random momenutm"
-        out = momentum(self.lattice)
+        out = momentum(self.lattice, comm=self.comm)
         out.gaussian(1 / 2**0.5)
         return out
 
@@ -227,7 +228,7 @@ class HMC:
     @property
     def last_plaquette(self):
         return -self.last_action / (
-            self.helper.beta * prod(self.helper.lattice) * len(self.helper.paths)
+            self.helper.beta * prod(self.helper.glattice) * len(self.helper.paths)
         )
 
     @property
@@ -245,6 +246,7 @@ class HMC:
 @click.command()
 @click.option("--beta", type=float, default=5, help="target action's beta")
 @click.option("--lattice-size", type=int, default=16, help="Size of hypercubic lattice")
+@click.option("--procs", nargs=4, default=(1,1,1,1), type=int, help="Cartesian topology of the communicator")
 @click.option(
     "--integrator",
     default="OMF4",
@@ -272,8 +274,18 @@ class HMC:
 def main(**kwargs):
     args = Namespace(**kwargs)
 
-    lattice = (args.lattice_size,) * 4
-    helper = HMCHelper(args.beta, lattice)
+    glattice = (args.lattice_size,) * 4
+    llattice = ()
+    procs = args.procs
+    for ldim, cdim in zip(glattice, procs):
+        if not (ldim/cdim).is_integer():
+            raise ValueError("Each lattice dim needs to be divisible by the corresponding dim of the Cartesian communicator!")
+        llattice += (int(ldim/cdim),)
+    comm = get_cart(procs)
+    lib.set_comm(comm)
+    lib.init_quda()
+    
+    helper = HMCHelper(args.beta, llattice, glattice, comm)
     integr = HMC_INTEGRATORS[args.integrator]
     integr = integr(args.t_steps)
     hmc = HMC(helper, integr)
@@ -290,6 +302,7 @@ def main(**kwargs):
             field = hmc(field)
             pbar.set_description(f"plaq: {hmc.last_plaquette}")
 
+    lib.end_quda()
 
 if __name__ == "__main__":
     main()

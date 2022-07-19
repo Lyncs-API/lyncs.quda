@@ -103,11 +103,27 @@ class GaugeField(LatticeField):
             return False
         return True
 
+    def __array_finalize__(self, obj):
+        "Support for __array_finalize__ standard"
+        # need to reset QUDA object when meta data of its Python wrapper is changed
+        self._quda = None
+        
+    def prepare(self, *fields, **kwargs):
+        "Prepares the fields by creating new one if None given else casting them to type(self) then  checking them if compatible with self and/or copying them"
+
+        fields = super().prepare(*fields, **kwargs)
+        if type(fields) is not tuple:
+            is_momentum = kwargs.get("is_momentum", self.is_momentum)
+            fields.is_momentum = is_momentum
+        return fields
+    
     def cast(self, other=None, **kwargs):
         "Cast a field into its type and check for compatibility"
+
         other = super().cast(other, **kwargs)
         is_momentum = kwargs.get("is_momentum", self.is_momentum)
         other.is_momentum = is_momentum
+        #other.__array_finalize__(self)
         return other
 
     @property
@@ -213,6 +229,8 @@ class GaugeField(LatticeField):
     @is_momentum.setter
     def is_momentum(self, value):
         self._is_momentum = value
+        if self._quda is not None:
+            self._quda.link_type = self.quda_link_type
 
     @property
     def t_boundary(self):
@@ -325,7 +343,7 @@ class GaugeField(LatticeField):
         return self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
 
     def to_momentum(self):
-        "Returns a momentum version of the field (with reconstruct=NO)"
+        "Returns a momentum version of the field (with reconstruct=10)"
         return self if self.reconstruct == "10" else self.copy(reconstruct="10")
 
     def default_view(self, split_col=True):
@@ -420,7 +438,7 @@ class GaugeField(LatticeField):
         assert self.device == cupy.cuda.runtime.getDevice()
         fails = cupy.zeros((1,), dtype="int32")
         lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
-        return fails.get()[0]
+        return fails.get()[0] #shouldn't we reduce?
 
     def gaussian(self, epsilon=1, seed=None):
         """

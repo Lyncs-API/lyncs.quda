@@ -117,7 +117,7 @@ class CloverField(LatticeField):
 
     # naming suggestion: native_view? default_* saved for dofs+lattice?
     def default_view(self):
-        N = 1 if self.order is "FLOAT2" else 4
+        N = 1 if self.order == "FLOAT2" else 4
         shape = (2,)  # even-odd
         shape += (self.dofs[0] // N, -1, N)
 

@@ -5,6 +5,8 @@ Loading the QUDA library
 
 __all__ = [
     "lib",
+    "MPI",
+    "get_cart",
     "PATHS",
 ]
 
@@ -28,6 +30,7 @@ class QudaLib(Lib):
         "_initialized",
         "_device_id",
         "_comm",
+        "MPI",
     ]
 
     def __init__(self, *args, **kwargs):
@@ -114,7 +117,7 @@ class QudaLib(Lib):
             else:
                 dev = self.device_id
         self.initQuda(dev)
-        self._device_id = self.get_current_device() #hack
+        self._device_id = self.get_current_device()
 
     def set_comm(self, comm=None): #nicer if it creates comm given the Cart toplogy?
         # NOTE: comm==None taken as indication of single rank MPI job 
@@ -245,6 +248,15 @@ lib = QudaLib(
     library=["libquda.so"] + libs,
     namespace=["quda", "lyncs_quda"],
 )
+
+lib.MPI = MPI
+
+def get_cart(procs=None, comm=None):
+    if not QUDA_MPI or procs is None:
+        return None
+    if comm is None:
+        comm = MPI.COMM_WORLD
+    return comm.Create_cart(procs)
 
 #used?
 try:
