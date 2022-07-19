@@ -119,8 +119,8 @@ class QudaLib(Lib):
         self.initQuda(dev)
         self._device_id = self.get_current_device()
 
-    def set_comm(self, comm=None): #nicer if it creates comm given the Cart toplogy?
-        # NOTE: comm==None taken as indication of single rank MPI job 
+    def set_comm(self, comm=None):  # nicer if it creates comm given the Cart toplogy?
+        # NOTE: comm==None taken as indication of single rank MPI job
         if comm is not None and not QUDA_MPI:
             raise RuntimeError("Quda has not been compiled with MPI")
         if comm is None and not QUDA_MPI:
@@ -202,7 +202,7 @@ class QudaLib(Lib):
         self.endQuda()
         self._comm = None
         self._initialized = False
-        
+
     def __getattr__(self, key):
         if key.startswith("_"):
             raise AttributeError(f"QudaLib does not have attribute '{key}'")
@@ -251,6 +251,7 @@ lib = QudaLib(
 
 lib.MPI = MPI
 
+
 def get_cart(procs=None, comm=None):
     if not QUDA_MPI or procs is None:
         return None
@@ -258,7 +259,8 @@ def get_cart(procs=None, comm=None):
         comm = MPI.COMM_WORLD
     return comm.Create_cart(procs)
 
-#used?
+
+# used?
 try:
     from pytest import fixture
 

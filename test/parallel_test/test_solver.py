@@ -12,9 +12,11 @@ from lyncs_quda.testing import (
 
 
 comm = None
+
+
 @mark_mpi
 @device_loop  # enables device
-@parallel_loop  # enables procs  
+@parallel_loop  # enables procs
 @lattice_loop  # enables lattice
 @gamma_loop  # enables gamma
 def test_solve_random(lib, lattice, procs, device, gamma, dtype=None):
@@ -29,7 +31,9 @@ def test_solve_random(lib, lattice, procs, device, gamma, dtype=None):
     rhs = spinor(lattice, dtype=dtype, device=device, gamma_basis=gamma, comm=comm)
     rhs.uniform()
     mat = dirac.M
-    out = mat.solve(rhs, delta=10.) #magic happends, and solver now converges with chiral with this value
+    out = mat.solve(
+        rhs, delta=10.0
+    )  # magic happends, and solver now converges with chiral with this value
     res = mat(out)
     res.field -= rhs.field
     res = res.norm() / rhs.norm()

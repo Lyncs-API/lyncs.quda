@@ -144,11 +144,11 @@ def test_exponential(lib, lattice, device, dtype):
     gf.unity()
     gf2 = mom.exponentiate(exact=True)
     assert gf2 == gf
-    
+
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
     assert gf2 == gf
-    
+
     gf.gaussian()
     gf2 = mom.exponentiate(mul_to=gf)
     assert gf2 == gf
@@ -279,4 +279,3 @@ def test_force_gradient(lib, lattice, device, epsilon):
         )
         print(path, ddaction, ddaction21, ddaction / ddaction12)
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
-

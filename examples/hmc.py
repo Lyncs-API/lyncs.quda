@@ -27,7 +27,7 @@ class HMCHelper:
     @property
     def plaq_coeff(self):
         "Plaquette coefficient"
-        return -self.beta / 6 #= -1/g_0^2
+        return -self.beta / 6  # = -1/g_0^2
 
     @property
     def plaq_paths(self):
@@ -246,7 +246,13 @@ class HMC:
 @click.command()
 @click.option("--beta", type=float, default=5, help="target action's beta")
 @click.option("--lattice-size", type=int, default=16, help="Size of hypercubic lattice")
-@click.option("--procs", nargs=4, default=(1,1,1,1), type=int, help="Cartesian topology of the communicator")
+@click.option(
+    "--procs",
+    nargs=4,
+    default=(1, 1, 1, 1),
+    type=int,
+    help="Cartesian topology of the communicator",
+)
 @click.option(
     "--integrator",
     default="OMF4",
@@ -278,13 +284,15 @@ def main(**kwargs):
     llattice = ()
     procs = args.procs
     for ldim, cdim in zip(glattice, procs):
-        if not (ldim/cdim).is_integer():
-            raise ValueError("Each lattice dim needs to be divisible by the corresponding dim of the Cartesian communicator!")
-        llattice += (int(ldim/cdim),)
+        if not (ldim / cdim).is_integer():
+            raise ValueError(
+                "Each lattice dim needs to be divisible by the corresponding dim of the Cartesian communicator!"
+            )
+        llattice += (int(ldim / cdim),)
     comm = get_cart(procs)
     lib.set_comm(comm)
     lib.init_quda()
-    
+
     helper = HMCHelper(args.beta, llattice, glattice, comm)
     integr = HMC_INTEGRATORS[args.integrator]
     integr = integr(args.t_steps)
@@ -303,6 +311,7 @@ def main(**kwargs):
             pbar.set_description(f"plaq: {hmc.last_plaquette}")
 
     lib.end_quda()
+
 
 if __name__ == "__main__":
     main()

@@ -86,7 +86,7 @@ def test_zero(lib, lattice, device, gamma, mu, dtype=None):
     assert np.allclose(dirac.MMdag(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
 
 
-#@dtype_loop  # enables dtype #Double precision multigrid has not been enabled
+# @dtype_loop  # enables dtype #Double precision multigrid has not been enabled
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 def test_coarse_zero(lib, lattice, device, dtype=None):
@@ -97,10 +97,9 @@ def test_coarse_zero(lib, lattice, device, dtype=None):
     gf2.unity()
     sf = spinor_coarse(lattice, dtype=dtype, device=device)
     sf.uniform()
-    
+
     dirac = gf.Dirac(clover=gf2)
     assert (dirac.M(sf).field == sf.field).all()
     assert (dirac.Mdag(sf).field == sf.field).all()
     assert (dirac.MdagM(sf).field == sf.field).all()
     assert (dirac.MMdag(sf).field == sf.field).all()
-

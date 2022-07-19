@@ -90,27 +90,30 @@ class Dirac:
         params.dagger = self.quda_dagger
 
         # Needs to prevent the gauge field to get destroyed
-        #? now we store QUDA gauge object in _quda
+        # ? now we store QUDA gauge object in _quda
         # QUDA Dirac class stores cudaGaugeField as its protected member
         #  taken from the DiracParam so that the pointed object will not
         #  be garbaged, I think
-        #self.quda_gauge = self.gauge.quda_field
-        params.gauge = self.gauge.quda_field #self.quda_gauge
+        # self.quda_gauge = self.gauge.quda_field
+        params.gauge = self.gauge.quda_field  # self.quda_gauge
 
         if self.csw != 0.0 and not self.gauge.is_coarse:
             if self.clover is None:
-                #self.clover =
-                object.__setattr__(self,"clover",
-                                   CloverField(
-                                       self.gauge,
-                                       coeff=self.kappa*self.csw/4,
-                                       twisted=(self.mu != 0),
-                                       tf=("SINGLET" if "TWISTED" in self.type else "NO"),
-                                       mu2=self.mu**2,
-                                       eps2=self.epsilon**2,
-                                       rho=self.rho,
-                                       computeTrLog=self.computeTrLog,
-                                   ))#well, this is a hack.  this dataclass is now frozen. so...
+                # self.clover =
+                object.__setattr__(
+                    self,
+                    "clover",
+                    CloverField(
+                        self.gauge,
+                        coeff=self.kappa * self.csw / 4,
+                        twisted=(self.mu != 0),
+                        tf=("SINGLET" if "TWISTED" in self.type else "NO"),
+                        mu2=self.mu**2,
+                        eps2=self.epsilon**2,
+                        rho=self.rho,
+                        computeTrLog=self.computeTrLog,
+                    ),
+                )  # well, this is a hack.  this dataclass is now frozen. so...
                 self.clover.clover_field
             params.clover = self.clover.quda_field
 
@@ -132,12 +135,20 @@ class Dirac:
             self.quda_params,
             self.gauge.cpu_field,
             self.clover.cpu_field,
-            self.coarse_clover_inv.cpu_field if self.coarse_clover_inv is not None else nullptr,
-            self.coarse_precond.cpu_field if self.coarse_precond is not None else nullptr,
+            self.coarse_clover_inv.cpu_field
+            if self.coarse_clover_inv is not None
+            else nullptr,
+            self.coarse_precond.cpu_field
+            if self.coarse_precond is not None
+            else nullptr,
             self.gauge.gpu_field,
             self.clover.gpu_field,
-            self.coarse_clover_inv.gpu_field if self.coarse_clover_inv is not None else nullptr,
-            self.coarse_precond.gpu_field if self.coarse_precond is not None else nullptr,
+            self.coarse_clover_inv.gpu_field
+            if self.coarse_clover_inv is not None
+            else nullptr,
+            self.coarse_precond.gpu_field
+            if self.coarse_precond is not None
+            else nullptr,
         )
 
     def get_matrix(self, key="M"):
@@ -182,12 +193,14 @@ class DiracMatrix:
     __slots__ = ["_dirac", "_prec", "_matrix", "_key"]
 
     def __init__(self, dirac, key="M"):
-        self._dirac = dirac.quda_dirac  # necessary? not used anywhere except in the below line
+        self._dirac = (
+            dirac.quda_dirac
+        )  # necessary? not used anywhere except in the below line
         self._matrix = getattr(lib, "Dirac" + key)(self._dirac)
         self._key = key
         self._prec = dirac.precision
-        #self._gauge = dirac.quda_gauge  # necessary? used just for precision, can you not store this instead?
-        #del dirac.quda_gauge #? can be remvoed if Dirac removes it
+        # self._gauge = dirac.quda_gauge  # necessary? used just for precision, can you not store this instead?
+        # del dirac.quda_gauge #? can be remvoed if Dirac removes it
 
     def __call__(self, rhs, out=None):
         rhs = spinor(rhs)

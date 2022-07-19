@@ -94,15 +94,16 @@ def backend(device=True):
         else:
             if device is True:
                 device = lib.device_id
-                
+
             if not isinstance(device, int):
                 raise TypeError("Expected device to be an integer or None/True/False")
 
             lib.device_id = device
             with cupy.cuda.Device(device):
                 yield cupy
-    finally: # I don't think this will be invked when exception occurs
+    finally:  # I don't think this will be invked when exception occurs
         cupy.cuda.runtime.setDevice(lib.device_id)
+
 
 class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     "Mimics the quda::LatticeField object"
@@ -124,7 +125,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             new = bck.empty if empty else bck.zeros
             shape = tuple(dofs) + tuple(lattice)
             return cls(new(shape, dtype=cls.get_dtype(dtype)), **kwargs)
-        
+
     def new(self, empty=True, **kwargs):
         "Returns a new empty field based on the current"
 
@@ -160,7 +161,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
         try:
             out.quda_field.copy(other.quda_field)
-        except: # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not catched by this
+        except:  # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not catched by this
             out = out.prepare((other.field.copy()), copy=False)
 
         return out
@@ -190,9 +191,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     def cast(self, other=None, copy=True, check=False, **kwargs):
         "Cast other (self if not given) into type(self) and copy or check for compatibility"
 
-        if other is None: 
+        if other is None:
             other = self
-                        
+
         return self.prepare(other, copy=copy, check=check, **kwargs)
 
     """
@@ -237,7 +238,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
                 raise ValueError("The given field is not appropriate")
             if copy:
                 return self.copy(other=field, **kwargs)
-            field.__array_finalize__(self)  
+            field.__array_finalize__(self)
             return field
         return tuple(self.prepare(field, **kwargs) for field in fields)
 
@@ -436,7 +437,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         # I wasn't sure if we really need to make a separate memory region and copy things overthere
         prepare = (
-            lambda arg: self.cast(arg, copy=False).field if isinstance(arg, LatticeField) else arg
+            lambda arg: self.cast(arg, copy=False).field
+            if isinstance(arg, LatticeField)
+            else arg
         )
         args = tuple(map(prepare, args))
 
