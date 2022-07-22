@@ -340,7 +340,9 @@ class GaugeField(LatticeField):
 
     def full(self):
         "Returns a full matrix version of the field (with reconstruct=NO)"
-        return self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
+        out =  self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
+        out.is_momentum=False
+        return out
 
     def to_momentum(self):
         "Returns a momentum version of the field (with reconstruct=10)"
@@ -612,6 +614,7 @@ class GaugeField(LatticeField):
         force=False,
         grad=None,
         left_grad=False,
+        keep_paths=False,
     ):
         """
         Computes the gauge paths on the lattice.
@@ -656,7 +659,7 @@ class GaugeField(LatticeField):
             fnc = lib.gaugePath
 
         # Preparing paths
-        if force:
+        if force and not keep_paths:
             paths, coeffs = self._paths_for_force(paths, coeffs)
             self._check_paths(paths)
         paths, lengths = self._paths_to_array(paths)
