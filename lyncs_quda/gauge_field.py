@@ -340,8 +340,8 @@ class GaugeField(LatticeField):
 
     def full(self):
         "Returns a full matrix version of the field (with reconstruct=NO)"
-        out =  self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
-        out.is_momentum=False
+        out = self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
+        out.is_momentum = False
         return out
 
     def to_momentum(self):
@@ -644,7 +644,6 @@ class GaugeField(LatticeField):
 
         # Preparing grad and fnc
         if grad is not None:
-            force = True
             grad = self.cast(grad, reconstruct=10)
             fnc = lambda out, u, *args: lib.gaugeForceGradient(
                 out,
