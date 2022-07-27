@@ -27,8 +27,8 @@ def test_unity(lib, lattice, procs, device, dtype):
         lib.set_comm(comm)
     gf = gauge(lattice, dtype=dtype, device=device, comm=comm)
     gf.unity()
-    assert gf.norm1() == 3 * 4 * np.prod(lattice) #* np.prod(procs)
-    assert gf.norm2() == 3 * 4 * np.prod(lattice) #* np.prod(procs)
+    assert gf.norm1() == 3 * 4 * np.prod(lattice)  # * np.prod(procs)
+    assert gf.norm2() == 3 * 4 * np.prod(lattice)  # * np.prod(procs)
     assert gf.abs_max() == 1
     assert gf.abs_min() == 0
     assert gf.project() == 0

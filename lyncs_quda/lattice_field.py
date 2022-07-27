@@ -113,13 +113,22 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return numpy.dtype(dtype)
 
     @classmethod
-    def create(cls, lattice, dofs=None, dtype=None, device=True, comm=None, empty=True, **kwargs):
+    def create(
+        cls,
+        lattice,
+        dofs=None,
+        dtype=None,
+        device=True,
+        comm=None,
+        empty=True,
+        **kwargs,
+    ):
         "Constructs a new lattice field with default dtype=None, translating into float64"
         # lattice: represetns local lattice only if (nu/cu)py array else global lattice
         # comm: Cartesian communicator
         if isinstance(lattice, cls):
             return lattice
-        
+
         if comm is None:
             comm = lib.comm
         if comm is not None and not isinstance(lattice, (numpy.ndarray, cupy.ndarray)):
@@ -127,10 +136,12 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             local_lattice = ()
             procs = comm.dims
             for ldim, cdim in zip(global_lattice, procs):
-                if not (ldim/cdim).is_integer():
-                    raise ValueError("Each lattice dim needs to be divisible by the corresponding dim of the Cartesian communicator!")
-                local_lattice += (int(ldim/cdim),)
-            
+                if not (ldim / cdim).is_integer():
+                    raise ValueError(
+                        "Each lattice dim needs to be divisible by the corresponding dim of the Cartesian communicator!"
+                    )
+                local_lattice += (int(ldim / cdim),)
+
         with backend(device) as bck:
             if isinstance(lattice, (numpy.ndarray, cupy.ndarray)):
                 return cls(bck.array(lattice), comm=comm, **kwargs)
@@ -144,7 +155,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         "Returns a new empty field based on the current"
 
         out = self.create(
-            self.lattice, #self.dims,
+            self.lattice,  # self.dims,
             dofs=kwargs.pop("dofs", self.dofs),
             dtype=kwargs.pop("dtype", self.dtype),
             device=kwargs.pop("device", self.device),
@@ -267,7 +278,6 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             self.comm = comm
         self._quda = None
         self.activate()
-        
 
     def activate(self):
         "Activates the current field. To be called before using the object in quda"
@@ -361,7 +371,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     def lattice(self):
         "returns global lattice dims"
         procs = self.comm.dims if self.comm is not None else (1, 1, 1, 1)
-        return (int(cdim*ldim) for cdim, ldim in zip(procs, self.dims))
+        return (int(cdim * ldim) for cdim, ldim in zip(procs, self.dims))
 
     @property
     def quda_dims(self):

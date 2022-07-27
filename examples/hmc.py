@@ -14,6 +14,8 @@ from aim import Run
 import time
 
 GPU_TIME = 0
+
+
 def GPU_time(fnc):
     def profiler(*args):
         global GPU_TIME
@@ -21,7 +23,9 @@ def GPU_time(fnc):
         out = fnc(*args)
         GPU_TIME += time.process_time() - t0
         return out
+
     return profiler
+
 
 @dataclass
 class HMCHelper:
@@ -113,6 +117,7 @@ class HMCHelper:
         mom2 = self.mom2(mom)
         action = self.action(field)
         return mom2 + action
+
 
 @dataclass
 class Integrator:
@@ -241,8 +246,10 @@ class HMC:
 
     @property
     def last_plaquette(self):
-        return -3*self.last_action / (
-            self.helper.beta * prod(self.helper.lattice) * len(self.helper.paths)
+        return (
+            -3
+            * self.last_action
+            / (self.helper.beta * prod(self.helper.lattice) * len(self.helper.paths))
         )
 
     @property
@@ -256,10 +263,17 @@ class HMC:
             "accepted": self.last_accepted,
         }
 
+
 @click.command()
 @click.option("--beta", type=float, default=5, help="target action's beta")
 @click.option("--lattice-size", type=int, default=16, help="Size of hypercubic lattice")
-@click.option("--lattice-dims", nargs=4, type=int, default=(0,0,0,0), help="Size of asymmetric lattice")
+@click.option(
+    "--lattice-dims",
+    nargs=4,
+    type=int,
+    default=(0, 0, 0, 0),
+    help="Size of asymmetric lattice",
+)
 @click.option(
     "--procs",
     nargs=4,
@@ -294,10 +308,11 @@ class HMC:
 def main(**kwargs):
     args = Namespace(**kwargs)
 
-
-    lattice = args.lattice_dims if prod(args.lattice_dims) != 0 else (args.lattice_size,) * 4
+    lattice = (
+        args.lattice_dims if prod(args.lattice_dims) != 0 else (args.lattice_size,) * 4
+    )
     lib.set_comm(procs=args.procs)
-    
+
     helper = HMCHelper(args.beta, lattice)
     integr = HMC_INTEGRATORS[args.integrator]
     integr = integr(args.t_steps)
@@ -309,13 +324,17 @@ def main(**kwargs):
         field = helper.random_unity()
     else:
         raise ValueError("Unknown start")
-    
-    experiment="consistency_check"
-    #run = Run(repo='/cyclamen/home/syamamoto/Lattice2022/aim', run_hash=hash_id, experiment=experiment, system_tracking_interval=1)
-    run = Run(repo='/cyclamen/home/syamamoto/Lattice2022/aim', experiment=experiment, system_tracking_interval=1)
+
+    experiment = "consistency_check"
+    # run = Run(repo='/cyclamen/home/syamamoto/Lattice2022/aim', run_hash=hash_id, experiment=experiment, system_tracking_interval=1)
+    run = Run(
+        repo="/cyclamen/home/syamamoto/Lattice2022/aim",
+        experiment=experiment,
+        system_tracking_interval=1,
+    )
     run["beta"] = args.beta
     run["num_ranks"] = prod(args.procs)
-    
+
     with tqdm(range(args.n_trajs)) as pbar:
         for step in pbar:
             field = hmc(field)
@@ -324,6 +343,7 @@ def main(**kwargs):
             for key, val in hmc.stats.items():
                 run.track(val, name=key)
     print(GPU_TIME)
-    
+
+
 if __name__ == "__main__":
     main()
