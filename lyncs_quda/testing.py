@@ -22,7 +22,7 @@ from .spinor_field import SpinorField
 @fixture(scope="session")
 def fixlib():
     "A fixture to guarantee that in pytest lib is finalized at the end"
-    if QUDA_MPI and MPI.COMM_WORLD.Get_size()>1:
+    if QUDA_MPI and MPI.COMM_WORLD.Get_size() > 1:
         pass
     elif not lib.initialized:
         lib.init_quda()

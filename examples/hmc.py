@@ -9,7 +9,7 @@ from random import random
 from argparse import Namespace
 import click
 from tqdm import tqdm
-from lyncs_quda import gauge_field, momentum, lib, get_cart, MPI
+from lyncs_quda import gauge_field, momentum, lib, MPI
 from aim import Run
 import time
 
@@ -37,7 +37,7 @@ class HMCHelper:
     @property
     def plaq_coeff(self):
         "Plaquette coefficient"
-        return -self.beta / 6 #= -1/g_0^2
+        return -self.beta / 6  # = -1/g_0^2
 
     @property
     def plaq_paths(self):
@@ -260,7 +260,13 @@ class HMC:
 @click.option("--beta", type=float, default=5, help="target action's beta")
 @click.option("--lattice-size", type=int, default=16, help="Size of hypercubic lattice")
 @click.option("--lattice-dims", nargs=4, type=int, default=(0,0,0,0), help="Size of asymmetric lattice")
-@click.option("--procs", nargs=4, default=(1,1,1,1), type=int, help="Cartesian topology of the communicator")
+@click.option(
+    "--procs",
+    nargs=4,
+    default=(1, 1, 1, 1),
+    type=int,
+    help="Cartesian topology of the communicator",
+)
 @click.option(
     "--integrator",
     default="OMF4",
@@ -288,6 +294,7 @@ class HMC:
 def main(**kwargs):
     args = Namespace(**kwargs)
 
+
     lattice = args.lattice_dims if prod(args.lattice_dims) != 0 else (args.lattice_size,) * 4
     lib.set_comm(procs=args.procs)
     
@@ -313,6 +320,7 @@ def main(**kwargs):
         for step in pbar:
             field = hmc(field)
             pbar.set_description(f"plaq: {hmc.last_plaquette}")
+
             for key, val in hmc.stats.items():
                 run.track(val, name=key)
     print(GPU_TIME)

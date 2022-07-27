@@ -6,7 +6,6 @@ Loading the QUDA library
 __all__ = [
     "lib",
     "MPI",
-    "get_cart",
     "PATHS",
 ]
 
@@ -125,6 +124,7 @@ class QudaLib(Lib):
         #  set DEFAULT_COMM
         #  provide getter and setter for it
         #  allow dynamic management of the lib's comm
+
         if comm is not None and not QUDA_MPI:
             raise RuntimeError("Quda has not been compiled with MPI")
         if comm is None and not QUDA_MPI:
@@ -212,7 +212,7 @@ class QudaLib(Lib):
         self.endQuda()
         self._comm = None
         self._initialized = False
-        
+
     def __getattr__(self, key):
         if key.startswith("_"):
             raise AttributeError(f"QudaLib does not have attribute '{key}'")
@@ -261,15 +261,7 @@ lib = QudaLib(
 
 lib.MPI = MPI
 
-#remove it from here
-def get_cart(procs=None, comm=None):
-    if not QUDA_MPI or procs is None:
-        return None
-    if comm is None:
-        comm = MPI.COMM_WORLD
-    return comm.Create_cart(procs)
-
-#used?
+# used?
 try:
     from pytest import fixture
 

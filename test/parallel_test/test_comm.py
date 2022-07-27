@@ -6,6 +6,7 @@ from lyncs_quda.testing import (
     get_cart,
 )
 
+
 @mark_mpi
 @parallel_loop  # enables procs
 def test_comm(lib, procs):

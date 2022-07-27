@@ -107,7 +107,7 @@ class GaugeField(LatticeField):
         "Support for __array_finalize__ standard"
         # need to reset QUDA object when meta data of its Python wrapper is changed
         self._quda = None
-        
+
     def prepare(self, *fields, **kwargs):
         "Prepares the fields by creating new one if None given else casting them to type(self) then  checking them if compatible with self and/or copying them"
 
@@ -116,14 +116,14 @@ class GaugeField(LatticeField):
             is_momentum = kwargs.get("is_momentum", self.is_momentum)
             fields.is_momentum = is_momentum
         return fields
-    
+
     def cast(self, other=None, **kwargs):
         "Cast a field into its type and check for compatibility"
 
         other = super().cast(other, **kwargs)
         is_momentum = kwargs.get("is_momentum", self.is_momentum)
         other.is_momentum = is_momentum
-        #other.__array_finalize__(self)
+        # other.__array_finalize__(self)
         return other
 
     @property
@@ -340,7 +340,9 @@ class GaugeField(LatticeField):
 
     def full(self):
         "Returns a full matrix version of the field (with reconstruct=NO)"
-        return self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
+        out = self if self.reconstruct == "NO" else self.copy(reconstruct="NO")
+        out.is_momentum = False
+        return out
 
     def to_momentum(self):
         "Returns a momentum version of the field (with reconstruct=10)"
@@ -373,11 +375,10 @@ class GaugeField(LatticeField):
             raise NotImplementedError
 
         field = self.default_view(split_col=False)
-        
+
         field[:] = 0
         diag = [i * self.ncol + i for i in range(self.ncol)]
         field[:, :, diag, ...] = 1
-
 
     def trace(self, only_real=False):
         "Returns the trace in color of the field"
@@ -438,7 +439,7 @@ class GaugeField(LatticeField):
         assert self.device == cupy.cuda.runtime.getDevice()
         fails = cupy.zeros((1,), dtype="int32")
         lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
-        return fails.get()[0] #shouldn't we reduce?
+        return fails.get()[0]  # shouldn't we reduce?
 
     def gaussian(self, epsilon=1, seed=None):
         """
@@ -534,7 +535,7 @@ class GaugeField(LatticeField):
             )
         if self.reconstruct == "10":
             # TODO: patch quda, reconstruct 10 not supported
-            #? assume cupy?
+            # ? assume cupy?
             norm2 = (self.default_view() ** 2).sum(axis=(0, 1, 3, 4)).get()
             norm2 = norm2.sum() - norm2[-1] / 2 - norm2[-2] / 2
             return 4 * super().reduce(norm2)
@@ -613,6 +614,7 @@ class GaugeField(LatticeField):
         force=False,
         grad=None,
         left_grad=False,
+        keep_paths=False,
     ):
         """
         Computes the gauge paths on the lattice.
@@ -657,7 +659,7 @@ class GaugeField(LatticeField):
             fnc = lib.gaugePath
 
         # Preparing paths
-        if force:
+        if force and not keep_paths:
             paths, coeffs = self._paths_for_force(paths, coeffs)
             self._check_paths(paths)
         paths, lengths = self._paths_to_array(paths)
