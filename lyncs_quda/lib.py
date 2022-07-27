@@ -119,14 +119,21 @@ class QudaLib(Lib):
         self.initQuda(dev)
         self._device_id = self.get_current_device()
 
-    def set_comm(self, comm=None): #nicer if it creates comm given the Cart toplogy?
-        # NOTE: comm==None taken as indication of single rank MPI job 
+    def set_comm(self, comm=None, procs=None):
+        # NOTE: comm==None taken as indication of single rank MPI job
+        # TODO:
+        #  set DEFAULT_COMM
+        #  provide getter and setter for it
+        #  allow dynamic management of the lib's comm
         if comm is not None and not QUDA_MPI:
             raise RuntimeError("Quda has not been compiled with MPI")
         if comm is None and not QUDA_MPI:
             return
         if comm is None:
-            comm = MPI.COMM_SELF.Create_cart((1, 1, 1, 1))
+            if procs is None:
+                comm = MPI.COMM_SELF.Create_cart((1, 1, 1, 1))
+            else:
+                comm = MPI.COMM_WORLD.Create_cart(procs)
         if not isinstance(comm, MPI.Cartcomm):
             raise TypeError("comm expected to be a Cartcomm")
         if (
@@ -136,10 +143,13 @@ class QudaLib(Lib):
             return
         if comm.ndim != 4:
             raise ValueError("comm expected to be a 4D Cartcomm")
-        if self._comm is not None:
+        # not supported at the moment
+        #if self._comm is not None: #original
+        #if self.initialized:
             # when ending and starting over QUDA, strange things happen
-            self.end_quda()
+            #self.end_quda()
         self._comm = comm
+        self.init_quda()
 
     @property
     def _comm_ptr(self):
@@ -251,6 +261,7 @@ lib = QudaLib(
 
 lib.MPI = MPI
 
+#remove it from here
 def get_cart(procs=None, comm=None):
     if not QUDA_MPI or procs is None:
         return None

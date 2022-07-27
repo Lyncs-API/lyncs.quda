@@ -3,20 +3,30 @@ Implementation of the HMC algorithm
 """
 
 from dataclasses import dataclass, field
-from math import exp, prod
+from math import prod
+from numpy import exp
 from random import random
 from argparse import Namespace
 import click
 from tqdm import tqdm
 from lyncs_quda import gauge_field, momentum, lib, get_cart, MPI
+from aim import Run
+import time
 
+GPU_TIME = 0
+def GPU_time(fnc):
+    def profiler(*args):
+        global GPU_TIME
+        t0 = time.process_time()
+        out = fnc(*args)
+        GPU_TIME += time.process_time() - t0
+        return out
+    return profiler
 
 @dataclass
 class HMCHelper:
     beta: float = 5
     lattice: tuple = (4, 4, 4, 4)
-    glattice: tuple = (4, 4, 4, 4)
-    comm: MPI.Comm = None
     # Log
     last_action: float = field(init=False, default=None)
 
@@ -48,28 +58,32 @@ class HMCHelper:
         "For now only plaquettes, but can be extended"
         return self.plaq_paths
 
+    @GPU_time
     def action(self, field):
         "Returns the action computed on field"
-        self.last_action = 2 * (
+        self.last_action = 2 * float(
             field.compute_paths(self.paths, self.coeffs).reduce(mean=False)
         )
         return self.last_action
 
+    @GPU_time
     def unity_gauge(self):
         "Returns a unity geuge"
-        out = gauge_field(self.lattice, comm=self.comm)
+        out = gauge_field(self.lattice)
         out.unity()
         return out
 
+    @GPU_time
     def random_gauge(self):
         "Returns a random mom"
-        out = gauge_field(self.lattice, comm=self.comm)
+        out = gauge_field(self.lattice)
         out.gaussian(10)
         return out
 
+    @GPU_time
     def random_mom(self):
         "Returns a random momenutm"
-        out = momentum(self.lattice, comm=self.comm)
+        out = momentum(self.lattice)
         out.gaussian(1 / 2**0.5)
         return out
 
@@ -83,6 +97,7 @@ class HMCHelper:
             self.paths, self.coeffs, out=mom, add_coeff=coeff, force=True
         )
 
+    @GPU_time
     def update(self, field, mom, fcoeff, mcoeff):
         if fcoeff != 0:
             field = self.update_field(field, mom, fcoeff)
@@ -98,7 +113,6 @@ class HMCHelper:
         mom2 = self.mom2(mom)
         action = self.action(field)
         return mom2 + action
-
 
 @dataclass
 class Integrator:
@@ -227,8 +241,8 @@ class HMC:
 
     @property
     def last_plaquette(self):
-        return -self.last_action / (
-            self.helper.beta * prod(self.helper.glattice) * len(self.helper.paths)
+        return -3*self.last_action / (
+            self.helper.beta * prod(self.helper.lattice) * len(self.helper.paths)
         )
 
     @property
@@ -242,10 +256,10 @@ class HMC:
             "accepted": self.last_accepted,
         }
 
-
 @click.command()
 @click.option("--beta", type=float, default=5, help="target action's beta")
 @click.option("--lattice-size", type=int, default=16, help="Size of hypercubic lattice")
+@click.option("--lattice-dims", nargs=4, type=int, default=(0,0,0,0), help="Size of asymmetric lattice")
 @click.option("--procs", nargs=4, default=(1,1,1,1), type=int, help="Cartesian topology of the communicator")
 @click.option(
     "--integrator",
@@ -274,18 +288,10 @@ class HMC:
 def main(**kwargs):
     args = Namespace(**kwargs)
 
-    glattice = (args.lattice_size,) * 4
-    llattice = ()
-    procs = args.procs
-    for ldim, cdim in zip(glattice, procs):
-        if not (ldim/cdim).is_integer():
-            raise ValueError("Each lattice dim needs to be divisible by the corresponding dim of the Cartesian communicator!")
-        llattice += (int(ldim/cdim),)
-    comm = get_cart(procs)
-    lib.set_comm(comm)
-    lib.init_quda()
+    lattice = args.lattice_dims if prod(args.lattice_dims) != 0 else (args.lattice_size,) * 4
+    lib.set_comm(procs=args.procs)
     
-    helper = HMCHelper(args.beta, llattice, glattice, comm)
+    helper = HMCHelper(args.beta, lattice)
     integr = HMC_INTEGRATORS[args.integrator]
     integr = integr(args.t_steps)
     hmc = HMC(helper, integr)
@@ -296,13 +302,20 @@ def main(**kwargs):
         field = helper.random_unity()
     else:
         raise ValueError("Unknown start")
-
+    
+    experiment="consistency_check"
+    #run = Run(repo='/cyclamen/home/syamamoto/Lattice2022/aim', run_hash=hash_id, experiment=experiment, system_tracking_interval=1)
+    run = Run(repo='/cyclamen/home/syamamoto/Lattice2022/aim', experiment=experiment, system_tracking_interval=1)
+    run["beta"] = args.beta
+    run["num_ranks"] = prod(args.procs)
+    
     with tqdm(range(args.n_trajs)) as pbar:
         for step in pbar:
             field = hmc(field)
             pbar.set_description(f"plaq: {hmc.last_plaquette}")
-
-    lib.end_quda()
-
+            for key, val in hmc.stats.items():
+                run.track(val, name=key)
+    print(GPU_TIME)
+    
 if __name__ == "__main__":
     main()
