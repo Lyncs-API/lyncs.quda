@@ -398,13 +398,14 @@ class GaugeField(LatticeField):
 
     def reduce(self, local=False, only_real=True, mean=True):
         "Reduction of a gauge field (real of mean of trace)"
+        #ASSUME: cupy array
         out = self.trace(only_real=only_real)
         if mean:
             out = out.mean() / self.ncol
         else:
             out = out.sum()
         if not local:
-            return super().reduce(out)
+            return super().reduce(out.get())
         return out
 
     def dot(self, other, out=None):
@@ -536,9 +537,9 @@ class GaugeField(LatticeField):
         if self.reconstruct == "10":
             # TODO: patch quda, reconstruct 10 not supported
             # ? assume cupy?
-            norm2 = (self.default_view() ** 2).sum(axis=(0, 1, 3, 4)).get()
+            norm2 = (self.default_view() ** 2).sum(axis=(0, 1, 3, 4))
             norm2 = norm2.sum() - norm2[-1] / 2 - norm2[-2] / 2
-            return 4 * super().reduce(norm2)
+            return 4 * super().reduce(norm2.get())
         return self.quda_field.norm2(link_dir)
 
     def abs_max(self, link_dir=-1):
@@ -646,7 +647,7 @@ class GaugeField(LatticeField):
         if grad is not None:
             force = True
             grad = self.cast(grad, reconstruct=10)
-            fnc = lambda out, u, *args: lib.gaugeForceGradient(
+            fnc = lambda out, u, *args: self._gaugeForceGradient(
                 out,
                 u,
                 grad.quda_field,
@@ -654,9 +655,9 @@ class GaugeField(LatticeField):
                 left=left_grad,
             )
         elif force:
-            fnc = lib.gaugeForce
+            fnc = self._gaugeForce
         else:
-            fnc = lib.gaugePath
+            fnc = self._gaugePath
 
         # Preparing paths
         if force and not keep_paths:
@@ -684,6 +685,14 @@ class GaugeField(LatticeField):
         )
         return out
 
+    # for profiling
+    def _gaugeForceGradient(self, *args, **kwargs):
+        return lib.gaugeForceGradient(*args, **kwargs)
+    def _gaugeForce(self, *args, **kwargs):
+        return lib.gaugeForce(*args, **kwargs)
+    def _gaugePath(self, *args, **kwargs):
+        return lib.gaugePath(*args, **kwargs)
+    
     @property
     def plaquette_paths(self):
         "List of plaquette paths"

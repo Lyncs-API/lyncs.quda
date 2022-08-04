@@ -13,15 +13,6 @@ from lyncs_quda import gauge_field, momentum, lib, MPI
 from aim import Run
 import time
 
-GPU_TIME = 0
-def GPU_time(fnc):
-    def profiler(*args):
-        global GPU_TIME
-        t0 = time.process_time()
-        out = fnc(*args)
-        GPU_TIME += time.process_time() - t0
-        return out
-    return profiler
 
 @dataclass
 class HMCHelper:
@@ -58,7 +49,6 @@ class HMCHelper:
         "For now only plaquettes, but can be extended"
         return self.plaq_paths
 
-    @GPU_time
     def action(self, field):
         "Returns the action computed on field"
         self.last_action = 2 * float(
@@ -66,21 +56,18 @@ class HMCHelper:
         )
         return self.last_action
 
-    @GPU_time
     def unity_gauge(self):
         "Returns a unity geuge"
         out = gauge_field(self.lattice)
         out.unity()
         return out
 
-    @GPU_time
     def random_gauge(self):
         "Returns a random mom"
         out = gauge_field(self.lattice)
         out.gaussian(10)
         return out
 
-    @GPU_time
     def random_mom(self):
         "Returns a random momenutm"
         out = momentum(self.lattice)
@@ -97,7 +84,6 @@ class HMCHelper:
             self.paths, self.coeffs, out=mom, add_coeff=coeff, force=True
         )
 
-    @GPU_time
     def update(self, field, mom, fcoeff, mcoeff):
         if fcoeff != 0:
             field = self.update_field(field, mom, fcoeff)
@@ -296,7 +282,7 @@ def main(**kwargs):
 
 
     lattice = args.lattice_dims if prod(args.lattice_dims) != 0 else (args.lattice_size,) * 4
-    lib.set_comm(procs=args.procs)
+    lib.set_comm(procs=args.procs, init=True)
     
     helper = HMCHelper(args.beta, lattice)
     integr = HMC_INTEGRATORS[args.integrator]
@@ -309,6 +295,9 @@ def main(**kwargs):
         field = helper.random_unity()
     else:
         raise ValueError("Unknown start")
+    dname = "/cyclamen/home/syamamoto/Lattice2022/"
+    fname = "".join(tuple(map(str,args.procs+lattice))) + f"_beta{args.beta}_{args.integrator}_tsteps{args.t_steps}_ntraj_{args.n_trajs}with{args.start}"
+    fp = open(dname + fname, "w")
     
     experiment="consistency_check"
     #run = Run(repo='/cyclamen/home/syamamoto/Lattice2022/aim', run_hash=hash_id, experiment=experiment, system_tracking_interval=1)
@@ -323,7 +312,9 @@ def main(**kwargs):
 
             for key, val in hmc.stats.items():
                 run.track(val, name=key)
-    print(GPU_TIME)
+            print(" ".join(list(map(str,hmc.stats.values()))), file=fp)
+    fp.close()
+
     
 if __name__ == "__main__":
     main()

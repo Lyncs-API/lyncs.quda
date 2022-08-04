@@ -16,6 +16,7 @@ from .lib import lib, cupy
 
 from lyncs_cppyy import to_pointer
 import ctypes
+import traceback
 
 
 def get_precision(dtype):
@@ -117,11 +118,13 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         "Constructs a new lattice field with default dtype=None, translating into float64"
         # lattice: represetns local lattice only if (nu/cu)py array else global lattice
         # comm: Cartesian communicator
+        
         if isinstance(lattice, cls):
             return lattice
         
         if comm is None:
             comm = lib.comm
+        # Compute local lattice dims
         if comm is not None and not isinstance(lattice, (numpy.ndarray, cupy.ndarray)):
             global_lattice = lattice
             local_lattice = ()
@@ -130,6 +133,8 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
                 if not (ldim/cdim).is_integer():
                     raise ValueError("Each lattice dim needs to be divisible by the corresponding dim of the Cartesian communicator!")
                 local_lattice += (int(ldim/cdim),)
+        else:
+            local_lattice = lattice
             
         with backend(device) as bck:
             if isinstance(lattice, (numpy.ndarray, cupy.ndarray)):
@@ -235,7 +240,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return other
     """
 
-    def prepare(self, *fields, copy=True, check=False, switch=False, **kwargs):
+    def prepare(self, *fields, copy=False, check=False, switch=False, **kwargs):
         "Prepares the fields by creating new one if None given else casting them to type(self) then checking them if compatible with self and/or copying them"
         if not fields:
             # corresponds to the case: other == None in the original
@@ -436,6 +441,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     # Here, local volume (with no halo) = volume (with halo) as ghost_exchange == NO
 
     def reduce(self, val, local=False, opr="SUM"):
+        #? may be better to avoid use of cupy's get until this point
+        # and convert the result of reduction to dtype of val,
+        # which potentially involves device-to-host communication
         if self.comm is None or local:
             return val
         return self.comm.allreduce(val, getattr(lib.MPI, opr))

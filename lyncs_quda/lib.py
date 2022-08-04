@@ -13,6 +13,7 @@ from os import environ
 from pathlib import Path
 from array import array
 from appdirs import user_data_dir
+from math import prod
 from lyncs_cppyy import Lib, nullptr, cppdef
 from lyncs_cppyy.ll import addressof, to_pointer
 from lyncs_utils import static_property, lazy_import
@@ -102,23 +103,36 @@ class QudaLib(Lib):
         if self.tune_dir:
             Path(self.tune_dir).mkdir(parents=True, exist_ok=True)
         if QUDA_MPI and self.comm is None:
-            self.set_comm()
+            self.set_comm(init=False)
         if QUDA_MPI:
             comm = get_comm(self.comm)
             comm_ptr = self._comm_ptr(comm)
-            self.setMPICommHandleQuda(comm_ptr)
+            #self.setMPICommHandleQuda(comm_ptr)
+            self.initQUDA(0,comm_ptr)
             dims = array("i", self.comm.dims)
-            self.initCommsGridQuda(4, dims, self._comms_map, comm_ptr)
+            self.initQUDA(1,4, dims, self._comms_map, comm_ptr)
+            #self.initCommsGridQuda(4, dims, self._comms_map, comm_ptr)
 
         if dev is None:
             if QUDA_MPI:
                 dev = -1
             else:
                 dev = self.device_id
-        self.initQuda(dev)
+        self.initQUDA(2,dev)
+        #self.initQuda(dev)
         self._device_id = self.get_current_device()
 
-    def set_comm(self, comm=None, procs=None):
+    # for profiling
+    def initQUDA(self, val, *args):
+        if val==0:
+            self.setMPICommHandleQuda(*args)
+        elif val==1:
+            self.initCommsGridQuda(*args)
+        elif val==2:
+            self.initQuda(*args)
+            
+    def set_comm(self, comm=None, procs=None, init=False):
+        #! temp fix by adding init=False; w/t it, Runtime error occurs (set_comm also called in init_quda)
         # NOTE: comm==None taken as indication of single rank MPI job
         # TODO:
         #  set DEFAULT_COMM
@@ -130,7 +144,7 @@ class QudaLib(Lib):
         if comm is None and not QUDA_MPI:
             return
         if comm is None:
-            if procs is None:
+            if procs is None or prod(procs) == 1:
                 comm = MPI.COMM_SELF.Create_cart((1, 1, 1, 1))
             else:
                 comm = MPI.COMM_WORLD.Create_cart(procs)
@@ -149,7 +163,9 @@ class QudaLib(Lib):
             # when ending and starting over QUDA, strange things happen
             #self.end_quda()
         self._comm = comm
-        self.init_quda()
+        if init:
+            #! appended here to avoid necessity of explicit initialization via init_quda
+            self.init_quda()
 
     @property
     def _comm_ptr(self):
