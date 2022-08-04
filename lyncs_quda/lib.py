@@ -158,10 +158,10 @@ class QudaLib(Lib):
         if comm.ndim != 4:
             raise ValueError("comm expected to be a 4D Cartcomm")
         # not supported at the moment
-        #if self._comm is not None: #original
-        #if self.initialized:
-            # when ending and starting over QUDA, strange things happen
-            #self.end_quda()
+        # if self._comm is not None: #original
+        # if self.initialized:
+        # when ending and starting over QUDA, strange things happen
+        # self.end_quda()
         self._comm = comm
         if init:
             #! appended here to avoid necessity of explicit initialization via init_quda
