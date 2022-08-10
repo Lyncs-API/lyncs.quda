@@ -438,7 +438,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         # I wasn't sure if we really need to make a separate memory region and copy things overthere
         prepare = (
             lambda arg: self.cast(arg, copy=False).field
-            if isinstance(arg, LatticeField)
+            if isinstance(arg, (LatticeField, cupy.ndarray, numpy.ndarray))
             else arg
         )
         args = tuple(map(prepare, args))
