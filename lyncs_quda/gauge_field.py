@@ -440,7 +440,8 @@ class GaugeField(LatticeField):
         assert self.device == cupy.cuda.runtime.getDevice()
         fails = cupy.zeros((1,), dtype="int32")
         lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
-        return fails.get()[0]  # shouldn't we reduce?
+        #return fails.get()[0]  # shouldn't we reduce?
+        return super().reduce(fails.get()[0])
 
     def gaussian(self, epsilon=1, seed=None):
         """

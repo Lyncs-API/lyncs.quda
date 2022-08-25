@@ -7,6 +7,7 @@ __all__ = [
 ]
 
 import numpy
+from cppyy.gbl.std import vector
 
 from lyncs_cppyy import make_shared, to_pointer
 from .lib import lib, cupy
@@ -313,13 +314,15 @@ class CloverField(LatticeField):
         "Restore clover field (& its inverse if computed) from CPU to GPU"
         self.quda_field.restore()
 
-    def computeCloverForce(self, coeff):
+    def computeCloverForce(self, coeffs):
         """
         Compute the force contribution from the solver solution fields
         """
         # should be placed in GaugeField and use self.quda_field?
         # should take arrays of SpinorFields and put them in std::vector<ColorSpinorField*>
         # turn an array of doubles to std::vector<double>
+        out = 
+        lib.computeCloverForce()
         pass
 
     def computeCloverSigmaOprod(self):

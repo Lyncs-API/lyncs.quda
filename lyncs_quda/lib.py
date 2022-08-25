@@ -72,6 +72,8 @@ class QudaLib(Lib):
     @property
     def device_id(self):
         "Device id to use"
+        if self._device_id == -1:
+            self.init_quda()
         return self._device_id
 
     @device_id.setter
@@ -94,6 +96,7 @@ class QudaLib(Lib):
 
     def init_quda(self, dev=None):
         # ASSUME: self.comm is set when launching non-trivial MPI job
+        print(self.comm.rank)
         if self.initialized:
             raise RuntimeError("Quda already initialized")
         # At first, we set initialized to True to avoid recursion
@@ -105,21 +108,24 @@ class QudaLib(Lib):
         if QUDA_MPI and self.comm is None:
             self.set_comm(init=False)
         if QUDA_MPI:
+            print("init comms")
             comm = get_comm(self.comm)
             comm_ptr = self._comm_ptr(comm)
-            #self.setMPICommHandleQuda(comm_ptr)
-            self.initQUDA(0,comm_ptr)
+            self.setMPICommHandleQuda(comm_ptr)
+            #self.initQUDA(0,comm_ptr)
             dims = array("i", self.comm.dims)
-            self.initQUDA(1,4, dims, self._comms_map, comm_ptr)
-            #self.initCommsGridQuda(4, dims, self._comms_map, comm_ptr)
-
+            #self.initQUDA(1,4, dims, self._comms_map, comm_ptr)
+            self.initCommsGridQuda(4, dims, self._comms_map, comm_ptr)
+            """
         if dev is None:
             if QUDA_MPI:
                 dev = -1
             else:
-                dev = self.device_id
-        self.initQUDA(2,dev)
-        #self.initQuda(dev)
+                dev = self._device_id
+            """
+        dev = self._device_id
+        #self.initQUDA(2,dev)
+        self.initQuda(dev)
         self._device_id = self.get_current_device()
 
     # for profiling
@@ -163,6 +169,7 @@ class QudaLib(Lib):
         # when ending and starting over QUDA, strange things happen
         # self.end_quda()
         self._comm = comm
+        self._device_id = -1
         if init:
             #! appended here to avoid necessity of explicit initialization via init_quda
             self.init_quda()
