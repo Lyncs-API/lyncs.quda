@@ -30,7 +30,6 @@ class QudaLib(Lib):
         "_initialized",
         "_device_id",
         "_comm",
-        "MPI",
     ]
 
     def __init__(self, *args, **kwargs):
@@ -95,20 +94,19 @@ class QudaLib(Lib):
         return cupy.cuda.runtime.getDeviceCount()
 
     def init_quda(self, dev=None):
-        # ASSUME: self.comm is set when launching non-trivial MPI job
-        print(self.comm.rank)
+        # ASSUME: self.comm has been set in case of non-trivial MPI job
         if self.initialized:
             raise RuntimeError("Quda already initialized")
         # At first, we set initialized to True to avoid recursion
+        #  btwn __getattr__ and init_quda() [setMP..., lyncs_quda_comm...]
         self._initialized = True
         if not self.loaded:
             self.load()
         if self.tune_dir:
             Path(self.tune_dir).mkdir(parents=True, exist_ok=True)
         if QUDA_MPI and self.comm is None:
-            self.set_comm(init=False)
+            self.set_comm()
         if QUDA_MPI:
-            print("init comms")
             comm = get_comm(self.comm)
             comm_ptr = self._comm_ptr(comm)
             self.setMPICommHandleQuda(comm_ptr)
@@ -116,18 +114,13 @@ class QudaLib(Lib):
             dims = array("i", self.comm.dims)
             #self.initQUDA(1,4, dims, self._comms_map, comm_ptr)
             self.initCommsGridQuda(4, dims, self._comms_map, comm_ptr)
-            """
+
         if dev is None:
-            if QUDA_MPI:
-                dev = -1
-            else:
-                dev = self._device_id
-            """
-        dev = self._device_id
+            dev = self._device_id
         #self.initQUDA(2,dev)
         self.initQuda(dev)
         self._device_id = self.get_current_device()
-
+        
     # for profiling
     def initQUDA(self, val, *args):
         if val==0:
@@ -137,9 +130,10 @@ class QudaLib(Lib):
         elif val==2:
             self.initQuda(*args)
             
-    def set_comm(self, comm=None, procs=None, init=False):
-        #! temp fix by adding init=False; w/t it, Runtime error occurs (set_comm also called in init_quda)
-        # NOTE: comm==None taken as indication of single rank MPI job
+    def set_comm(self, comm=None, procs=None):
+        # NOTE: comm==None && procs==None taken as indication of single rank MPI job
+        # NOTE: set_comm should be called explicitly when using multiple ranks
+        #        before using any of lyncs_quda objects (e.g., creating such objects)
         # TODO:
         #  set DEFAULT_COMM
         #  provide getter and setter for it
@@ -165,14 +159,11 @@ class QudaLib(Lib):
             raise ValueError("comm expected to be a 4D Cartcomm")
         # not supported at the moment
         # if self._comm is not None: #original
-        # if self.initialized:
         # when ending and starting over QUDA, strange things happen
         # self.end_quda()
         self._comm = comm
-        self._device_id = -1
-        if init:
-            #! appended here to avoid necessity of explicit initialization via init_quda
-            self.init_quda()
+        if not self.initialized and self.comm.size > 1:
+            self._device_id = -1
 
     @property
     def _comm_ptr(self):
@@ -239,9 +230,9 @@ class QudaLib(Lib):
     def __getattr__(self, key):
         if key.startswith("_"):
             raise AttributeError(f"QudaLib does not have attribute '{key}'")
-        if not self.initialized:
+        if not self.initialized: 
             self.init_quda()
-        if self.get_current_device() != self.device_id:
+        if self._device_id >= 0 and self.get_current_device() != self.device_id:
             super().__getattr__("cudaSetDevice")(self.device_id)
         return super().__getattr__(key)
 
@@ -281,8 +272,6 @@ lib = QudaLib(
     library=["libquda.so"] + libs,
     namespace=["quda", "lyncs_quda"],
 )
-
-lib.MPI = MPI
 
 # used?
 try:

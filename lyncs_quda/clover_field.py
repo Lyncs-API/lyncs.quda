@@ -321,9 +321,9 @@ class CloverField(LatticeField):
         # should be placed in GaugeField and use self.quda_field?
         # should take arrays of SpinorFields and put them in std::vector<ColorSpinorField*>
         # turn an array of doubles to std::vector<double>
-        out = 
-        lib.computeCloverForce()
-        pass
+        out = 1
+        #lib.computeCloverForce()
+        #pass
 
     def computeCloverSigmaOprod(self):
         # should be in SpinorField?

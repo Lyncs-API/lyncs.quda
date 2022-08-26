@@ -23,7 +23,7 @@ def test_solve_random(lib, lattice, procs, device, gamma, dtype=None):
     global comm
     if not lib.initialized:
         comm = get_cart(procs)
-        lib.set_comm(comm)
+    lib.set_comm(comm)
     gf = gauge(lattice, dtype=dtype, device=device, comm=comm)
     gf.gaussian()
     dirac = gf.Dirac(kappa=0.01)

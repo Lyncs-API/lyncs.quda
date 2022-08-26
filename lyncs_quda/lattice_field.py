@@ -95,7 +95,6 @@ def backend(device=True):
         else:
             if device is True:
                 device = lib.device_id
-
             if not isinstance(device, int):
                 raise TypeError("Expected device to be an integer or None/True/False")
 
@@ -146,6 +145,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
                     )
                 local_lattice += (int(ldim / cdim),)
         else:
+            # no commnicator is taken as indication of a single MPI job
             local_lattice = lattice
 
         with backend(device) as bck:

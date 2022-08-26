@@ -24,18 +24,12 @@ def test_unity(lib, lattice, procs, device, dtype):
     global comm
     if not lib.initialized:
         comm = get_cart(procs)
-        lib.set_comm(comm)
-        
+    lib.set_comm(comm)
+
     gf = gauge(lattice, dtype=dtype, device=device)
-    
-    print("before",lib.device_id,lib.comm.rank)
-    if not lib.initialized:
-        print("CALLED")
-        lib.init_quda()
-    print("after",lib.device_id,lib.comm.rank)
     gf.unity()
-    assert gf.norm1() == 3 * 4 * np.prod(lattice)  # * np.prod(procs)
-    assert gf.norm2() == 3 * 4 * np.prod(lattice)  # * np.prod(procs)
+    assert gf.norm1() == 3 * 4 * np.prod(lattice) 
+    assert gf.norm2() == 3 * 4 * np.prod(lattice) 
     assert gf.abs_max() == 1
     assert gf.abs_min() == 0
     assert gf.project() == 0
