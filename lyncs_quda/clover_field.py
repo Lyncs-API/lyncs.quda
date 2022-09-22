@@ -307,7 +307,7 @@ class CloverField(LatticeField):
         self.quda_field.restore()
 
     def computeCloverForce(self, coeffs):
-        #there seem two ways: PC and non PC
+        # there seem two ways: PC and non PC
         # for non-PC, computeCloverSigmaTrace won't be necessry I think
         """
         Compute the force contribution from the solver solution fields
@@ -316,8 +316,8 @@ class CloverField(LatticeField):
         # should take arrays of SpinorFields and put them in std::vector<ColorSpinorField*>
         # turn an array of doubles to std::vector<double>
         out = 1
-        #lib.computeCloverForce()
-        #pass
+        # lib.computeCloverForce()
+        # pass
 
     def computeCloverSigmaOprod(self):
         # should be in SpinorField?

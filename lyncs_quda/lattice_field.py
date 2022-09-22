@@ -126,7 +126,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         "Constructs a new lattice field with default dtype=None, translating into float64"
         # IN: lattice: represetns local lattice only if (nu/cu)py array else global lattice
         # IN: comm: Cartesian communicator
-        
+
         if isinstance(lattice, cls):
             return lattice
 
@@ -190,7 +190,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         if other is None:
             other = self
         other = out.cast(other, copy=False, check=False, **kwargs)
-        #print(out.is_momentum, out.link_type,other.is_momentum,other.link_type)
+        # print(out.is_momentum, out.link_type,other.is_momentum,other.link_type)
         try:
             out.quda_field.copy(other.quda_field)
         except:  # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not catched by this

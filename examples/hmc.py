@@ -292,7 +292,7 @@ def main(**kwargs):
 
     lattice = (
         args.lattice_dims if prod(args.lattice_dims) != 0 else (args.lattice_size,) * 4
-        )
+    )
     lib.set_comm(procs=args.procs)
     helper = HMCHelper(args.beta, lattice)
     integr = HMC_INTEGRATORS[args.integrator]

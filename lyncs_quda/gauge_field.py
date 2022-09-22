@@ -439,7 +439,7 @@ class GaugeField(LatticeField):
         assert self.device == cupy.cuda.runtime.getDevice()
         fails = cupy.zeros((1,), dtype="int32")
         lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
-        #return fails.get()[0]  # shouldn't we reduce?
+        # return fails.get()[0]  # shouldn't we reduce?
         return super().reduce(fails.get()[0])
 
     def gaussian(self, epsilon=1, seed=None):
@@ -735,7 +735,11 @@ class GaugeField(LatticeField):
         """
         # TODO: Check the acceptable geometries of the gauge field
         if out is None:
-            out = mul_to.new() if mul_to is not None else self.new(reconstruct="NO", is_momentum=False) #the result of exponentiation should be SU3?
+            out = (
+                mul_to.new()
+                if mul_to is not None
+                else self.new(reconstruct="NO", is_momentum=False)
+            )  # the result of exponentiation should be SU3?
         if mul_to is None:
             mul_to = out.new()
             mul_to.unity()
@@ -785,20 +789,16 @@ class GaugeField(LatticeField):
     def S_F(self, phi, **params):
         "Retruns pseudo-fermionic action given the pseudo-fermion field"
         solver = self.Dirac(**params).Solver()
-        s_params = {k:v for k,v in params.items() if k in solver.default_params}
+        s_params = {k: v for k, v in params.items() if k in solver.default_params}
         out = solver(phi, **s_params)
         return out.norm2()
 
     def fermionic_force(self):
         pass
-    
+
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
-        prepare = (
-            lambda arg: arg.full()
-            if isinstance(arg, GaugeField)
-            else arg
-	)
-        
+        prepare = lambda arg: arg.full() if isinstance(arg, GaugeField) else arg
+
         args = tuple(map(prepare, args))
 
         for key, val in kwargs.items():
@@ -806,6 +806,5 @@ class GaugeField(LatticeField):
                 kwargs[key] = type(val)(map(prepare, val))
             else:
                 kwargs[key] = prepare(val)
-                
+
         return super().__array_ufunc__(ufunc, method, *args, **kwargs)
-        

@@ -82,6 +82,7 @@ def test_zero(lib, lattice, device, dtype):
     assert gf + gf3 == 0
     assert gf3 + gf == 0
 
+
 @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
@@ -140,8 +141,8 @@ def test_exponential(lib, lattice, device, dtype):
 
     gf.unity()
     mom.copy(out=gf)
-    assert np.allclose(gf.field,0)
-    #gf.is_momentum = False
+    assert np.allclose(gf.field, 0)
+    # gf.is_momentum = False
     assert gf == 0
 
     gf.unity()
@@ -154,7 +155,7 @@ def test_exponential(lib, lattice, device, dtype):
 
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
-    assert np.allclose(gf.field,gf2.field)
+    assert np.allclose(gf.field, gf2.field)
     assert gf2 == gf
 
     gf.gaussian()

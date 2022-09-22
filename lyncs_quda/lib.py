@@ -112,17 +112,17 @@ class QudaLib(Lib):
             comm_ptr = self._comm_ptr(comm)
 
             self.setMPICommHandleQuda(comm_ptr)
-            #self.initQUDA(0,comm_ptr)
+            # self.initQUDA(0,comm_ptr)
             dims = array("i", self.comm.dims)
-            #self.initQUDA(1,4, dims, self._comms_map, comm_ptr)
+            # self.initQUDA(1,4, dims, self._comms_map, comm_ptr)
             self.initCommsGridQuda(4, dims, self._comms_map, comm_ptr)
 
         if dev is None:
             dev = self._device_id
-        #self.initQUDA(2,dev)
+        # self.initQUDA(2,dev)
         self.initQuda(dev)
         self._device_id = self.get_current_device()
-        
+
     # for profiling
     def initQUDA(self, val, *args):
         if val == 0:
@@ -131,7 +131,7 @@ class QudaLib(Lib):
             self.initCommsGridQuda(*args)
         elif val == 2:
             self.initQuda(*args)
-            
+
     def set_comm(self, comm=None, procs=None):
         # NOTE: comm==None && procs==None taken as indication of single rank MPI job
         # NOTE: set_comm should be called explicitly when using multiple ranks
@@ -232,7 +232,7 @@ class QudaLib(Lib):
     def __getattr__(self, key):
         if key.startswith("_"):
             raise AttributeError(f"QudaLib does not have attribute '{key}'")
-        if not self.initialized: 
+        if not self.initialized:
             self.init_quda()
         if self._device_id >= 0 and self.get_current_device() != self.device_id:
             super().__getattr__("cudaSetDevice")(self.device_id)

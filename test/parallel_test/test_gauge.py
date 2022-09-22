@@ -28,8 +28,8 @@ def test_unity(lib, lattice, procs, device, dtype):
 
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.unity()
-    assert gf.norm1() == 3 * 4 * np.prod(lattice) 
-    assert gf.norm2() == 3 * 4 * np.prod(lattice) 
+    assert gf.norm1() == 3 * 4 * np.prod(lattice)
+    assert gf.norm2() == 3 * 4 * np.prod(lattice)
     assert gf.abs_max() == 1
     assert gf.abs_min() == 0
     assert gf.project() == 0
