@@ -30,6 +30,7 @@ class QudaLib(Lib):
         "_initialized",
         "_device_id",
         "_comm",
+        "MPI",
     ]
 
     def __init__(self, *args, **kwargs):
@@ -272,6 +273,7 @@ lib = QudaLib(
     library=["libquda.so"] + libs,
     namespace=["quda", "lyncs_quda"],
 )
+lib.MPI = MPI
 
 # used?
 try:

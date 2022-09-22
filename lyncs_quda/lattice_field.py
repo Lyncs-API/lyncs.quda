@@ -190,7 +190,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         if other is None:
             other = self
         other = out.cast(other, copy=False, check=False, **kwargs)
-
+        #print(out.is_momentum, out.link_type,other.is_momentum,other.link_type)
         try:
             out.quda_field.copy(other.quda_field)
         except:  # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not catched by this
@@ -494,6 +494,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
                 kwargs[key] = prepare(val)
 
         fnc = getattr(ufunc, method)
+
         return self.cast(fnc(*args, **kwargs), copy=False)
 
     def __bool__(self):

@@ -51,6 +51,7 @@ def test_zero(lib, lattice, device, dtype):
     print(dtype)
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.zero()
+    print(gf == 0)
     assert gf == 0
     assert gf.plaquette() == (0, 0, 0)
     assert gf.topological_charge() == (0, (0, 0, 0))
@@ -76,6 +77,10 @@ def test_zero(lib, lattice, device, dtype):
 
     assert isinstance(gf + 0, type(gf))
 
+    gf3 = momentum(lattice, dtype=dtype, device=device)
+    gf3.zero()
+    assert gf + gf3 == 0
+    assert gf3 + gf == 0
 
 @dtype_loop  # enables dtype
 @device_loop  # enables device
@@ -135,6 +140,8 @@ def test_exponential(lib, lattice, device, dtype):
 
     gf.unity()
     mom.copy(out=gf)
+    assert np.allclose(gf.field,0)
+    #gf.is_momentum = False
     assert gf == 0
 
     gf.unity()
@@ -147,6 +154,7 @@ def test_exponential(lib, lattice, device, dtype):
 
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
+    assert np.allclose(gf.field,gf2.field)
     assert gf2 == gf
 
     gf.gaussian()
