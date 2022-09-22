@@ -397,7 +397,7 @@ class GaugeField(LatticeField):
 
     def reduce(self, local=False, only_real=True, mean=True):
         "Reduction of a gauge field (real of mean of trace)"
-        #ASSUME: cupy array
+        # ASSUME: cupy array
         out = self.trace(only_real=only_real)
         if mean:
             out = out.mean() / self.ncol
@@ -688,11 +688,13 @@ class GaugeField(LatticeField):
     # for profiling
     def _gaugeForceGradient(self, *args, **kwargs):
         return lib.gaugeForceGradient(*args, **kwargs)
+
     def _gaugeForce(self, *args, **kwargs):
         return lib.gaugeForce(*args, **kwargs)
+
     def _gaugePath(self, *args, **kwargs):
         return lib.gaugePath(*args, **kwargs)
-    
+
     @property
     def plaquette_paths(self):
         "List of plaquette paths"

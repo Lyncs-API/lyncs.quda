@@ -290,12 +290,10 @@ class HMC:
 def main(**kwargs):
     args = Namespace(**kwargs)
 
-
     lattice = (
         args.lattice_dims if prod(args.lattice_dims) != 0 else (args.lattice_size,) * 4
         )
     lib.set_comm(procs=args.procs)
-    
     helper = HMCHelper(args.beta, lattice)
     integr = HMC_INTEGRATORS[args.integrator]
     integr = integr(args.t_steps)
@@ -309,10 +307,13 @@ def main(**kwargs):
         raise ValueError("Unknown start")
 
     dname = "/cyclamen/home/syamamoto/Lattice2022/"
-    fname = "".join(tuple(map(str,args.procs+lattice))) + f"_beta{args.beta}_{args.integrator}_tsteps{args.t_steps}_ntraj_{args.n_trajs}with{args.start}"
+    fname = (
+        "".join(tuple(map(str, args.procs + lattice)))
+        + f"_beta{args.beta}_{args.integrator}_tsteps{args.t_steps}_ntraj_{args.n_trajs}with{args.start}"
+    )
     fp = open(dname + fname, "w")
-    
-    #run = Run(repo='/cyclamen/home/syamamoto/Lattice2022/aim', run_hash=hash_id, experiment=experiment, system_tracking_interval=1)
+
+    # run = Run(repo='/cyclamen/home/syamamoto/Lattice2022/aim', run_hash=hash_id, experiment=experiment, system_tracking_interval=1)
     run = Run(
         repo="/cyclamen/home/syamamoto/Lattice2022/aim",
         experiment=experiment,
@@ -329,9 +330,9 @@ def main(**kwargs):
             for key, val in hmc.stats.items():
                 run.track(val, name=key)
 
-            print(" ".join(list(map(str,hmc.stats.values()))), file=fp)
+            print(" ".join(list(map(str, hmc.stats.values()))), file=fp)
     fp.close()
 
-    
+
 if __name__ == "__main__":
     main()

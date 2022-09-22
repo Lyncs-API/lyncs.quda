@@ -110,6 +110,7 @@ class QudaLib(Lib):
         if QUDA_MPI:
             comm = get_comm(self.comm)
             comm_ptr = self._comm_ptr(comm)
+
             self.setMPICommHandleQuda(comm_ptr)
             #self.initQUDA(0,comm_ptr)
             dims = array("i", self.comm.dims)
@@ -124,11 +125,11 @@ class QudaLib(Lib):
         
     # for profiling
     def initQUDA(self, val, *args):
-        if val==0:
+        if val == 0:
             self.setMPICommHandleQuda(*args)
-        elif val==1:
+        elif val == 1:
             self.initCommsGridQuda(*args)
-        elif val==2:
+        elif val == 2:
             self.initQuda(*args)
             
     def set_comm(self, comm=None, procs=None):

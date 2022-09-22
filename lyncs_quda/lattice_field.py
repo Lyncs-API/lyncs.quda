@@ -452,7 +452,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     # Here, local volume (with no halo) = volume (with halo) as ghost_exchange == NO
 
     def reduce(self, val, local=False, opr="SUM"):
-        #? may be better to avoid use of cupy's get until this point
+        # ? may be better to avoid use of cupy's get until this point
         # and convert the result of reduction to dtype of val,
         # which potentially involves device-to-host communication
         if self.comm is None or local:
