@@ -123,7 +123,7 @@ class Solver:
         current = getattr(self, key)
         if current is not None and current.precision == precision:
             return current
-        # ? DiracMatrix has not method "new"
+        # ? DiracMatrix has no method called "new"
         setattr(self, key, self.mat.new(precision=precision))
         return getattr(self, key)
 
@@ -194,7 +194,6 @@ class Solver:
     def quda(self):
         # self._params.preserve_source=lib.QUDA_PRESERVE_SOURCE_YES #see above
         # self._params.compute_true_res = True #see above
-        self._params.delta = 10  # this value allowed convergence for all cases
         if self._solver is None:
             self._solver = make_shared(
                 lib.Solver.create(

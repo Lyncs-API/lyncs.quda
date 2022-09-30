@@ -6,7 +6,6 @@ Loading the QUDA library
 __all__ = [
     "lib",
     "MPI",
-    "get_cart",
     "PATHS",
 ]
 
@@ -14,6 +13,7 @@ from os import environ
 from pathlib import Path
 from array import array
 from appdirs import user_data_dir
+from math import prod
 from lyncs_cppyy import Lib, nullptr, cppdef
 from lyncs_cppyy.ll import addressof, to_pointer
 from lyncs_utils import static_property, lazy_import
@@ -72,6 +72,8 @@ class QudaLib(Lib):
     @property
     def device_id(self):
         "Device id to use"
+        if self._device_id == -1:
+            self.init_quda()
         return self._device_id
 
     @device_id.setter
@@ -93,10 +95,11 @@ class QudaLib(Lib):
         return cupy.cuda.runtime.getDeviceCount()
 
     def init_quda(self, dev=None):
-        # ASSUME: self.comm is set when launching non-trivial MPI job
+        # ASSUME: self.comm has been set in case of non-trivial MPI job
         if self.initialized:
             raise RuntimeError("Quda already initialized")
         # At first, we set initialized to True to avoid recursion
+        #  btwn __getattr__ and init_quda() [setMP..., lyncs_quda_comm...]
         self._initialized = True
         if not self.loaded:
             self.load()
@@ -107,26 +110,46 @@ class QudaLib(Lib):
         if QUDA_MPI:
             comm = get_comm(self.comm)
             comm_ptr = self._comm_ptr(comm)
+
             self.setMPICommHandleQuda(comm_ptr)
+            # self.initQUDA(0,comm_ptr)
             dims = array("i", self.comm.dims)
+            # self.initQUDA(1,4, dims, self._comms_map, comm_ptr)
             self.initCommsGridQuda(4, dims, self._comms_map, comm_ptr)
 
         if dev is None:
-            if QUDA_MPI:
-                dev = -1
-            else:
-                dev = self.device_id
+            dev = self._device_id
+        # self.initQUDA(2,dev)
         self.initQuda(dev)
         self._device_id = self.get_current_device()
 
-    def set_comm(self, comm=None):  # nicer if it creates comm given the Cart toplogy?
-        # NOTE: comm==None taken as indication of single rank MPI job
+    # for profiling
+    def initQUDA(self, val, *args):
+        if val == 0:
+            self.setMPICommHandleQuda(*args)
+        elif val == 1:
+            self.initCommsGridQuda(*args)
+        elif val == 2:
+            self.initQuda(*args)
+
+    def set_comm(self, comm=None, procs=None):
+        # NOTE: comm==None && procs==None taken as indication of single rank MPI job
+        # NOTE: set_comm should be called explicitly when using multiple ranks
+        #        before using any of lyncs_quda objects (e.g., creating such objects)
+        # TODO:
+        #  set DEFAULT_COMM
+        #  provide getter and setter for it
+        #  allow dynamic management of the lib's comm
+
         if comm is not None and not QUDA_MPI:
             raise RuntimeError("Quda has not been compiled with MPI")
         if comm is None and not QUDA_MPI:
             return
         if comm is None:
-            comm = MPI.COMM_SELF.Create_cart((1, 1, 1, 1))
+            if procs is None or prod(procs) == 1:
+                comm = MPI.COMM_SELF.Create_cart((1, 1, 1, 1))
+            else:
+                comm = MPI.COMM_WORLD.Create_cart(procs)
         if not isinstance(comm, MPI.Cartcomm):
             raise TypeError("comm expected to be a Cartcomm")
         if (
@@ -136,10 +159,13 @@ class QudaLib(Lib):
             return
         if comm.ndim != 4:
             raise ValueError("comm expected to be a 4D Cartcomm")
-        if self._comm is not None:
-            # when ending and starting over QUDA, strange things happen
-            self.end_quda()
+        # not supported at the moment
+        # if self._comm is not None: #original
+        # when ending and starting over QUDA, strange things happen
+        # self.end_quda()
         self._comm = comm
+        if not self.initialized and self.comm.size > 1:
+            self._device_id = -1
 
     @property
     def _comm_ptr(self):
@@ -208,7 +234,7 @@ class QudaLib(Lib):
             raise AttributeError(f"QudaLib does not have attribute '{key}'")
         if not self.initialized:
             self.init_quda()
-        if self.get_current_device() != self.device_id:
+        if self._device_id >= 0 and self.get_current_device() != self.device_id:
             super().__getattr__("cudaSetDevice")(self.device_id)
         return super().__getattr__(key)
 
@@ -248,17 +274,7 @@ lib = QudaLib(
     library=["libquda.so"] + libs,
     namespace=["quda", "lyncs_quda"],
 )
-
 lib.MPI = MPI
-
-
-def get_cart(procs=None, comm=None):
-    if not QUDA_MPI or procs is None:
-        return None
-    if comm is None:
-        comm = MPI.COMM_WORLD
-    return comm.Create_cart(procs)
-
 
 # used?
 try:

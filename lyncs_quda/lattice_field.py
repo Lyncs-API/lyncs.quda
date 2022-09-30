@@ -16,6 +16,7 @@ from .lib import lib, cupy
 
 from lyncs_cppyy import to_pointer
 import ctypes
+import traceback
 
 
 def get_precision(dtype):
@@ -94,7 +95,6 @@ def backend(device=True):
         else:
             if device is True:
                 device = lib.device_id
-
             if not isinstance(device, int):
                 raise TypeError("Expected device to be an integer or None/True/False")
 
@@ -113,24 +113,55 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return numpy.dtype(dtype)
 
     @classmethod
-    def create(cls, lattice, dofs=None, dtype=None, device=True, empty=True, **kwargs):
+    def create(
+        cls,
+        lattice,
+        dofs=None,
+        dtype=None,
+        device=True,
+        comm=None,
+        empty=True,
+        **kwargs,
+    ):
         "Constructs a new lattice field with default dtype=None, translating into float64"
+        # IN: lattice: represetns local lattice only if (nu/cu)py array else global lattice
+        # IN: comm: Cartesian communicator
+
         if isinstance(lattice, cls):
             return lattice
 
+        if comm is None:
+            comm = lib.comm
+        # Compute local lattice dims
+        if comm is not None and not isinstance(lattice, (numpy.ndarray, cupy.ndarray)):
+            global_lattice = lattice
+            local_lattice = ()
+            procs = comm.dims
+            for ldim, cdim in zip(global_lattice, procs):
+
+                if not (ldim / cdim).is_integer():
+                    raise ValueError(
+                        "Each lattice dim needs to be divisible by the corresponding dim of the Cartesian communicator!"
+                    )
+                local_lattice += (int(ldim / cdim),)
+        else:
+            # no commnicator is taken as indication of a single MPI job
+            local_lattice = lattice
+
         with backend(device) as bck:
             if isinstance(lattice, (numpy.ndarray, cupy.ndarray)):
-                return cls(bck.array(lattice), **kwargs)
+                return cls(bck.array(lattice), comm=comm, **kwargs)
 
             new = bck.empty if empty else bck.zeros
-            shape = tuple(dofs) + tuple(lattice)
-            return cls(new(shape, dtype=cls.get_dtype(dtype)), **kwargs)
+
+            shape = tuple(dofs) + tuple(local_lattice)
+            return cls(new(shape, dtype=cls.get_dtype(dtype)), comm=comm, **kwargs)
 
     def new(self, empty=True, **kwargs):
         "Returns a new empty field based on the current"
 
         out = self.create(
-            self.dims,
+            self.lattice,  # self.dims,
             dofs=kwargs.pop("dofs", self.dofs),
             dtype=kwargs.pop("dtype", self.dtype),
             device=kwargs.pop("device", self.device),
@@ -143,7 +174,8 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def __array_finalize__(self, obj):
         "Support for __array_finalize__ standard"
-        self.comm = obj.comm
+        if self.comm is None:
+            self.comm = obj.comm
 
     def copy(self, other=None, out=None, **kwargs):
         "Returns out, a copy+=kwargs, of other if given, else of self"
@@ -158,7 +190,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         if other is None:
             other = self
         other = out.cast(other, copy=False, check=False, **kwargs)
-
+        # print(out.is_momentum, out.link_type,other.is_momentum,other.link_type)
         try:
             out.quda_field.copy(other.quda_field)
         except:  # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not catched by this
@@ -220,7 +252,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return other
     """
 
-    def prepare(self, *fields, copy=True, check=False, switch=False, **kwargs):
+    def prepare(self, *fields, copy=False, check=False, switch=False, **kwargs):
         "Prepares the fields by creating new one if None given else casting them to type(self) then checking them if compatible with self and/or copying them"
         if not fields:
             # corresponds to the case: other == None in the original
@@ -244,7 +276,12 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def __init__(self, field, comm=None, **kwargs):
         self.field = field
-        self.comm = comm
+        if comm is False:
+            self.comm = comm
+        elif comm is None:
+            self.comm = lib.comm
+        else:
+            self.comm = comm
         self._quda = None
         self.activate()
 
@@ -336,11 +373,15 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         "Shape of the lattice dimensions"
         return self.shape[-self.ndims :]
 
-    lattice = dims
+    @property
+    def lattice(self):
+        "returns global lattice dims"
+        procs = self.comm.dims if self.comm is not None else (1, 1, 1, 1)
+        return (int(cdim * ldim) for cdim, ldim in zip(procs, self.dims))
 
     @property
     def quda_dims(self):
-        "Memory array with lattice dimensions including halo width"
+        "Memory array with lattice dimensions"
         return array("i", reversed(self.dims))
 
     @property
@@ -411,6 +452,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     # Here, local volume (with no halo) = volume (with halo) as ghost_exchange == NO
 
     def reduce(self, val, local=False, opr="SUM"):
+        # ? may be better to avoid use of cupy's get until this point
+        # and convert the result of reduction to dtype of val,
+        # which potentially involves device-to-host communication
         if self.comm is None or local:
             return val
         return self.comm.allreduce(val, getattr(lib.MPI, opr))
@@ -450,6 +494,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
                 kwargs[key] = prepare(val)
 
         fnc = getattr(ufunc, method)
+
         return self.cast(fnc(*args, **kwargs), copy=False)
 
     def __bool__(self):

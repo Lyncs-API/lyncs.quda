@@ -123,7 +123,6 @@ class GaugeField(LatticeField):
         other = super().cast(other, **kwargs)
         is_momentum = kwargs.get("is_momentum", self.is_momentum)
         other.is_momentum = is_momentum
-        # other.__array_finalize__(self)
         return other
 
     @property
@@ -398,13 +397,14 @@ class GaugeField(LatticeField):
 
     def reduce(self, local=False, only_real=True, mean=True):
         "Reduction of a gauge field (real of mean of trace)"
+        # ASSUME: cupy array
         out = self.trace(only_real=only_real)
         if mean:
             out = out.mean() / self.ncol
         else:
             out = out.sum()
         if not local:
-            return super().reduce(out)
+            return super().reduce(out.get())
         return out
 
     def dot(self, other, out=None):
@@ -439,7 +439,8 @@ class GaugeField(LatticeField):
         assert self.device == cupy.cuda.runtime.getDevice()
         fails = cupy.zeros((1,), dtype="int32")
         lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
-        return fails.get()[0]  # shouldn't we reduce?
+        # return fails.get()[0]  # shouldn't we reduce?
+        return super().reduce(fails.get()[0])
 
     def gaussian(self, epsilon=1, seed=None):
         """
@@ -536,9 +537,9 @@ class GaugeField(LatticeField):
         if self.reconstruct == "10":
             # TODO: patch quda, reconstruct 10 not supported
             # ? assume cupy?
-            norm2 = (self.default_view() ** 2).sum(axis=(0, 1, 3, 4)).get()
+            norm2 = (self.default_view() ** 2).sum(axis=(0, 1, 3, 4))
             norm2 = norm2.sum() - norm2[-1] / 2 - norm2[-2] / 2
-            return 4 * super().reduce(norm2)
+            return 4 * super().reduce(norm2.get())
         return self.quda_field.norm2(link_dir)
 
     def abs_max(self, link_dir=-1):
@@ -645,7 +646,7 @@ class GaugeField(LatticeField):
         # Preparing grad and fnc
         if grad is not None:
             grad = self.cast(grad, reconstruct=10)
-            fnc = lambda out, u, *args: lib.gaugeForceGradient(
+            fnc = lambda out, u, *args: self._gaugeForceGradient(
                 out,
                 u,
                 grad.quda_field,
@@ -653,9 +654,9 @@ class GaugeField(LatticeField):
                 left=left_grad,
             )
         elif force:
-            fnc = lib.gaugeForce
+            fnc = self._gaugeForce
         else:
-            fnc = lib.gaugePath
+            fnc = self._gaugePath
 
         # Preparing paths
         if force and not keep_paths:
@@ -682,6 +683,16 @@ class GaugeField(LatticeField):
             False,
         )
         return out
+
+    # for profiling
+    def _gaugeForceGradient(self, *args, **kwargs):
+        return lib.gaugeForceGradient(*args, **kwargs)
+
+    def _gaugeForce(self, *args, **kwargs):
+        return lib.gaugeForce(*args, **kwargs)
+
+    def _gaugePath(self, *args, **kwargs):
+        return lib.gaugePath(*args, **kwargs)
 
     @property
     def plaquette_paths(self):
@@ -723,7 +734,11 @@ class GaugeField(LatticeField):
         """
         # TODO: Check the acceptable geometries of the gauge field
         if out is None:
-            out = mul_to.new() if mul_to is not None else self.new(reconstruct="NO")
+            out = (
+                mul_to.new()
+                if mul_to is not None
+                else self.new(reconstruct="NO", is_momentum=False)
+            )  # the result of exponentiation should be SU3?
         if mul_to is None:
             mul_to = out.new()
             mul_to.unity()
@@ -769,3 +784,26 @@ class GaugeField(LatticeField):
     def iwasaki_gauge_action(self, plaq_coeff=0):
         "Returns the Iwasaki gauge action"
         return self.gauge_action(plaq_coeff, -0.331)
+
+    def S_F(self, phi, **params):
+        "Retruns pseudo-fermionic action given the pseudo-fermion field"
+        solver = self.Dirac(**params).Solver()
+        s_params = {k: v for k, v in params.items() if k in solver.default_params}
+        out = solver(phi, **s_params)
+        return out.norm2()
+
+    def fermionic_force(self):
+        pass
+
+    def __array_ufunc__(self, ufunc, method, *args, **kwargs):
+        prepare = lambda arg: arg.full() if isinstance(arg, GaugeField) else arg
+
+        args = tuple(map(prepare, args))
+
+        for key, val in kwargs.items():
+            if isinstance(val, (tuple, list)):
+                kwargs[key] = type(val)(map(prepare, val))
+            else:
+                kwargs[key] = prepare(val)
+
+        return super().__array_ufunc__(ufunc, method, *args, **kwargs)

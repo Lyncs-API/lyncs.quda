@@ -12,7 +12,6 @@ from lyncs_quda.testing import (
 def test_comm(lib, procs):
     comm = get_cart(procs)
     lib.set_comm(comm)
-    lib.init_quda()
     for i, (dim, coord) in enumerate(zip(comm.dims, comm.coords)):
         assert lib.commDimPartitioned(i) == (dim > 1)
         assert lib.commDim(i) == dim

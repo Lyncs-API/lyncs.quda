@@ -7,6 +7,7 @@ __all__ = [
 ]
 
 import numpy
+from cppyy.gbl.std import vector
 
 from lyncs_cppyy import make_shared, to_pointer
 from .lib import lib, cupy
@@ -46,18 +47,10 @@ class CloverField(LatticeField):
         computeTrLog=False,
     ):
         # ? better to store fmunu.quda_field to _fmunu -> import gauge_tensor to be used in some methods
-        # ? better to put clover into self.field -> need walk-arond to make copy() work
+        # ? better to put clover into self.field -> need walk-around to make copy() work
         if not isinstance(fmunu, GaugeField):
             fmunu = GaugeField(fmunu)
-
-        if fmunu.geometry == "VECTOR":
-            self._fmunu = fmunu.compute_fmunu()
-        elif fmunu.geometry == "TENSOR":
-            self._fmunu = fmunu
-        else:
-            raise TypeError(
-                "The input GaugeField instabce needs to be of geometry VECTOR or TENSOR"
-            )
+        self._fmunu = fmunu.compute_fmunu()
         super().__init__(self._fmunu.field, comm=self._fmunu.comm)
 
         # QUDA clover field inherently works with real's not with complex's (c.f., include/clover_field_order.h)
@@ -313,14 +306,18 @@ class CloverField(LatticeField):
         "Restore clover field (& its inverse if computed) from CPU to GPU"
         self.quda_field.restore()
 
-    def computeCloverForce(self, coeff):
+    def computeCloverForce(self, coeffs):
+        # there seem two ways: PC and non PC
+        # for non-PC, computeCloverSigmaTrace won't be necessry I think
         """
         Compute the force contribution from the solver solution fields
         """
         # should be placed in GaugeField and use self.quda_field?
         # should take arrays of SpinorFields and put them in std::vector<ColorSpinorField*>
         # turn an array of doubles to std::vector<double>
-        pass
+        out = 1
+        # lib.computeCloverForce()
+        # pass
 
     def computeCloverSigmaOprod(self):
         # should be in SpinorField?

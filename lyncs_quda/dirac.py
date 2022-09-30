@@ -33,10 +33,9 @@ class Dirac:
     csw: float = 0
     mu: float = 0
     epsilon: float = 0
+    # For QUDA CloverField class:
     rho: float = 0
     computeTrLog: bool = False
-
-    # ? do we want to support more methods for Dirac?
 
     # TODO: Support more Dirac types
     #   Unsupported: PC for the below types, Hasenbusch for clover types
@@ -90,16 +89,17 @@ class Dirac:
         params.dagger = self.quda_dagger
 
         # Needs to prevent the gauge field to get destroyed
-        # ? now we store QUDA gauge object in _quda
-        # QUDA Dirac class stores cudaGaugeField as its protected member
-        #  taken from the DiracParam so that the pointed object will not
-        #  be garbaged, I think
-        # self.quda_gauge = self.gauge.quda_field
+        #  now we store QUDA gauge object in _quda, but it
+        #  still can be a problem if we create DiracMatrix object
+        #  using a Dirac object, and if this Dirac object and
+        #  GaugeField object inside of it are both gone.
+        # Possible solution:
+        #  add an attribute for Dirac object in DiracMatrix object
+        # self.quda_gauge = self.gauge.quda_field as well as _quda in Dirac
         params.gauge = self.gauge.quda_field  # self.quda_gauge
 
         if self.csw != 0.0 and not self.gauge.is_coarse:
             if self.clover is None:
-                # self.clover =
                 object.__setattr__(
                     self,
                     "clover",
@@ -113,7 +113,7 @@ class Dirac:
                         rho=self.rho,
                         computeTrLog=self.computeTrLog,
                     ),
-                )  # well, this is a hack.  this dataclass is now frozen. so...
+                )  # well, this is a hack, but this dataclass is now frozen. so...
                 self.clover.clover_field
             params.clover = self.clover.quda_field
 
@@ -160,6 +160,10 @@ class Dirac:
 
     # TODO: Support more functors: Dagger, G5M
 
+    # ? DiracMatrix simply calls the corresponding method
+    #  of Dirac with the same name..., e.g., DiracM() -> Dirac.M()
+    #  Methos below calls Dirac.M* via DiracMatrix, which
+    #  seems unnecessary detour
     @property
     def M(self):
         "Returns the matrix M"
@@ -193,22 +197,16 @@ class DiracMatrix:
     __slots__ = ["_dirac", "_prec", "_matrix", "_key"]
 
     def __init__(self, dirac, key="M"):
-        self._dirac = (
-            dirac.quda_dirac
-        )  # necessary? not used anywhere except in the below line
+        self._dirac = dirac.quda_dirac
         self._matrix = getattr(lib, "Dirac" + key)(self._dirac)
         self._key = key
         self._prec = dirac.precision
-        # self._gauge = dirac.quda_gauge  # necessary? used just for precision, can you not store this instead?
-        # del dirac.quda_gauge #? can be remvoed if Dirac removes it
 
     def __call__(self, rhs, out=None):
         rhs = spinor(rhs)
         out = rhs.prepare(out)
         self.quda(out.quda_field, rhs.quda_field)
         return out
-
-    # TODO: Support int getStencilSteps(); QudaMatPCType getMatPCType();
 
     @property
     def key(self):
@@ -217,7 +215,7 @@ class DiracMatrix:
 
     @property
     def name(self):
-        "The name of the operator"
+        "The type of the operator"
         return self.quda.Type()
 
     @property
@@ -233,6 +231,10 @@ class DiracMatrix:
     def precision(self):
         "The precision of the operator (same as the gauge field)"
         return QudaPrecision[self._prec]
+
+    @property
+    def mat_PC(self):
+        return QudaMatPCType[self.quda.getMatPCType()]
 
     @property
     def flops(self):
