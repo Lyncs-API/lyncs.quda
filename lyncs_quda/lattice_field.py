@@ -267,9 +267,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             if not isinstance(field, cls):
                 field = cls(field)
             if check and not self.equivalent(field, switch=switch, **kwargs):
+                if copy:
+                    return self.copy(other=field, **kwargs)
                 raise ValueError("The given field is not appropriate")
-            if copy:
-                return self.copy(other=field, **kwargs)
             field.__array_finalize__(self)
             return field
         return tuple(self.prepare(field, **kwargs) for field in fields)
@@ -376,8 +376,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def lattice(self):
         "returns global lattice dims"
-        procs = self.comm.dims if self.comm is not None else (1, 1, 1, 1)
-        return (int(cdim * ldim) for cdim, ldim in zip(procs, self.dims))
+        if self.comm is None:
+            return self.dims
+        return tuple(int(cdim * ldim) for cdim, ldim in zip(self.comm.dims, self.dims))
 
     @property
     def quda_dims(self):
