@@ -48,10 +48,8 @@ def test_params(lib, lattice, device, dtype):
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 def test_zero(lib, lattice, device, dtype):
-    print(dtype)
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.zero()
-    print(gf == 0)
     assert gf == 0
     assert gf.plaquette() == (0, 0, 0)
     assert gf.topological_charge() == (0, (0, 0, 0))
@@ -125,7 +123,6 @@ def test_random(lib, lattice, device, dtype):
 
     gf2 = gf.copy()
     assert gf == gf2
-
     assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)
 
 
@@ -137,7 +134,6 @@ def test_exponential(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
     mom = momentum(lattice, dtype=dtype, device=device)
     mom.zero()
-    print(mom.reconstruct, mom.is_native(), mom.ncol)
 
     gf.unity()
     mom.copy(out=gf)
@@ -214,14 +210,12 @@ def test_force(lib, lattice, device, epsilon):
         action = getattr(gf, path + "s")()
         action2 = getattr(gf2, path + "s")()
         rel_tol = epsilon * np.prod(lattice)
-        print(path, action, action2)
         assert isclose(action, action2, rel_tol=rel_tol)
 
         daction = (
             getattr(gf, path + "_field")(force=True).full().dot(mom.full()).reduce()
         )
         daction2 = action2 - action
-        print(path, daction, daction2, daction / daction2)
         assert isclose(daction, daction2, rel_tol=rel_tol)
 
         zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
@@ -262,7 +256,6 @@ def test_force_gradient(lib, lattice, device, epsilon):
         ddaction = (
             getattr(gf, path + "_field")(grad=mom1).full().dot(mom2.full()).reduce()
         )
-        print(path, ddaction, ddaction21, ddaction / ddaction21)
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
 
         ddaction = (
@@ -271,13 +264,11 @@ def test_force_gradient(lib, lattice, device, epsilon):
             .dot(mom2.full())
             .reduce()
         )
-        print(path, ddaction, ddaction12, ddaction / ddaction21)
         assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
 
         ddaction = (
             getattr(gf, path + "_field")(grad=mom2).full().dot(mom1.full()).reduce()
         )
-        print(path, ddaction, ddaction12, ddaction / ddaction12)
         assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
 
         ddaction = (
@@ -286,5 +277,4 @@ def test_force_gradient(lib, lattice, device, epsilon):
             .dot(mom1.full())
             .reduce()
         )
-        print(path, ddaction, ddaction21, ddaction / ddaction12)
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
