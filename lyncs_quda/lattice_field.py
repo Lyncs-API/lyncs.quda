@@ -161,7 +161,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         "Returns a new empty field based on the current"
 
         out = self.create(
-            self.lattice,  # self.dims,
+            self.global_lattice,
             dofs=kwargs.pop("dofs", self.dofs),
             dtype=kwargs.pop("dtype", self.dtype),
             device=kwargs.pop("device", self.device),
@@ -306,6 +306,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             raise TypeError("Field is stored on a different device than the quda lib")
         if len(field.shape) < 4:
             raise ValueError("A lattice field should not have shape smaller than 4")
+        print(field.shape)
         self._field = field
 
     def get(self):
@@ -370,14 +371,19 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     @property
     def dims(self):
-        "Shape of the lattice dimensions"
+        "Shape of the local lattice dimensions"
         return self.shape[-self.ndims :]
 
     @property
-    def lattice(self):
-        "returns global lattice dims"
+    def local_lattice(self):
+        "Returns the local lattice size"
+        return self.dims
+
+    @property
+    def global_lattice(self):
+        "Returns the global lattice size"
         if self.comm is None:
-            return self.dims
+            return self.local_lattice
         return tuple(int(cdim * ldim) for cdim, ldim in zip(self.comm.dims, self.dims))
 
     @property

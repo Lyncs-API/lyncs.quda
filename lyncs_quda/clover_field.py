@@ -65,7 +65,7 @@ class CloverField(LatticeField):
         )
 
         new = lambda idof: LatticeField.create(
-            self._fmunu.lattice,
+            self._fmunu.global_lattice,
             dofs=(idof,),
             dtype=prec,
             device=self._fmunu.device,
