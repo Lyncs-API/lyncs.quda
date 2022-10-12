@@ -123,8 +123,7 @@ class Solver:
         current = getattr(self, key)
         if current is not None and current.precision == precision:
             return current
-        # ? DiracMatrix has no method called "new"
-        setattr(self, key, self.mat.new(precision=precision))
+        setattr(self, key, self.mat.copy(precision=precision))
         return getattr(self, key)
 
     @property

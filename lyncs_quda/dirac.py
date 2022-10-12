@@ -208,6 +208,11 @@ class DiracMatrix:
         self.quda(out.quda_field, rhs.quda_field)
         return out
 
+    def copy(self, **kwargs):
+        "Returns a new copy of self with different paramters"
+        # e.g. useful for changing precision
+        raise NotImplementedError
+
     @property
     def key(self):
         "The name of the matrix"
