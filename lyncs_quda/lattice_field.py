@@ -180,30 +180,30 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     def copy(self, other=None, out=None, **kwargs):
         "Returns out, a copy+=kwargs, of other if given, else of self"
         # src: other if given; otherwise self
-        # dst: out (created anew, if not explicitly given)
+        # dst: out (created new, if not explicitly given)
         # ASSUME: if out != None, out <=> other/self+=kwargs
-        # if other and out are both given, this behaves like a classmethod except out&other are casted into type(self)
+        #
+        # IF other and out are both given, this behaves like a classmethod
+        # where out&other are casted into type(self)
 
-        # check=False => if out!=None, converts from type(out) to type(self); else create a new one with kwargs
-        out = self.prepare(out, copy=False, check=False, **kwargs)
+        # check=False => here any output is good
+        out = self.prepare_out(out, check=False, **kwargs)
 
         if other is None:
             other = self
-        other = out.cast(other, copy=False, check=False, **kwargs)
-        # print(out.is_momentum, out.link_type,other.is_momentum,other.link_type)
+        # we prepare other without copy because here is where we copy!
+        other = out.prepare_in(other, copy=False, check=False, **kwargs)
         try:
             out.quda_field.copy(other.quda_field)
         except:  # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not catched by this
-            out = out.prepare((other.field.copy()), copy=False)
+            # As last resort trying to copy elementwise
+            out.default_view()[:] = other.default_view()
 
         return out
 
-    def equivalent(self, other, switch=False, **kwargs):
+    def equivalent(self, other, **kwargs):
         "Whether other is equivalent to self with kwargs"
-        # Check if self+kwargs <=> other
-
-        if switch:
-            self, other = other, self
+        # Check if metadata of (self+kwargs) == other
 
         if not isinstance(other, type(self)):
             return False
@@ -213,66 +213,49 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         device = kwargs.get("device", self.device)
         if other.device != device:
             return False
-        dofs = kwargs.get(
-            "dofs", self.dofs
-        )  # None) #? to force to specify dof in kwargs?
-        if dofs and other.dofs != dofs:
+        dofs = kwargs.get("dofs", self.dofs)
+        if other.dofs != dofs:
             return False
         return True
 
-    def cast(self, other=None, copy=True, check=False, **kwargs):
-        "Cast other (self if not given) into type(self) and copy or check for compatibility"
-
-        if other is None:
-            other = self
-
-        return self.prepare(other, copy=copy, check=check, **kwargs)
-
-    """
-    def cast(self, other=None, copy=True, check=True, **kwargs):
-        "Cast a field into its type and check for compatibility"
-        cls = type(self)
-
-        if other is None:
-            other = self
-        if not isinstance(other, cls):
-            other = cls(other)
-
-        # (check, copy)                 expect
-        # (T, T): copy but no check       check & copy
-        # (T, F): check but no copy       check & not copy
-        # (F, T): does nothing            no check & just copy
-        # (F, F): does nothing            does nothing
-
-        other.__array_finalize__(self)
-        if check and not self.equivalent(other, **kwargs):
-            if not copy:
-                raise ValueError("The given field is not appropriate")
-            return self.copy(other, **kwargs) 
-        return other
-    """
-
-    def prepare(self, *fields, copy=False, check=False, switch=False, **kwargs):
+    def _prepare(self, *fields, copy=False, check=False, **kwargs):
         "Prepares the fields by creating new one if None given else casting them to type(self) then checking them if compatible with self and/or copying them"
         if not fields:
-            # corresponds to the case: other == None in the original
-            if copy:
-                return self.copy(self, **kwargs)
-            return self
+            raise ValueError("No fields given")
         if len(fields) == 1:
             field = fields[0]
+            if field is self:
+                return field
             if field is None:
                 return self.new(**kwargs)
             cls = type(self)
             if not isinstance(field, cls):
                 field = cls(field)
-            if check and not self.equivalent(field, switch=switch, **kwargs):
+            if check and not self.equivalent(field, **kwargs):
                 if copy:
                     return self.copy(other=field, **kwargs)
                 raise ValueError("The given field is not appropriate")
             field.__array_finalize__(self)
             return field
-        return tuple(self.prepare(field, **kwargs) for field in fields)
+        return tuple(
+            self._prepare(field, copy=copy, check=check, **kwargs) for field in fields
+        )
+
+    def prepare_out(self, *fields, **kwargs):
+        "Function to call for preparing output(s) to be passed for a calculation"
+        # Typically, we do want to check but not copy an output
+        kwargs.setdefault("check", True)
+        kwargs.setdefault("copy", False)
+        if kwargs["copy"]:
+            raise ValueError("An output should never be copied")
+        return self._prepare(*fields, **kwargs)
+
+    def prepare_in(self, *fields, **kwargs):
+        "Function to call for preparing input(s) to be used for a calculation"
+        # Typically, we want to check and copy an input
+        kwargs.setdefault("check", True)
+        kwargs.setdefault("copy", True)
+        return self._prepare(*fields, **kwargs)
 
     def __init__(self, field, comm=None, **kwargs):
         self.field = field
@@ -306,7 +289,6 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             raise TypeError("Field is stored on a different device than the quda lib")
         if len(field.shape) < 4:
             raise ValueError("A lattice field should not have shape smaller than 4")
-        print(field.shape)
         self._field = field
 
     def get(self):
@@ -486,9 +468,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return nullptr
 
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
-        # I wasn't sure if we really need to make a separate memory region and copy things overthere
+        out = kwargs.get("out", (self,))[0]
         prepare = (
-            lambda arg: self.cast(arg, copy=False).field
+            lambda arg: out.prepare_in(arg).field
             if isinstance(arg, (LatticeField, cupy.ndarray, numpy.ndarray))
             else arg
         )
@@ -502,7 +484,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
         fnc = getattr(ufunc, method)
 
-        return self.cast(fnc(*args, **kwargs), copy=False)
+        return self.prepare_in(fnc(*args, **kwargs))
 
     def __bool__(self):
         return bool(self.field.all())

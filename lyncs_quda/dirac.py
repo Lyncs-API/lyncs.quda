@@ -204,7 +204,7 @@ class DiracMatrix:
 
     def __call__(self, rhs, out=None):
         rhs = spinor(rhs)
-        out = rhs.prepare(out)
+        out = rhs.prepare_out(out)
         self.quda(out.quda_field, rhs.quda_field)
         return out
 

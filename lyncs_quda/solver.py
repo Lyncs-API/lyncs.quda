@@ -220,7 +220,7 @@ class Solver:
 
     def __call__(self, rhs, out=None, warning=True, **kwargs):
         rhs = spinor(rhs)
-        out = rhs.prepare(out)
+        out = rhs.prepare_out(out)
         kwargs = self.swap(**kwargs)
         self.quda(out.quda_field, rhs.quda_field)
         self.swap(**kwargs)
