@@ -37,7 +37,7 @@ def get_complex_dtype(dtype):
         return "complex64"
     if dtype in ["float16", "complex32"]:
         return "complex32"
-    raise TypeError(f"Cannot convert {self.dtype} to complex")
+    raise TypeError(f"Cannot convert {dtype} to complex")
 
 
 def get_float_dtype(dtype):
@@ -48,7 +48,7 @@ def get_float_dtype(dtype):
         return "float32"
     if dtype in ["float16", "complex32"]:
         return "float16"
-    raise TypeError(f"Cannot convert {self.dtype} to float")
+    raise TypeError(f"Cannot convert {dtype} to float")
 
 
 def get_ptr(array):
@@ -484,7 +484,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
         fnc = getattr(ufunc, method)
 
-        return self.prepare_in(fnc(*args, **kwargs))
+        return self.prepare_out(fnc(*args, **kwargs))
 
     def __bool__(self):
         return bool(self.field.all())
