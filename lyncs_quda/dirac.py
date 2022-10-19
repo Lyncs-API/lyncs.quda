@@ -160,7 +160,7 @@ class Dirac:
 
     # TODO: Support more functors: Dagger, G5M
 
-    #? DiracMatrix simply calls the corresponding method
+    # ? DiracMatrix simply calls the corresponding method
     #  of Dirac with the same name..., e.g., DiracM() -> Dirac.M()
     #  Methos below calls Dirac.M* via DiracMatrix, which
     #  seems unnecessary detour
@@ -197,17 +197,21 @@ class DiracMatrix:
     __slots__ = ["_dirac", "_prec", "_matrix", "_key"]
 
     def __init__(self, dirac, key="M"):
-        self._dirac = dirac.quda_dirac 
+        self._dirac = dirac.quda_dirac
         self._matrix = getattr(lib, "Dirac" + key)(self._dirac)
         self._key = key
         self._prec = dirac.precision
 
     def __call__(self, rhs, out=None):
         rhs = spinor(rhs)
-        out = rhs.prepare(out)
+        out = rhs.prepare_out(out)
         self.quda(out.quda_field, rhs.quda_field)
         return out
 
+    def copy(self, **kwargs):
+        "Returns a new copy of self with different paramters"
+        # e.g. useful for changing precision
+        raise NotImplementedError
 
     @property
     def key(self):
@@ -236,7 +240,7 @@ class DiracMatrix:
     @property
     def mat_PC(self):
         return QudaMatPCType[self.quda.getMatPCType()]
-    
+
     @property
     def flops(self):
         "The flops of the operator"

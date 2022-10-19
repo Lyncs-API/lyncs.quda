@@ -53,6 +53,9 @@ setup(
     ],
     data_files=[(".", ["post_build.py"])],
     install_requires=requirements,
+    extras_require={
+        "hmc": ["aim"],
+    },
     keywords=[
         "Lyncs",
         "quda",

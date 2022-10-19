@@ -65,7 +65,7 @@ class CloverField(LatticeField):
         )
 
         new = lambda idof: LatticeField.create(
-            self._fmunu.lattice,
+            self._fmunu.global_lattice,
             dofs=(idof,),
             dtype=prec,
             device=self._fmunu.device,
@@ -307,23 +307,22 @@ class CloverField(LatticeField):
         self.quda_field.restore()
 
     def computeCloverForce(self, coeffs):
-        #there seem two ways: PC and non PC
-        # for non-PC, computeCloverSigmaTrace won't be necessry I think
         """
         Compute the force contribution from the solver solution fields
         """
+        # there seem two ways: PC and non PC
+        # for non-PC, computeCloverSigmaTrace won't be necessry I think
         # should be placed in GaugeField and use self.quda_field?
         # should take arrays of SpinorFields and put them in std::vector<ColorSpinorField*>
         # turn an array of doubles to std::vector<double>
-        out = 1
-        #lib.computeCloverForce()
-        #pass
+        # lib.computeCloverForce()
+        raise NotImplementedError()
 
     def computeCloverSigmaOprod(self):
         # should be in SpinorField?
         # should take arrays of SpinorFields and put them in std::vector<ColorSpinorField*>
         # turn an array of doubles to std::vector<double>
-        pass
+        raise NotImplementedError()
 
     def computeCloverSigmaTrace(self, coeff=1.0):
         """
@@ -345,4 +344,4 @@ class CloverField(LatticeField):
         @param parity The field parity we are working on
         """
         # should be placed in GaugeField and use self.quda_field ?
-        pass
+        raise NotImplementedError()
