@@ -124,7 +124,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         **kwargs,
     ):
         "Constructs a new lattice field with default dtype=None, translating into float64"
-        # IN: lattice: represetns local lattice only if (nu/cu)py array else global lattice
+        # IN: lattice: represetns local lattice only if (nu/cu)py array; else global lattice
         # IN: comm: Cartesian communicator
         
         if isinstance(lattice, cls):
