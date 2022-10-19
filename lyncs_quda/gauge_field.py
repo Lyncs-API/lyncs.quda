@@ -16,11 +16,13 @@ __all__ = [
 from time import time
 from math import sqrt
 from collections import defaultdict
+from array import array
 import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
 from lyncs_utils import prod, isiterable
 from .lib import lib, cupy
 from .lattice_field import LatticeField, backend
+from .spinor_field import spinor
 from .time_profile import default_profiler
 
 # TODO: Make array dims consistent with gauge order
@@ -783,15 +785,71 @@ class GaugeField(LatticeField):
         return self.gauge_action(plaq_coeff, -0.331)
 
     def S_F(self, phi, **params):
-        "Retruns pseudo-fermionic action given the pseudo-fermion field"
+        """
+        Retruns pseudo-fermionic action given the pseudo-fermion field
+        IN: phi = random field
+        IN: params = params for Dirac matrix and solver
+        """
+        params.update({"computeTrLog":True})
         solver = self.Dirac(**params).Solver()
         s_params = {k:v for k,v in params.items() if k in solver.default_params}
-        out = solver(phi, **s_params)
-        return out.norm2()
+        inv = solver(phi, **s_params)
+        parity = None
+        if "PC" in solver.mat.dirac.type:
+            if solver.mat.dirac.csw != 0:
+                solver.mat.dirac.clover.inverse_field
+            if "EVEN" in solver.mat.dirac.matPCtype:
+                parity = "EVEN" 
+            elif "ODD" in solver.mat.dirac.matPCtype:
+                parity = "ODD"
+            else:
+                raise TypeError("matPC type should be set")
+        out = inv.norm2(parity=parity)
+        if parity == "EVEN" and solver.mat.dirac.csw != 0:
+            out -= 2*solver.mat.dirac.clover.trLog[1]
+        elif parity == "ODD" and solver.mat.dirac.csw != 0:
+            out -= 2*solver.mat.dirac.clover.trLog[0]
+            
+        return out
 
-    def fermionic_force(self):
-        pass
-    
+    def fermionic_force(self, *phis, out=None, dt=1, coeffs, parity=None,**params):
+        """
+        Description: Returns fermionic force 
+        phis (IN): a tuple of pdeudofermion fields
+        """
+        if out is None:
+            out = self.new(dofs=(6, dofs))
+            
+        n = len(phis)
+        xs = []
+        ps = [spinor(self.lattice) for i in range(n)]
+        _coeffs = array('d')
+        
+        # Even-odd preconditioned case (i.e., PC in Dirac.type):
+        assert parity is "EVEN" # for now, only EVEN
+        params.update({"matPCtype":f"{parity}_{parity}_ASYMMETRIC"})
+        D = self.Dirac(**params)
+        solver = D.MdagM.Solver()
+        s_params = {k:v for k,v in params.items() if k in solver.default_params}
+
+        # use only even part of phi
+        for i, phi in enumerate(phis):
+            xs.append(solver(phi, parity="EVEN", **s_params)) # phi = (MdagM)^{-1}phi_even
+            D.quda_dirac.Dslash(xs[-1].quda_field.Odd(), xs[-1].quda_field.Even(), getattr(lib, f"QUDA_{parity}_PARITY"))
+            D.quda_dirac.M(ps[i].quda_field.Even(), xs[-1].quda_field.Even())
+            D.dagger = "YES"
+            D.quda_dirac.Dslash(ps[i].quda_field.Odd(), ps[i].quda_field.Even(), getattr(lib, f"QUDA_ODD_PARITY"));
+            D.dagger = "NO"
+
+            xs[-1].gamma5(out=xs[-1])
+            ps[i].gamma5(out=ps[i])
+
+            _coeffs.append(2*dt*coeffs[i],D.kappa*D.kappa)
+
+        vxs = lib.std.vector[x.quda_field.get() for x in xs]
+        vps = lib.std.vector[p.quda_field.get() for p in ps]
+        computeCloverForce(out.quda_field, self.quda_field, vxs, vps, _coeffs)
+            
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         prepare = (
             lambda arg: arg.full()

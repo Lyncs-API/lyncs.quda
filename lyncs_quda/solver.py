@@ -218,11 +218,17 @@ class Solver:
                 del params[key]
         return params
 
-    def __call__(self, rhs, out=None, warning=True, **kwargs):
+    def __call__(self, rhs, out=None, parity=None, warning=True, **kwargs):
         rhs = spinor(rhs)
         out = rhs.prepare(out)
         kwargs = self.swap(**kwargs)
-        self.quda(out.quda_field, rhs.quda_field)
+        # ASSUME: QUDA_FULL_SITE_SUBSET
+        if parity == "EVEN":
+            self.quda(out.quda_field.Even(), rhs.quda_field.Even())
+        elif parity == "ODD":
+            self.quda(out.quda_field.Odd(), rhs.quda_field.Odd())
+        else:
+            self.quda(out.quda_field, rhs.quda_field)
         self.swap(**kwargs)
 
         if self.true_res > self.tol:

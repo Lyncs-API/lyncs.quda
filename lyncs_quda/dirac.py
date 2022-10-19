@@ -7,7 +7,7 @@ __all__ = [
 ]
 
 from functools import wraps
-from dataclasses import dataclass, field, InitVar
+from dataclasses import dataclass, field
 from numpy import sqrt
 from dataclasses import dataclass
 from typing import Union
@@ -33,9 +33,14 @@ class Dirac:
     csw: float = 0
     mu: float = 0
     epsilon: float = 0
+    matPCtype: str = "INVALID"
+    dagger: str = None
+    _dagger: str = field(init=False, repr=False, default="NO")
     # For QUDA CloverField class:
     rho: float = 0
     computeTrLog: bool = False
+
+    _quda: ... = field(init=False, repr=False, default=None)
 
     # TODO: Support more Dirac types
     #   Unsupported: PC for the below types, Hasenbusch for clover types
@@ -59,6 +64,10 @@ class Dirac:
         return getattr(lib, f"QUDA_{self.type}_DIRAC")
 
     @property
+    def quda_matPCtype(self):
+        return getattr(lib, f"QUDA_MATPC_{self.matPCtype}")
+    
+    @property
     def is_coarse(self):
         "Whether is a coarse operator"
         return self.type == "COARSE"
@@ -70,8 +79,16 @@ class Dirac:
     @property
     def dagger(self):
         "If the operator is daggered"
-        return "NO"
+        return self._dagger
 
+    @dagger.setter
+    def dagger(self, val:str) -> None:
+        if type(val) is property:
+            val = Dirac.dagger
+        self._dagger = val
+        if self._quda is not None:
+            self._quda.Dagger(self.quda_dagger)
+            
     @property
     def quda_dagger(self):
         "Quda enum for if the operator is dagger"
@@ -87,7 +104,8 @@ class Dirac:
         params.mu = self.mu
         params.epsilon = self.epsilon
         params.dagger = self.quda_dagger
-
+        params.matpcType = self.quda_matPCtype
+        
         # Needs to prevent the gauge field to get destroyed
         #  now we store QUDA gauge object in _quda, but it
         #  still can be a problem if we create DiracMatrix object
@@ -96,7 +114,7 @@ class Dirac:
         # Possible solution:
         #  add an attribute for Dirac object in DiracMatrix object
         # self.quda_gauge = self.gauge.quda_field as well as _quda in Dirac
-        params.gauge = self.gauge.quda_field  # self.quda_gauge
+        params.gauge = self.gauge.quda_field
 
         if self.csw != 0.0 and not self.gauge.is_coarse:
             if self.clover is None:
@@ -122,7 +140,10 @@ class Dirac:
     @property
     def quda_dirac(self):
         if not self.is_coarse:
-            return make_shared(lib.Dirac.create(self.quda_params))
+            if self._quda is None:
+                object.__setattr__(self, "_quda", make_shared(lib.Dirac.create(self.quda_params)))
+            return self._quda
+            
         #  This constcutor seems to rely on initializeLazy when performing M, MdagM, etc.
         #  initializeLazy seems to assume that if gauge is allocated on LOCATION,
         #  then coarse_* is alredy allocated on LOCATION too if we use the follwing constructor
@@ -131,26 +152,35 @@ class Dirac:
         #  * coarse_precond is necessary when applying prec coarse op
 
         assert self.clover is not None and isinstance(self.clover, GaugeField)
-        return lib.DiracCoarse(
-            self.quda_params,
-            self.gauge.cpu_field,
-            self.clover.cpu_field,
-            self.coarse_clover_inv.cpu_field
-            if self.coarse_clover_inv is not None
-            else nullptr,
-            self.coarse_precond.cpu_field
-            if self.coarse_precond is not None
-            else nullptr,
-            self.gauge.gpu_field,
-            self.clover.gpu_field,
-            self.coarse_clover_inv.gpu_field
-            if self.coarse_clover_inv is not None
-            else nullptr,
-            self.coarse_precond.gpu_field
-            if self.coarse_precond is not None
-            else nullptr,
-        )
+        if self._quda is None:
+            object.__setattr__(
+                self,"_quda",
+                make_shared(lib.DiracCoarse(
+                    self.quda_params,
+                    self.gauge.cpu_field,
+                    self.clover.cpu_field,
+                    self.coarse_clover_inv.cpu_field
+                    if self.coarse_clover_inv is not None
+                    else nullptr,
+                    self.coarse_precond.cpu_field
+                    if self.coarse_precond is not None
+                    else nullptr,
+                    self.gauge.gpu_field,
+                    self.clover.gpu_field,
+                    self.coarse_clover_inv.gpu_field
+                    if self.coarse_clover_inv is not None
+                    else nullptr,
+                    self.coarse_precond.gpu_field
+                    if self.coarse_precond is not None
+                    else nullptr,
+                )))
+        return self._quda
 
+    def Dslash(self, spinor_in, spinor_out=None, parity="EVEN"):
+        # change below to use Even and Odd
+        self._quda.Dslash(spinor_out.quda_field, spinor_in.quda_field,
+                          getattr(lib, f"QUDA_{parity}_PARITY"))
+        
     def get_matrix(self, key="M"):
         "Returns the respective quda matrix."
         return DiracMatrix(self, key)
@@ -194,11 +224,11 @@ GaugeField.Dirac = wraps(Dirac)(lambda *args, **kwargs: Dirac(*args, **kwargs))
 
 
 class DiracMatrix:
-    __slots__ = ["_dirac", "_prec", "_matrix", "_key"]
+    __slots__ = ["dirac", "_prec", "_matrix", "_key"]
 
     def __init__(self, dirac, key="M"):
-        self._dirac = dirac.quda_dirac 
-        self._matrix = getattr(lib, "Dirac" + key)(self._dirac)
+        self.dirac = dirac 
+        self._matrix = getattr(lib, "Dirac" + key)(self.dirac.quda_dirac)
         self._key = key
         self._prec = dirac.precision
 
