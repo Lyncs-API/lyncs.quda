@@ -113,9 +113,9 @@ class GaugeField(LatticeField):
             self.is_momentum = other.is_momentum
         out = super().copy(other, out, **kwargs)
         self.is_momentum = is_momentum
-        
+
         return out
-        
+
     def __array_finalize__(self, obj):
         "Support for __array_finalize__ standard"
         # need to reset QUDA object when meta data of its Python wrapper is changed
@@ -123,13 +123,13 @@ class GaugeField(LatticeField):
 
     def _prepare(self, *fields, **kwargs):
         "Prepares the fields by creating new one if None given else casting them to type(self) then checking them if compatible with self and/or copying them"
-        
+
         fields = super()._prepare(*fields, **kwargs)
-        #? we don't need to do the following except for the base case?
+        # ? we don't need to do the following except for the base case?
         for field in fields if isinstance(fields, tuple) else (fields,):
             is_momentum = kwargs.get("is_momentum", self.is_momentum)
             field.is_momentum = is_momentum
-            
+
         return fields
 
     @property
