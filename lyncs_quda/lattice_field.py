@@ -180,18 +180,18 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     def copy(self, other=None, out=None, **kwargs):
         "Returns out, a copy+=kwargs, of other if given, else of self"
         # src: other if given; otherwise self
-        # dst: out (created new, if not explicitly given)
+        # dst: out (created anew, if not explicitly given)
         # ASSUME: if out != None, out <=> other/self+=kwargs
         #
         # IF other and out are both given, this behaves like a classmethod
         # where out&other are casted into type(self)
 
-        # check=False => here any output is good
+        # check=False => here any output is accepted
         out = self.prepare_out(out, check=False, **kwargs)
 
         if other is None:
             other = self
-        # we prepare other without copy because here is where we copy!
+        # we prepare other without copying because we do copy here!
         other = out.prepare_in(other, copy=False, check=False, **kwargs)
         try:
             out.quda_field.copy(other.quda_field)
@@ -219,7 +219,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return True
 
     def _prepare(self, *fields, copy=False, check=False, **kwargs):
-        "Prepares the fields by creating new one if None given else casting them to type(self) then checking them if compatible with self and/or copying them"
+        "Prepares the fields by creating new ones if None given; else casting them to type(self), then checking them if compatible with self, and/or copying them"
         if not fields:
             raise ValueError("No fields given")
         if len(fields) == 1:
@@ -469,6 +469,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         out = kwargs.get("out", (self,))[0]
+
         prepare = (
             lambda arg: out.prepare_in(arg).field
             if isinstance(arg, (LatticeField, cupy.ndarray, numpy.ndarray))
@@ -484,7 +485,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
         fnc = getattr(ufunc, method)
 
-        return self.prepare_out(fnc(*args, **kwargs))
+        return self.prepare_out(fnc(*args, **kwargs), check=False)
 
     def __bool__(self):
         return bool(self.field.all())
