@@ -39,9 +39,9 @@ QUDA_CMAKE_ARGS = [key + "=" + val for key, val in QUDA_CMAKE_ARGS.items()]
 print("QUDA options:", *QUDA_CMAKE_ARGS, sep="\n")
 
 
-def post_build():
-    exec(open("post_build.py").read())
-    post_build()
+def post_build(*args, **kwargs):
+    exec(open("post_build.py").read(), globals())
+    post_build(*args, **kwargs)
 
 
 setup(
