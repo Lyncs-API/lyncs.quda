@@ -103,19 +103,19 @@ class GaugeField(LatticeField):
 
     def copy(self, other=None, out=None, **kwargs):
         "Returns out, a copy+=kwargs, of other if given, else of self"
-        #Note for Future Developers:
+        # Note for Future Developers:
         # This will turn every term in the expression into the one
         #  with link_type = MOM if there is one such term in the expression
         # As for other link types except SU3 and MOM, such mixture simply
         #  results in QUDA errors
 
         src = self if other is None else other
-        dst = self if out   is None else out
+        dst = self if out is None else out
         if src.is_momentum != dst.is_momentum:
             kwargs.update({"is_momentum": True})
-        
-        return super().copy(other, out, **kwargs) 
-        
+
+        return super().copy(other, out, **kwargs)
+
     def __array_finalize__(self, obj):
         "Support for __array_finalize__ standard"
         # need to reset QUDA object when meta data of its Python wrapper is changed
