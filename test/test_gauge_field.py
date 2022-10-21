@@ -126,7 +126,6 @@ def test_random(lib, lattice, device, dtype):
     assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)
 
 
-# need: GPU_GAUGE_TOOLS=ON
 @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
