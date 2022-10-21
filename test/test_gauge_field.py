@@ -254,12 +254,15 @@ def test_force_gradient(lib, lattice, device, epsilon):
         ddaction12 = action12 + action - action1 - action2
 
         ddaction = (
-            getattr(gf, path + "_field")(grad=mom1).full().dot(mom2.full()).reduce()
+            getattr(gf, path + "_field")(force=True, grad=mom1)
+            .full()
+            .dot(mom2.full())
+            .reduce()
         )
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
 
         ddaction = (
-            getattr(gf, path + "_field")(grad=mom1, left_grad=True)
+            getattr(gf, path + "_field")(force=True, grad=mom1, left_grad=True)
             .full()
             .dot(mom2.full())
             .reduce()
@@ -267,12 +270,15 @@ def test_force_gradient(lib, lattice, device, epsilon):
         assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
 
         ddaction = (
-            getattr(gf, path + "_field")(grad=mom2).full().dot(mom1.full()).reduce()
+            getattr(gf, path + "_field")(force=True, grad=mom2)
+            .full()
+            .dot(mom1.full())
+            .reduce()
         )
         assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
 
         ddaction = (
-            getattr(gf, path + "_field")(grad=mom2, left_grad=True)
+            getattr(gf, path + "_field")(force=True, grad=mom2, left_grad=True)
             .full()
             .dot(mom1.full())
             .reduce()
