@@ -10,14 +10,13 @@ from functools import wraps
 from dataclasses import dataclass, field
 from numpy import sqrt
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, List
 from lyncs_cppyy import make_shared, nullptr
 from .gauge_field import gauge, GaugeField
 from .clover_field import CloverField
 from .spinor_field import spinor
 from .lib import lib
 from .enums import QudaPrecision
-
 
 @dataclass(frozen=True)
 class Dirac:
@@ -34,8 +33,6 @@ class Dirac:
     mu: float = 0
     epsilon: float = 0
     matPCtype: str = "INVALID"
-    dagger: str = None
-    _dagger: str = field(init=False, repr=False, default="NO")
     # For QUDA CloverField class:
     rho: float = 0
     computeTrLog: bool = False
@@ -43,20 +40,20 @@ class Dirac:
     _quda: ... = field(init=False, repr=False, default=None)
 
     # TODO: Support more Dirac types
-    #   Unsupported: PC for the below types, Hasenbusch for clover types
-    #                DomainWall(4D/PC), Mobius(PC/Eofa), (Improved)Staggered(KD/PC), CoarsePC, GaugeLaplace(PC), GaugeCovDev
+    #   Unsupported: DomainWall(4D/PC), Mobius(PC/Eofa), (Improved)Staggered(KD/PC), GaugeLaplace(PC), GaugeCovDev
     @property
     def type(self):
         "Type of the operator"
+        PC = "PC" if self.matPCtype != "INVALID" else ""
         if self.gauge.is_coarse:
-            return "COARSE"
+            return "COARSE" + PC
         if self.csw == 0:
             if self.mu == 0:
-                return "WILSON"
-            return "TWISTED_MASS"
+                return "WILSON" + PC
+            return "TWISTED_MASS" + PC
         if self.mu == 0:
-            return "CLOVER"
-        return "TWISTED_CLOVER"
+            return "CLOVER" + PC
+        return "TWISTED_CLOVER" + PC
 
     @property
     def quda_type(self):
@@ -65,6 +62,8 @@ class Dirac:
 
     @property
     def quda_matPCtype(self):
+        if self.matPCtype is None:
+            self.matPCtype = "INVALID"
         return getattr(lib, f"QUDA_MATPC_{self.matPCtype}")
     
     @property
@@ -79,16 +78,8 @@ class Dirac:
     @property
     def dagger(self):
         "If the operator is daggered"
-        return self._dagger
+        return "NO"
 
-    @dagger.setter
-    def dagger(self, val:str) -> None:
-        if type(val) is property:
-            val = Dirac.dagger
-        self._dagger = val
-        if self._quda is not None:
-            self._quda.Dagger(self.quda_dagger)
-            
     @property
     def quda_dagger(self):
         "Quda enum for if the operator is dagger"
@@ -123,7 +114,7 @@ class Dirac:
                     "clover",
                     CloverField(
                         self.gauge,
-                        coeff=self.kappa * self.csw / 4,
+                        coeff=self.kappa * self.csw,
                         twisted=(self.mu != 0),
                         tf=("SINGLET" if "TWISTED" in self.type else "NO"),
                         mu2=self.mu**2,

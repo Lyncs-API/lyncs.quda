@@ -33,6 +33,7 @@ class CloverField(LatticeField):
      * direct & inverse fields are both allocated upon initialization
      * Only rho is mutable.  To change other params, a new instance should be created
      * QUDA convention for clover field := 1+i ( kappa csw )/4 sigma_mu,nu F_mu,nu (<-sigma_mu,nu: spinor tensor)
+     *  so that sigma_mu,nu = i[g_mu, g_nu], F_mu,nu = (Q_mu,nu - Q_nu,mu)/8 (1/2 is missing from sigma_mu,nu)
     """
 
     def __init__(
@@ -46,6 +47,7 @@ class CloverField(LatticeField):
         rho=0,
         computeTrLog=False,
     ):
+        # ASSUME: coeff = kappa*csw wihout a normalization factor of 1/4 or 1/32 (suggested in interface_quda.cpp)
         # ? better to store fmunu.quda_field to _fmunu -> import gauge_tensor to be used in some methods
         # ? better to put clover into self.field -> need walk-around to make copy() work
         if not isinstance(fmunu, GaugeField):
@@ -306,43 +308,46 @@ class CloverField(LatticeField):
         "Restore clover field (& its inverse if computed) from CPU to GPU"
         self.quda_field.restore()
 
-    def computeCloverForce(self, coeffs):
-        #there seem two ways: PC and non PC
-        # for non-PC, computeCloverSigmaTrace won't be necessry I think
-        """
-        Compute the force contribution from the solver solution fields
-        """
-        # should be placed in GaugeField and use self.quda_field?
-        # should take arrays of SpinorFields and put them in std::vector<ColorSpinorField*>
-        # turn an array of doubles to std::vector<double>
-        out = 1
-        #lib.computeCloverForce()
-        #pass
+    def computeCloverForce(self, gauge, force, D, vxs, vps, mult=2, coeffs=None, parity=None):
+        # contribution from TrLn A and U dA/dU are similar except for the factor in the middle of the expression
+        # i.e., they have the form: GL A GR where A is different
+        # so computeCloverSigmaTrace and computeCloverSigmaOprod computes A for each and add them together.
+        # cloverDerivative computes and multiplies GL and GR without csw*kappa*normalizarion_factor
 
-    def computeCloverSigmaOprod(self):
-        # should be in SpinorField?
-        # should take arrays of SpinorFields and put them in std::vector<ColorSpinorField*>
-        # turn an array of doubles to std::vector<double>
-        pass
+        # D: Python Dirac class
+        # mult: Number fermions this bilinear reresents
+        # coeff: Array of residues for each contribution (multiplied by stepsize)
+        #  interface_quda.cpp suggests that it is an overall coeffs to the entire force term except for sigmaTr
 
-    def computeCloverSigmaTrace(self, coeff=1.0):
-        """
-        Compute the matrix tensor field necessary for the force calculation from
-        the clover trace action.  This computes a tensor field [mu,nu].
+        ck = D.kappa*D.csw/8.0
+        k2 = D.kappa*D.kappa
+        n = len(vxs)
+        
+        if parity == "ODD":
+            # The obstacle is computeCloverSigmaTrace
+            # This needs to be able to work on both A_o and A_e
+            raise NotImplementedError("QUDA implements only for EVEN case")
+        
+        # First compute the contribution from Tr ln A
+        oprod = force.new(reconstruct="NO", empty=False, is_momentum=False, dofs=(6,18))
+        assert oprod == 0
+        if parity == "EVEN":
+            # check!: we need only TrLn A_o for EVEN and TrLn A_e for ODD.
+            D.clover.inverse_field
+            lib.computeCloverSigmaTrace(oprod.quda_field, D.clover.quda_field, 2.0*ck*mult)
+            
+        # Now the U dA/dU terms
+        ferm_epsilon = lib.std.vector([lib.std.vector([2.0*ck*coeffs[i], -k2 * 2.0*ck*coeffs[i]] if parity != None
+                                                      else [2.0*ck*coeffs[i], 2.0*ck*coeffs[i]]
+                                                      ) for i in range(n)])
+        lib.computeCloverSigmaOprod(oprod.quda_field, vxs, vps, ferm_epsilon)
+        
+        R = [2 if d == 0 else 1 for d in range(4)]
+        oprodEx = oprod.extended_field(sites = R)
+        u = gauge.extended_field(sites = R)
+        if gauge.precision == "double":
+            u = gauge.cast(reconstruct="NO").extended_field(sites = R)
+        lib.cloverDerivative(force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_ODD_PARITY"))
+        lib.cloverDerivative(force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_EVEN_PARITY"))
 
-        @param coeff  Scalar coefficient multiplying the result (e.g., stepsize)
-        """
-        out = self._fmunu.new()
-        lib.computeCloverSigmaTrace(out.quda_field, self.quda_field, coeff)
-        return out
-
-    def cloverDerivative(self, oprod, parity: QudaParity, coeff=1.0):
-        """
-        Compute the derivative of the clover matrix in the direction
-        mu,nu and compute the resulting force given the outer-product field
-
-        @param coeff Multiplicative coefficient (e.g., clover coefficient)
-        @param parity The field parity we are working on
-        """
-        # should be placed in GaugeField and use self.quda_field ?
-        pass
+        return force

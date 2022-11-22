@@ -103,7 +103,7 @@ class Solver:
     @mat.setter
     def mat(self, mat):
         if isinstance(mat, Dirac):
-            mat = mat.get_mat()
+            mat = mat.get_matrix()
         if not isinstance(mat, DiracMatrix):
             raise TypeError("mat should be an instance of Dirac or DiracMatrix")
         self._mat = mat
@@ -219,8 +219,8 @@ class Solver:
         return params
 
     def __call__(self, rhs, out=None, parity=None, warning=True, **kwargs):
-        rhs = spinor(rhs)
-        out = rhs.prepare(out)
+        rhs = spinor(rhs, empty=False)
+        out = rhs.prepare(out, empty=False)
         kwargs = self.swap(**kwargs)
         # ASSUME: QUDA_FULL_SITE_SUBSET
         if parity == "EVEN":

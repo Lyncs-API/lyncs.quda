@@ -1,4 +1,4 @@
-from lyncs_quda import gauge, momentum
+from lyncs_quda import gauge, momentum, spinor
 import numpy as np
 import cupy as cp
 from pytest import skip
@@ -225,6 +225,39 @@ def test_force(lib, lattice, device, epsilon):
 
         zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
         assert zeros == 0
+
+
+# @dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+@epsilon_loop  # enables epsilon
+def test_fermionic_force(lib, lattice, device, epsilon):
+    dtype = "float64"
+    gf = gauge(lattice, dtype=dtype, device=device)
+    gf.gaussian()
+    mom = momentum(lattice, dtype=dtype, device=device)
+    mom.gaussian(epsilon=epsilon)
+
+    gf2 = mom.exponentiate(mul_to=gf)
+
+    phi = spinor(lattice, dtype=dtype)
+    phi.gaussian()
+
+    # U'- U ~ eps*mom where U' = exp(eps*mom)*U
+    for parity in [None, "EVEN"]:
+        params = {"kappa":0.01, "csw":1}
+        phi = gf.Dirac(**params).Mdag(phi)
+        action = gf.S_F(phi, parity=parity, **params) 
+        action2 = gf2.S_F(phi, parity=parity, **params)
+        rel_tol = epsilon * np.prod(lattice) * 4
+        print(parity, action, action2)
+        assert isclose(action, action2, rel_tol=rel_tol)
+
+        fac=1
+        daction = gf.fermionic_force(phi, maxiter=1000000, parity=parity, **params).full().dot(mom.full()).reduce(mean=False).item()*fac
+        daction2 = action2 - action
+        print(parity, daction, daction2, daction / daction2)
+        assert isclose(daction, daction2, rel_tol=rel_tol)
 
 
 # @dtype_loop  # enables dtype

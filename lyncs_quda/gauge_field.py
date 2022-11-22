@@ -25,6 +25,7 @@ from .lattice_field import LatticeField, backend
 from .spinor_field import spinor
 from .time_profile import default_profiler
 
+import lyncs_cppyy
 # TODO: Make array dims consistent with gauge order
 
 
@@ -78,8 +79,9 @@ class GaugeField(LatticeField):
         elif reconstruct == self.reconstruct:
             pass
         elif reconstruct == "NO":  # ? what if geometry == COARSE?
-            size = self.ncol**2
-            kwargs["dofs"] = (self.geometry_size, size if self.iscomplex else size * 2)
+            if "dofs" not in kwargs.keys(): #just a quick fix. 
+                size = self.ncol**2
+                kwargs["dofs"] = (self.geometry_size, size if self.iscomplex else size * 2)
         else:
             try:
                 val = int(reconstruct)
@@ -784,72 +786,105 @@ class GaugeField(LatticeField):
         "Returns the Iwasaki gauge action"
         return self.gauge_action(plaq_coeff, -0.331)
 
-    def S_F(self, phi, **params):
+    def S_F(self, phi, parity=None, **params):
         """
         Retruns pseudo-fermionic action given the pseudo-fermion field
-        IN: phi = random field
+        IN: phi = random field according to exp(-phi*(D^dag D)^{-1}phi
         IN: params = params for Dirac matrix and solver
         """
+
+        if parity in ("EVEN", "ODD"):
+            symm = "_ASYMMETRIC" if params.get("csw",0) != 0 else ""
+            params.update({"matPCtype":f"{parity}_{parity}{symm}"})
+        
         params.update({"computeTrLog":True})
-        solver = self.Dirac(**params).Solver()
+        d_params = {k:v for k,v in params.items() if k in self.Dirac().__annotations__.keys()}
+        solver = self.Dirac(**d_params).Mdag.Solver()
         s_params = {k:v for k,v in params.items() if k in solver.default_params}
-        inv = solver(phi, **s_params)
-        parity = None
-        if "PC" in solver.mat.dirac.type:
-            if solver.mat.dirac.csw != 0:
-                solver.mat.dirac.clover.inverse_field
-            if "EVEN" in solver.mat.dirac.matPCtype:
-                parity = "EVEN" 
-            elif "ODD" in solver.mat.dirac.matPCtype:
-                parity = "ODD"
-            else:
-                raise TypeError("matPC type should be set")
+        type_ = solver.mat.dirac.type
+        #if "PC" in type_ and "CLOVER" in type_:
+        if "CLOVER" in type_:
+            solver.mat.dirac.clover.inverse_field
+        print(parity,type_)
+        inv = solver(phi, parity=parity, **s_params)
         out = inv.norm2(parity=parity)
-        if parity == "EVEN" and solver.mat.dirac.csw != 0:
-            out -= 2*solver.mat.dirac.clover.trLog[1]
-        elif parity == "ODD" and solver.mat.dirac.csw != 0:
+        #? so trLog[0] contains trLog A_odd, and trLog[1] trLog A_even? (c.f., clover_invert.cuh)
+        if parity == "EVEN" and "CLOVER" in type_:
             out -= 2*solver.mat.dirac.clover.trLog[0]
-            
+        elif parity == "ODD" and "CLOVER" in type_:
+            out -= 2*solver.mat.dirac.clover.trLog[1]
+        print(parity,out)
         return out
 
-    def fermionic_force(self, *phis, out=None, dt=1, coeffs, parity=None,**params):
+    def fermionic_force(self, *phis, out=None, mult=2, coeffs=None, parity=None, **params):
         """
         Description: Returns fermionic force 
         phis (IN): a tuple of pdeudofermion fields
+        coeffs (IN): Array of residues for each contribution (multiplied by stepsize) and dt
+        mult (IN): Number fermions this bilinear reresents 
         """
         if out is None:
-            out = self.new(dofs=(6, dofs))
-            
+            out = self.new(dofs=(4, 18), empty=False) #ZERO_FIELD (c.f. interface_quda.cpp)
+
         n = len(phis)
         xs = []
         ps = [spinor(self.lattice) for i in range(n)]
-        _coeffs = array('d')
-        
-        # Even-odd preconditioned case (i.e., PC in Dirac.type):
-        assert parity is "EVEN" # for now, only EVEN
-        params.update({"matPCtype":f"{parity}_{parity}_ASYMMETRIC"})
-        D = self.Dirac(**params)
+        _coeffs = lib.std.vector['double'](range(n))
+        if coeffs is None:
+            coeffs = [1.0 for _ in range(n)]
+            
+        print(params, parity)
+        symm = "_ASYMMETRIC" if params.get("csw",0) != 0 else ""
+        params.update({"matPCtype":"INVALID" if parity is None else f"{parity}_{parity}{symm}"})
+        d_params = {k:v for k,v in params.items() if k in self.Dirac().__annotations__.keys()}
+        print(d_params)
+        D = self.Dirac(**d_params)
         solver = D.MdagM.Solver()
         s_params = {k:v for k,v in params.items() if k in solver.default_params}
 
-        # use only even part of phi
-        for i, phi in enumerate(phis):
-            xs.append(solver(phi, parity="EVEN", **s_params)) # phi = (MdagM)^{-1}phi_even
-            D.quda_dirac.Dslash(xs[-1].quda_field.Odd(), xs[-1].quda_field.Even(), getattr(lib, f"QUDA_{parity}_PARITY"))
-            D.quda_dirac.M(ps[i].quda_field.Even(), xs[-1].quda_field.Even())
-            D.dagger = "YES"
-            D.quda_dirac.Dslash(ps[i].quda_field.Odd(), ps[i].quda_field.Even(), getattr(lib, f"QUDA_ODD_PARITY"));
-            D.dagger = "NO"
+        if parity is None:
+            for i, phi in enumerate(phis):
+                xs.append(solver(phi, **s_params))
+                D(xs[-1], spinor_out = ps[i])
+        elif parity == "EVEN":
+            # Even-odd preconditioned case (i.e., PC in Dirac.type):
+            # use only even part of phi
+            for i, phi in enumerate(phis):
+                xs.append(solver(phi, parity="EVEN", **s_params)) # phi = (MdagM)^{-1}phi_even
+                D.quda_dirac.Dslash(xs[-1].quda_field.Odd(), xs[-1].quda_field.Even(), getattr(lib, "QUDA_ODD_PARITY"))
+                D.quda_dirac.M(ps[i].quda_field.Even(), xs[-1].quda_field.Even())
+                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
+                D.quda_dirac.Dslash(ps[i].quda_field.Odd(), ps[i].quda_field.Even(), getattr(lib, "QUDA_ODD_PARITY"));
+                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_NO"))
+                print(xs[-1].site_order, ps[i].site_order)
+        elif parity == "ODD":
+            # Even-odd preconditioned case (i.e., PC in Dirac.type):
+            # use only odd part of phi
+            for i, phi in enumerate(phis):
+                xs.append(solver(phi, parity="ODD", **s_params))
+                D.quda_dirac.Dslash(xs[-1].quda_field.Even(), xs[-1].quda_field.Odd(), getattr(lib, "QUDA_EVEN_PARITY"))
+                D.quda_dirac.M(ps[i].quda_field.Odd(), xs[-1].quda_field.Odd())
+                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
+                D.quda_dirac.Dslash(ps[i].quda_field.Even(), ps[i].quda_field.Odd(), getattr(lib, "QUDA_EVEN_PARITY"))
+                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_NO"))
+        else:
+            raise ValueError("parity should be either EVEN or ODD!")
+        
+        for i in range(n):
+            xs[i].apply_gamma5() #gamma5(out=xs[i])
+            ps[i].apply_gamma5() #gamma5(out=ps[i])
+            _coeffs[i] = 2.0*coeffs[i]*D.kappa*D.kappa if parity is not None else 2.0*coeffs[i]*D.kappa
 
-            xs[-1].gamma5(out=xs[-1])
-            ps[i].gamma5(out=ps[i])
+        vxs = lib.std.vector['quda::ColorSpinorField *']([x.quda_field.__smartptr__().get() for x in xs])
+        vps = lib.std.vector['quda::ColorSpinorField *']([p.quda_field.__smartptr__().get() for p in ps])
+        lib.computeCloverForce(out.quda_field, self.quda_field, vxs, vps, _coeffs)
 
-            _coeffs.append(2*dt*coeffs[i],D.kappa*D.kappa)
-
-        vxs = lib.std.vector[x.quda_field.get() for x in xs]
-        vps = lib.std.vector[p.quda_field.get() for p in ps]
-        computeCloverForce(out.quda_field, self.quda_field, vxs, vps, _coeffs)
+        if "CLOVER" in D.type:
+            out = D.clover.computeCloverForce(self, out, D, vxs, vps,  mult=mult, coeffs=coeffs, parity=parity)
             
+        return out
+
+
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         prepare = (
             lambda arg: arg.full()
