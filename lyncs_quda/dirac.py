@@ -167,11 +167,6 @@ class Dirac:
                 )))
         return self._quda
 
-    def Dslash(self, spinor_in, spinor_out=None, parity="EVEN"):
-        # change below to use Even and Odd
-        self._quda.Dslash(spinor_out.quda_field, spinor_in.quda_field,
-                          getattr(lib, f"QUDA_{parity}_PARITY"))
-        
     def get_matrix(self, key="M"):
         "Returns the respective quda matrix."
         return DiracMatrix(self, key)

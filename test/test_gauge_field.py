@@ -253,8 +253,7 @@ def test_fermionic_force(lib, lattice, device, epsilon):
         print(parity, action, action2)
         assert isclose(action, action2, rel_tol=rel_tol)
 
-        fac=1
-        daction = gf.fermionic_force(phi, maxiter=1000000, parity=parity, **params).full().dot(mom.full()).reduce(mean=False).item()*fac
+        daction = gf.fermionic_force(phi, maxiter=1000000, parity=parity, **params).full().dot(mom.full()).reduce(mean=False)
         daction2 = action2 - action
         print(parity, daction, daction2, daction / daction2)
         assert isclose(daction, daction2, rel_tol=rel_tol)

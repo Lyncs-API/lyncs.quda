@@ -219,8 +219,8 @@ class Solver:
         return params
 
     def __call__(self, rhs, out=None, parity=None, warning=True, **kwargs):
-        rhs = spinor(rhs, empty=False)
-        out = rhs.prepare(out, empty=False)
+        rhs = spinor(rhs)
+        out = rhs.prepare(out)
         kwargs = self.swap(**kwargs)
         # ASSUME: QUDA_FULL_SITE_SUBSET
         if parity == "EVEN":

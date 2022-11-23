@@ -802,10 +802,9 @@ class GaugeField(LatticeField):
         solver = self.Dirac(**d_params).Mdag.Solver()
         s_params = {k:v for k,v in params.items() if k in solver.default_params}
         type_ = solver.mat.dirac.type
-        #if "PC" in type_ and "CLOVER" in type_:
-        if "CLOVER" in type_:
+        if "PC" in type_ and "CLOVER" in type_:
             solver.mat.dirac.clover.inverse_field
-        print(parity,type_)
+
         inv = solver(phi, parity=parity, **s_params)
         out = inv.norm2(parity=parity)
         #? so trLog[0] contains trLog A_odd, and trLog[1] trLog A_even? (c.f., clover_invert.cuh)
@@ -813,7 +812,7 @@ class GaugeField(LatticeField):
             out -= 2*solver.mat.dirac.clover.trLog[0]
         elif parity == "ODD" and "CLOVER" in type_:
             out -= 2*solver.mat.dirac.clover.trLog[1]
-        print(parity,out)
+
         return out
 
     def fermionic_force(self, *phis, out=None, mult=2, coeffs=None, parity=None, **params):
@@ -833,11 +832,9 @@ class GaugeField(LatticeField):
         if coeffs is None:
             coeffs = [1.0 for _ in range(n)]
             
-        print(params, parity)
         symm = "_ASYMMETRIC" if params.get("csw",0) != 0 else ""
         params.update({"matPCtype":"INVALID" if parity is None else f"{parity}_{parity}{symm}"})
         d_params = {k:v for k,v in params.items() if k in self.Dirac().__annotations__.keys()}
-        print(d_params)
         D = self.Dirac(**d_params)
         solver = D.MdagM.Solver()
         s_params = {k:v for k,v in params.items() if k in solver.default_params}
@@ -856,7 +853,6 @@ class GaugeField(LatticeField):
                 D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
                 D.quda_dirac.Dslash(ps[i].quda_field.Odd(), ps[i].quda_field.Even(), getattr(lib, "QUDA_ODD_PARITY"));
                 D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_NO"))
-                print(xs[-1].site_order, ps[i].site_order)
         elif parity == "ODD":
             # Even-odd preconditioned case (i.e., PC in Dirac.type):
             # use only odd part of phi
@@ -871,8 +867,8 @@ class GaugeField(LatticeField):
             raise ValueError("parity should be either EVEN or ODD!")
         
         for i in range(n):
-            xs[i].apply_gamma5() #gamma5(out=xs[i])
-            ps[i].apply_gamma5() #gamma5(out=ps[i])
+            xs[i].apply_gamma5()
+            ps[i].apply_gamma5()
             _coeffs[i] = 2.0*coeffs[i]*D.kappa*D.kappa if parity is not None else 2.0*coeffs[i]*D.kappa
 
         vxs = lib.std.vector['quda::ColorSpinorField *']([x.quda_field.__smartptr__().get() for x in xs])
