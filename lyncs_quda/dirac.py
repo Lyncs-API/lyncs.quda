@@ -55,6 +55,11 @@ class Dirac:
             return "CLOVER" + PC
         return "TWISTED_CLOVER" + PC
 
+    # better strategy?
+    def _change_attr(self, name, val:str):
+        object.__setattr__(self, name,  val)
+        object.__setattr__(self, "_quda", None)
+        
     @property
     def quda_type(self):
         "Quda enum for quda dslash type"
@@ -204,6 +209,98 @@ class Dirac:
     def MMdag(self):
         "Returns the matrix MMdag"
         return self.get_matrix("MMdag")
+
+    def action(self, phi, parity=None, **params):
+        """
+        Retruns pseudo-fermionic action given the pseudo-fermion field
+        IN: phi = random field according to exp(-phi*(D^dag D)^{-1}phi
+        IN: params = params for Dirac matrix and solver
+        """
+
+        if parity in ("EVEN", "ODD"):
+            symm = "_ASYMMETRIC" if "CLOVER" in self.type else ""
+            self._change_attr("matPCtype", f"{parity}_{parity}{symm}")
+        self._change_attr("computeTrLog", True)
+        
+        s_params = {k:v for k,v in params.items() if k in self.Solver.default_params}
+        solver = self.Mdag.Solver(**s_params)
+        if "PC" in self.type and "CLOVER" in self.type:
+            self.clover.inverse_field
+
+        inv = solver(phi, parity=parity, **s_params)
+        out = inv.norm2(parity=parity)
+        #? so trLog[0] contains trLog A_odd, and trLog[1] trLog A_even? (c.f., clover_invert.cuh)
+        if parity == "EVEN" and "CLOVER" in self.type:
+            out -= 2*self.clover.trLog[0]
+        elif parity == "ODD" and "CLOVER" in self.type:
+            out -= 2*self.clover.trLog[1]
+
+        return out
+
+    def force(self, *phis, out=None, mult=2, coeffs=None, parity=None, **params):
+        """
+        Description: Returns fermionic force 
+        phis (IN): a tuple of pdeudofermion fields
+        coeffs (IN): Array of residues for each contribution (multiplied by stepsize) and dt
+        mult (IN): Number fermions this bilinear reresents 
+        """
+        if out is None:
+            out = self.gauge.new(dofs=(4, 18), empty=False) #ZERO_FIELD (c.f. interface_quda.cpp)
+
+        n = len(phis)
+        xs = []
+        ps = [spinor(self.gauge.lattice) for i in range(n)]
+        _coeffs = lib.std.vector['double'](range(n))
+        if coeffs is None:
+            coeffs = [1.0 for _ in range(n)]
+            
+        symm = "_ASYMMETRIC" if "CLOVER" in self.type else ""
+        self._change_attr("matPCtype", "INVALID" if parity is None else f"{parity}_{parity}{symm}")
+
+        solver = self.MdagM.Solver()
+        s_params = {k:v for k,v in params.items() if k in solver.default_params}
+
+        D = self
+        if parity is None:
+            for i, phi in enumerate(phis):
+                xs.append(solver(phi, **s_params))
+                D(xs[-1], spinor_out = ps[i])
+        elif parity == "EVEN":
+            # Even-odd preconditioned case (i.e., PC in Dirac.type):
+            # use only even part of phi
+            for i, phi in enumerate(phis):
+                xs.append(solver(phi, parity="EVEN", **s_params)) # phi = (MdagM)^{-1}phi_even
+                D.quda_dirac.Dslash(xs[-1].quda_field.Odd(), xs[-1].quda_field.Even(), getattr(lib, "QUDA_ODD_PARITY"))
+                D.quda_dirac.M(ps[i].quda_field.Even(), xs[-1].quda_field.Even())
+                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
+                D.quda_dirac.Dslash(ps[i].quda_field.Odd(), ps[i].quda_field.Even(), getattr(lib, "QUDA_ODD_PARITY"));
+                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_NO"))
+        elif parity == "ODD":
+            # Even-odd preconditioned case (i.e., PC in Dirac.type):
+            # use only odd part of phi
+            for i, phi in enumerate(phis):
+                xs.append(solver(phi, parity="ODD", **s_params))
+                D.quda_dirac.Dslash(xs[-1].quda_field.Even(), xs[-1].quda_field.Odd(), getattr(lib, "QUDA_EVEN_PARITY"))
+                D.quda_dirac.M(ps[i].quda_field.Odd(), xs[-1].quda_field.Odd())
+                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
+                D.quda_dirac.Dslash(ps[i].quda_field.Even(), ps[i].quda_field.Odd(), getattr(lib, "QUDA_EVEN_PARITY"))
+                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_NO"))
+        else:
+            raise ValueError("parity should be either EVEN or ODD!")
+        
+        for i in range(n):
+            xs[i].apply_gamma5()
+            ps[i].apply_gamma5()
+            _coeffs[i] = 2.0*coeffs[i]*D.kappa*D.kappa if parity is not None else 2.0*coeffs[i]*D.kappa
+
+        vxs = lib.std.vector['quda::ColorSpinorField *']([x.quda_field.__smartptr__().get() for x in xs])
+        vps = lib.std.vector['quda::ColorSpinorField *']([p.quda_field.__smartptr__().get() for p in ps])
+        lib.computeCloverForce(out.quda_field, self.gauge.quda_field, vxs, vps, _coeffs)
+
+        if "CLOVER" in D.type:
+            out = D.clover.computeCloverForce(self.gauge, out, D, vxs, vps,  mult=mult, coeffs=coeffs, parity=parity)
+            
+        return out
 
 
 GaugeField.Dirac = wraps(Dirac)(lambda *args, **kwargs: Dirac(*args, **kwargs))
