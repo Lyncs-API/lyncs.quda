@@ -25,7 +25,6 @@ from .lattice_field import LatticeField, backend
 from .spinor_field import spinor
 from .time_profile import default_profiler
 
-import lyncs_cppyy
 # TODO: Make array dims consistent with gauge order
 
 

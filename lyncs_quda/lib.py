@@ -222,6 +222,26 @@ class QudaLib(Lib):
             )
         return self.lyncs_quda_copy_struct
 
+    def throw_exception(self,val):
+        try:
+            return self.throw_error(val)
+        except AttributeError:
+            cppdef(
+                """
+                #include <exception>
+                void throw_error(int i){
+                if(i) throw std::exception();
+                }
+                """
+            )
+        return self.throw_error(val)
+
+    def test_exception(self):
+        try:
+            self.throw_exception(1)
+        except Exception as e:
+            print("exception:", e)
+            
     def end_quda(self):
         if not self.initialized:
             raise RuntimeError("Quda has not been initialized")
