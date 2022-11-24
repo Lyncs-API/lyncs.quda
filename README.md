@@ -1,6 +1,5 @@
 ## A Python interface to QUDA for Lyncs		
 
-
 <!--		
 [![python](https://img.shields.io/pypi/pyversions/lyncs_quda.svg?logo=python&logoColor=white)](https://pypi.org/project/lyncs_quda/)		
 [![pypi](https://img.shields.io/pypi/v/lyncs_quda.svg?logo=python&logoColor=white)](https://pypi.org/project/lyncs_quda/)		
@@ -35,35 +34,3 @@ git clone https://github.com/Lyncs-API/lyncs.quda
 cd lyncs.quda		
 pip install -e .		
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

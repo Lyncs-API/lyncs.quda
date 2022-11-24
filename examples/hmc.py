@@ -3,19 +3,21 @@ Implementation of the HMC algorithm
 """
 
 from dataclasses import dataclass, field
-from math import exp, prod
+from math import prod
+from numpy import exp
 from random import random
 from argparse import Namespace
 import click
 from tqdm import tqdm
-from lyncs_quda import gauge_field, momentum
+from lyncs_quda import gauge_field, momentum, lib, MPI
+from aim import Run
+import time
 
 
 @dataclass
 class HMCHelper:
     beta: float = 5
     lattice: tuple = (4, 4, 4, 4)
-
     # Log
     last_action: float = field(init=False, default=None)
 
@@ -26,7 +28,7 @@ class HMCHelper:
     @property
     def plaq_coeff(self):
         "Plaquette coefficient"
-        return -self.beta / 6
+        return -self.beta / 6  # = -1/g_0^2
 
     @property
     def plaq_paths(self):
@@ -49,7 +51,7 @@ class HMCHelper:
 
     def action(self, field):
         "Returns the action computed on field"
-        self.last_action = 2 * (
+        self.last_action = 2 * float(
             field.compute_paths(self.paths, self.coeffs).reduce(mean=False)
         )
         return self.last_action
@@ -226,8 +228,10 @@ class HMC:
 
     @property
     def last_plaquette(self):
-        return -self.last_action / (
-            self.helper.beta * prod(self.helper.lattice) * len(self.helper.paths)
+        return (
+            -3
+            * self.last_action
+            / (self.helper.beta * prod(self.helper.lattice) * len(self.helper.paths))
         )
 
     @property
@@ -245,6 +249,20 @@ class HMC:
 @click.command()
 @click.option("--beta", type=float, default=5, help="target action's beta")
 @click.option("--lattice-size", type=int, default=16, help="Size of hypercubic lattice")
+@click.option(
+    "--lattice-dims",
+    nargs=4,
+    type=int,
+    default=None,
+    help="Size of lattice dimensions (replaces lattice-size)",
+)
+@click.option(
+    "--procs",
+    nargs=4,
+    default=(1, 1, 1, 1),
+    type=int,
+    help="Cartesian topology of the communicator",
+)
 @click.option(
     "--integrator",
     default="OMF4",
@@ -269,10 +287,19 @@ class HMC:
     default="random",
     help="Initial field",
 )
+@click.option(
+    "--logdir",
+    type=click.Path(writable=True),
+    default=".",
+    help="Logging directory",
+)
 def main(**kwargs):
     args = Namespace(**kwargs)
 
-    lattice = (args.lattice_size,) * 4
+    lattice = (
+        args.lattice_dims if args.lattice_dims is not None else (args.lattice_size,) * 4
+    )
+    lib.set_comm(procs=args.procs)
     helper = HMCHelper(args.beta, lattice)
     integr = HMC_INTEGRATORS[args.integrator]
     integr = integr(args.t_steps)
@@ -285,10 +312,31 @@ def main(**kwargs):
     else:
         raise ValueError("Unknown start")
 
+    dname = args.logdir
+    fname = (
+        "".join(tuple(map(str, args.procs + lattice)))
+        + f"_beta{args.beta}_{args.integrator}_tsteps{args.t_steps}_ntraj_{args.n_trajs}with{args.start}"
+    )
+    fp = open(dname + fname, "w")
+
+    run = Run(
+        repo=dname + "/aim",
+        experiment=experiment,
+        system_tracking_interval=1,
+    )
+    run["beta"] = args.beta
+    run["num_ranks"] = prod(args.procs)
+
     with tqdm(range(args.n_trajs)) as pbar:
         for step in pbar:
             field = hmc(field)
             pbar.set_description(f"plaq: {hmc.last_plaquette}")
+
+            for key, val in hmc.stats.items():
+                run.track(val, name=key)
+
+            print(" ".join(list(map(str, hmc.stats.values()))), file=fp)
+    fp.close()
 
 
 if __name__ == "__main__":

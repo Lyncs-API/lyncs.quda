@@ -15,6 +15,13 @@ from lyncs_cppyy.ll import to_pointer
 from .lib import lib
 from .lattice_field import LatticeField
 
+"""
+NOTE:
+ order
+   FLAOT2: parity>spin>color>vec>site
+   FLOAT4: 4 from (spin,color,vec) runs before site index
+"""
+
 
 def spinor(lattice, **kwargs):
     "Constructs a new spinor field"
@@ -58,6 +65,7 @@ class SpinorField(LatticeField):
         "Number of spin component. 1 for staggered, 2 for coarse Dslash, 4 for 4d spinor"
         return self.dofs[-2]
 
+    # ? apparently, vector is fast running index
     @property
     def nvec(self):
         "Number of packed vectors"
@@ -89,6 +97,9 @@ class SpinorField(LatticeField):
     @property
     def order(self):
         "Data order of the field"
+        if self.precision in ["single", "half"] and self.nspin == 4:
+            # Assume: FLOAT8 is not defined
+            return "FLOAT4"
         return "FLOAT2"
 
     @property
@@ -162,7 +173,9 @@ class SpinorField(LatticeField):
     def quda_field(self):
         "Returns and instance of quda::ColorSpinorField"
         self.activate()
-        return make_shared(lib.ColorSpinorField.Create(self.quda_params))
+        if self._quda is None:
+            self._quda = make_shared(lib.ColorSpinorField.Create(self.quda_params))
+        return self._quda
 
     def is_native(self):
         "Whether the field is native for Quda"
@@ -186,7 +199,7 @@ class SpinorField(LatticeField):
 
     def gamma5(self, out=None):
         "Returns the vector transformed by gamma5"
-        out = self.prepare(out)
+        out = self.prepare_out(out)
         lib.gamma5(out.quda_field, self.quda_field)
         return out
 
