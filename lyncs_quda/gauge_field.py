@@ -387,6 +387,13 @@ class GaugeField(LatticeField):
         seed = seed or int(time() * 1e9)
         lib.gaugeGauss(self.quda_field, seed, epsilon)
 
+    def uniform(self, epsilon=1, seed=None):
+        """
+        Generates Uniform distributed SU(N) field.
+        """
+        seed = seed or int(time() * 1e9)
+        lib.gaugeUniform(self.quda_field, seed)
+
     def plaquette(self):
         """
         Computes the plaquette of the gauge field
