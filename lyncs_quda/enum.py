@@ -42,7 +42,7 @@ class EnumMeta(type):
         return cls._values.items()
 
     def clean(cls, key):
-        "Cleans a key from prefix and suffix"
+        "Strips away prefix and suffix from key"
         if isinstance(key, EnumValue):
             key = str(key)
         if isinstance(key, str):
@@ -53,17 +53,17 @@ class EnumMeta(type):
                 key = key[: -len(cls._suffix)]
         return key
 
-    def to_string(cls, key):
+    def to_string(cls, rep):
         "Returns the key representative of the given enum value"
-        key = cls.clean(key)
-        if key not in cls:
-            raise ValueError(f"Unknown enum '{key}' for {cls.__name__}")
+        rep = cls.clean(rep)
+        if rep not in cls:
+            raise ValueError(f"Unknown enum '{rep}' for {cls.__name__}")
 
-        if isinstance(key, str):
-            return key
+        if isinstance(rep, str):
+            return rep
 
-        assert isinstance(key, int)
-        return list(cls.keys())[list(cls.values()).index(key)]
+        assert isinstance(rep, int)
+        return list(cls.keys())[list(cls.values()).index(rep)]
 
     def to_int(cls, key):
         "Returns the value representative of the given enum value"
@@ -129,7 +129,6 @@ class Enum(metaclass=EnumMeta):
         key = self.key.split(".")[-1]
         old = int(getattr(out, key))
 
-        if old != new:
-            setattr(out, key, new)
-            if self.callback:
-                self.callback(instance, old, new)
+        setattr(out, key, new)
+        if self.callback:
+            self.callback(instance, old, new)

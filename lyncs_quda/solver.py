@@ -108,6 +108,7 @@ class Solver:
             raise TypeError("mat should be an instance of Dirac or DiracMatrix")
         self._mat = mat
         self._params.precision = int(QudaPrecision[mat.precision])
+        # we should not call this method after setting the below fields
         self._mat_sloppy = None
         self._mat_precon = None
         self._mat_eig = None
@@ -122,7 +123,7 @@ class Solver:
         current = getattr(self, key)
         if current is not None and current.precision == precision:
             return current
-        setattr(self, key, self.mat.new(precision=precision))
+        setattr(self, key, self.mat.copy(precision=precision))
         return getattr(self, key)
 
     @property
@@ -190,6 +191,8 @@ class Solver:
 
     @property
     def quda(self):
+        # self._params.preserve_source=lib.QUDA_PRESERVE_SOURCE_YES #see above
+        # self._params.compute_true_res = True #see above
         if self._solver is None:
             self._solver = make_shared(
                 lib.Solver.create(
@@ -216,7 +219,7 @@ class Solver:
 
     def __call__(self, rhs, out=None, warning=True, **kwargs):
         rhs = spinor(rhs)
-        out = rhs.prepare(out)
+        out = rhs.prepare_out(out)
         kwargs = self.swap(**kwargs)
         self.quda(out.quda_field, rhs.quda_field)
         self.swap(**kwargs)

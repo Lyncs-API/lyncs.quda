@@ -10,7 +10,7 @@ from lyncs_quda.testing import (
     epsilon_loop,
 )
 from lyncs_cppyy.ll import addressof
-from math import prod, isclose
+from math import isclose
 
 
 @lattice_loop
@@ -75,6 +75,11 @@ def test_zero(lib, lattice, device, dtype):
 
     assert isinstance(gf + 0, type(gf))
 
+    gf3 = momentum(lattice, dtype=dtype, device=device)
+    gf3.zero()
+    assert gf + gf3 == 0
+    assert gf3 + gf == 0
+
 
 @dtype_loop  # enables dtype
 @device_loop  # enables device
@@ -86,8 +91,6 @@ def test_unity(lib, lattice, device, dtype):
     topo = gf.topological_charge()
     assert np.isclose(topo[0], 0)
     assert topo[1] == (0, 0, 0)
-    assert gf.norm1() == 3 * 4 * np.prod(lattice)
-    assert gf.norm2() == 3 * 4 * np.prod(lattice)
     assert gf.norm1() == 3 * 4 * np.prod(lattice)
     assert gf.norm2() == 3 * 4 * np.prod(lattice)
     assert gf.abs_max() == 1
@@ -120,7 +123,6 @@ def test_random(lib, lattice, device, dtype):
 
     gf2 = gf.copy()
     assert gf == gf2
-
     assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)
 
 
@@ -132,7 +134,10 @@ def test_exponential(lib, lattice, device, dtype):
     mom = momentum(lattice, dtype=dtype, device=device)
     mom.zero()
 
+    gf.unity()
     mom.copy(out=gf)
+    assert np.allclose(gf.field, 0)
+    # gf.is_momentum = False
     assert gf == 0
 
     gf.unity()
@@ -145,6 +150,7 @@ def test_exponential(lib, lattice, device, dtype):
 
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
+    assert np.allclose(gf.field, gf2.field)
     assert gf2 == gf
 
     gf.gaussian()
@@ -202,15 +208,13 @@ def test_force(lib, lattice, device, epsilon):
     for path in "plaquette", "rectangle":
         action = getattr(gf, path + "s")()
         action2 = getattr(gf2, path + "s")()
-        rel_tol = epsilon * prod(lattice)
-        print(path, action, action2)
+        rel_tol = epsilon * np.prod(lattice)
         assert isclose(action, action2, rel_tol=rel_tol)
 
         daction = (
             getattr(gf, path + "_field")(force=True).full().dot(mom.full()).reduce()
         )
         daction2 = action2 - action
-        print(path, daction, daction2, daction / daction2)
         assert isclose(daction, daction2, rel_tol=rel_tol)
 
         zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
@@ -237,7 +241,7 @@ def test_force_gradient(lib, lattice, device, epsilon):
     gf12 = mom1.exponentiate(mul_to=gf2)
     gf21 = mom2.exponentiate(mul_to=gf1)
 
-    rel_tol = epsilon * prod(lattice)
+    rel_tol = epsilon * np.prod(lattice)
     for path in "plaquette", "rectangle":
         action = getattr(gf, path + "s")()
         action1 = getattr(gf1, path + "s")()
@@ -249,31 +253,33 @@ def test_force_gradient(lib, lattice, device, epsilon):
         ddaction12 = action12 + action - action1 - action2
 
         ddaction = (
-            getattr(gf, path + "_field")(grad=mom1).full().dot(mom2.full()).reduce()
-        )
-        print(path, ddaction, ddaction21, ddaction / ddaction21)
-        assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
-
-        ddaction = (
-            getattr(gf, path + "_field")(grad=mom1, left_grad=True)
+            getattr(gf, path + "_field")(force=True, grad=mom1)
             .full()
             .dot(mom2.full())
             .reduce()
         )
-        print(path, ddaction, ddaction12, ddaction / ddaction21)
-        assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
+        assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
 
         ddaction = (
-            getattr(gf, path + "_field")(grad=mom2).full().dot(mom1.full()).reduce()
+            getattr(gf, path + "_field")(force=True, grad=mom1, left_grad=True)
+            .full()
+            .dot(mom2.full())
+            .reduce()
         )
-        print(path, ddaction, ddaction12, ddaction / ddaction12)
         assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
 
         ddaction = (
-            getattr(gf, path + "_field")(grad=mom2, left_grad=True)
+            getattr(gf, path + "_field")(force=True, grad=mom2)
             .full()
             .dot(mom1.full())
             .reduce()
         )
-        print(path, ddaction, ddaction21, ddaction / ddaction12)
+        assert isclose(ddaction, ddaction12, rel_tol=rel_tol)
+
+        ddaction = (
+            getattr(gf, path + "_field")(force=True, grad=mom2, left_grad=True)
+            .full()
+            .dot(mom1.full())
+            .reduce()
+        )
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)

@@ -50,7 +50,8 @@ class Struct:
     _types = {}
 
     def __init__(self, *args, **kwargs):
-        self._params = getattr(lib, type(self).__name__)()
+        # ? better to simply store (key, val) pair into an instance's own __dict__, if key is in _types.keys()
+        self._params = getattr(lib, type(self).__name__)()  # ? recursive?
 
         for arg in args:
             self.update(arg)
@@ -61,12 +62,14 @@ class Struct:
         return self._types.keys()
 
     def items(self):
-        "List of (key, value) in the structure"
+        "Tuple of (key, value) in the structure"
         return ((key, getattr(self, key)) for key in self.keys())
 
     def update(self, params):
         "Updates values of the structure"
-        if not hasattr(params, "items"):
+        if not hasattr(
+            params, "items"
+        ):  # ? in __init__, it takes *args, which is a tuple.  expect a tuple of dict's?
             raise TypeError(f"Unsopported type for params: {type(params)}")
         for key, val in params.items():
             setattr(self, key, val)
@@ -76,8 +79,8 @@ class Struct:
         val = to_code(val, typ)
         cur = getattr(self._params, key)
 
-        if hasattr(cur, "shape"):
-            setitems(cur, val)
+        if hasattr(cur, "shape"):  # ? what is this?
+            setitems(cur, val)  # ?  what is this?
         else:
             setattr(self._params, key, val)
 

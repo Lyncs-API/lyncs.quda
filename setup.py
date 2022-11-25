@@ -2,8 +2,6 @@ import sys
 import os
 from lyncs_setuptools import setup, CMakeExtension, find_package
 
-exec(open("post_build.py").read())
-
 requirements = [
     "lyncs-cppyy",
     "lyncs-utils>=0.2.2",
@@ -25,6 +23,10 @@ QUDA_CMAKE_ARGS = {
     "QUDA_FORCE_GAUGE": "ON",
     "QUDA_MPI": os.environ.get("QUDA_MPI", "OFF"),
     "QUDA_MULTIGRID": "ON",
+    "QUDA_CLOVER_DYNAMIC": "OFF",
+    "QUDA_CLOVER_RECONSTRUCT": "OFF",
+    "QUDA_GAUGE_TOOLS": "ON",
+    "QUDA_GAUGE_ALG": "ON",
 }
 
 
@@ -35,6 +37,12 @@ if findMPI["cxx_found"] and os.environ.get("QUDA_MPI", None) in (None, "ON"):
 
 QUDA_CMAKE_ARGS = [key + "=" + val for key, val in QUDA_CMAKE_ARGS.items()]
 print("QUDA options:", *QUDA_CMAKE_ARGS, sep="\n")
+
+
+def post_build(*args, **kwargs):
+    exec(open("post_build.py").read(), globals())
+    post_build(*args, **kwargs)
+
 
 setup(
     "lyncs_quda",
@@ -49,6 +57,9 @@ setup(
     ],
     data_files=[(".", ["post_build.py"])],
     install_requires=requirements,
+    extras_require={
+        "hmc": ["aim"],
+    },
     keywords=[
         "Lyncs",
         "quda",
