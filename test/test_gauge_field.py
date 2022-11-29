@@ -244,19 +244,24 @@ def test_fermionic_force(lib, lattice, device, epsilon):
     R.gaussian()
 
     params = {"kappa":0.01, "csw":1}
-    D = gf.Dirac(**params)
-    D2 = gf2.Dirac(**params)
-    
+    D = gf.Dirac(computeTrLog=1, **params)
+    print(D.__annotations__)
+
     # U'- U ~ eps*mom where U' = exp(eps*mom)*U
     for parity in [None, "EVEN"]:
+        params.update({"full":True if parity is None else False,
+                       "symm":False if params["csw"] != 0 else True})
+        D = gf.Dirac(**params)
+        D2 = gf2.Dirac(**params)
+
         phi = D.Mdag(R)
-        action = D.action(phi, parity=parity) 
-        action2 = D2.action(phi, parity=parity)
+        action = D.action(phi) 
+        action2 = D2.action(phi)
         rel_tol = epsilon * np.prod(lattice) * 4
         print(parity, action, action2)
         assert isclose(action, action2, rel_tol=rel_tol)
 
-        daction = D.force(phi, parity=parity).full().dot(mom.full()).reduce(mean=False)
+        daction = D.force(phi).full().dot(mom.full()).reduce(mean=False)
         daction2 = action2 - action
         print(parity, daction, daction2, daction / daction2)
         assert isclose(daction, daction2, rel_tol=rel_tol)

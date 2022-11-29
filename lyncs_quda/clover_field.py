@@ -308,7 +308,7 @@ class CloverField(LatticeField):
         "Restore clover field (& its inverse if computed) from CPU to GPU"
         self.quda_field.restore()
 
-    def computeCloverForce(self, gauge, force, D, vxs, vps, mult=2, coeffs=None, parity=None):
+    def computeCloverForce(self, gauge, force, D, vxs, vps, mult=2, coeffs=None):
         # contribution from TrLn A and U dA/dU are similar except for the factor in the middle of the expression
         # i.e., they have the form: GL A GR where A is different
         # so computeCloverSigmaTrace and computeCloverSigmaOprod computes A for each and add them together.
@@ -323,21 +323,20 @@ class CloverField(LatticeField):
         k2 = D.kappa*D.kappa
         n = len(vxs)
         
-        if parity == "ODD":
+        if not self.full and not self.even:
             # The obstacle is computeCloverSigmaTrace
             # This needs to be able to work on both A_o and A_e
             raise NotImplementedError("QUDA implements only for EVEN case")
         
         # First compute the contribution from Tr ln A
         oprod = force.new(reconstruct="NO", empty=False, is_momentum=False, dofs=(6,18))
-        assert oprod == 0
-        if parity == "EVEN":
+        if not self.full and self.even::
             # check!: we need only TrLn A_o for EVEN and TrLn A_e for ODD.
             D.clover.inverse_field
             lib.computeCloverSigmaTrace(oprod.quda_field, D.clover.quda_field, 2.0*ck*mult)
             
-        # Now the U dA/dU terms
-        ferm_epsilon = lib.std.vector([lib.std.vector([2.0*ck*coeffs[i], -k2 * 2.0*ck*coeffs[i]] if parity != None
+        # Now the U dA/dU terms (for the moment, we assume either full or even)
+        ferm_epsilon = lib.std.vector([lib.std.vector([2.0*ck*coeffs[i], -k2 * 2.0*ck*coeffs[i]] if self.full
                                                       else [2.0*ck*coeffs[i], 2.0*ck*coeffs[i]]
                                                       ) for i in range(n)])
         lib.computeCloverSigmaOprod(oprod.quda_field, vxs, vps, ferm_epsilon)

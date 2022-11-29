@@ -9,14 +9,14 @@ __all__ = [
 from functools import wraps
 from dataclasses import dataclass, field
 from numpy import sqrt
-from dataclasses import dataclass
-from typing import Union, List
+from typing import Union
 from lyncs_cppyy import make_shared, nullptr
 from .gauge_field import gauge, GaugeField
 from .clover_field import CloverField
 from .spinor_field import spinor
 from .lib import lib
 from .enums import QudaPrecision
+
 
 @dataclass(frozen=True)
 class Dirac:
@@ -32,7 +32,9 @@ class Dirac:
     csw: float = 0
     mu: float = 0
     epsilon: float = 0
-    matPCtype: str = "INVALID"
+    full: int = field(default=True)
+    even: int = True
+    symm: int = True
     # For QUDA CloverField class:
     rho: float = 0
     computeTrLog: bool = False
@@ -44,7 +46,7 @@ class Dirac:
     @property
     def type(self):
         "Type of the operator"
-        PC = "PC" if self.matPCtype != "INVALID" else ""
+        PC = "PC" if not self.full else ""
         if self.gauge.is_coarse:
             return "COARSE" + PC
         if self.csw == 0:
@@ -55,20 +57,21 @@ class Dirac:
             return "CLOVER" + PC
         return "TWISTED_CLOVER" + PC
 
-    # better strategy?
-    def _change_attr(self, name, val:str):
-        object.__setattr__(self, name,  val)
-        object.__setattr__(self, "_quda", None)
-        
     @property
     def quda_type(self):
         "Quda enum for quda dslash type"
         return getattr(lib, f"QUDA_{self.type}_DIRAC")
 
     @property
+    def matPCtype(self):
+        if not self.full:
+            return "INVALID"
+        parity = "EVEN" if self.even else "ODD"
+        symm = '_ASYMMETRIC' if self.symm else ''
+        return f"{parity}_{parity}{symm}"
+
+    @property
     def quda_matPCtype(self):
-        if self.matPCtype is None:
-            self.matPCtype = "INVALID"
         return getattr(lib, f"QUDA_MATPC_{self.matPCtype}")
     
     @property
@@ -176,15 +179,14 @@ class Dirac:
         "Returns the respective quda matrix."
         return DiracMatrix(self, key)
 
+    #? DiracMatrix simply calls the corresponding method
+    #  of Dirac with the same name, e.g., DiracM() -> Dirac.M()
+    #  Why not directly invoking this method?  to reduce the code duplicacy?
     def __call__(self, spinor_in, spinor_out=None, key="M"):
         return self.get_matrix(key)(spinor_in, spinor_out)
 
     # TODO: Support more functors: Dagger, G5M
 
-    #? DiracMatrix simply calls the corresponding method
-    #  of Dirac with the same name..., e.g., DiracM() -> Dirac.M()
-    #  Methos below calls Dirac.M* via DiracMatrix, which
-    #  seems unnecessary detour
     @property
     def M(self):
         "Returns the matrix M"
@@ -210,40 +212,50 @@ class Dirac:
         "Returns the matrix MMdag"
         return self.get_matrix("MMdag")
 
-    def action(self, phi, parity=None, **params):
+    def action(self, phi, **params):
         """
         Retruns pseudo-fermionic action given the pseudo-fermion field
         IN: phi = random field according to exp(-phi*(D^dag D)^{-1}phi
         IN: params = params for Dirac matrix and solver
         """
 
-        if parity in ("EVEN", "ODD"):
-            symm = "_ASYMMETRIC" if "CLOVER" in self.type else ""
-            self._change_attr("matPCtype", f"{parity}_{parity}{symm}")
-        self._change_attr("computeTrLog", True)
-        
+        if not self.full:
+            if "CLOVER" in self.type and self.symm == True:
+                raise ValueError("Preconditioned matrix should be asymmetric")
+            if "CLOVER" not in self.type and self.symm != True:
+                raise ValueError("Preconditioned matrix should be symmetric for non-clover type Dirac matrix")
+            if "CLOVER" in self.type and self.computeTrLog != True:
+                raise ValueError("computeTrLog should be set True in the preconditioned case")
+
+        parity = None
+        if not self.full:
+            parity = "EVEN" if self.even else None
         s_params = {k:v for k,v in params.items() if k in self.Solver.default_params}
         solver = self.Mdag.Solver(**s_params)
-        if "PC" in self.type and "CLOVER" in self.type:
-            self.clover.inverse_field
-
         inv = solver(phi, parity=parity, **s_params)
         out = inv.norm2(parity=parity)
-        #? so trLog[0] contains trLog A_odd, and trLog[1] trLog A_even? (c.f., clover_invert.cuh)
-        if parity == "EVEN" and "CLOVER" in self.type:
-            out -= 2*self.clover.trLog[0]
-        elif parity == "ODD" and "CLOVER" in self.type:
-            out -= 2*self.clover.trLog[1]
+
+        if not self.full and "CLOVER" in self.type:
+            self.clover.inverse_field
+            #? so trLog[0] contains trLog A_odd, and trLog[1] trLog A_even? (c.f., clover_invert.cuh)
+            if self.even:
+                out -= 2*self.clover.trLog[0]
+            else:
+                out -= 2*self.clover.trLog[1]
 
         return out
 
-    def force(self, *phis, out=None, mult=2, coeffs=None, parity=None, **params):
+    def force(self, *phis, out=None, mult=2, coeffs=None, **params):
         """
         Description: Returns fermionic force 
         phis (IN): a tuple of pdeudofermion fields
         coeffs (IN): Array of residues for each contribution (multiplied by stepsize) and dt
         mult (IN): Number fermions this bilinear reresents 
         """
+
+        if not self.full and "CLOVER" in self.type and self.symm == True:
+            raise ValueError("The preconditioned matrix should be asymmetric for clover-type Wilson operators")
+        
         if out is None:
             out = self.gauge.new(dofs=(4, 18), empty=False) #ZERO_FIELD (c.f. interface_quda.cpp)
 
@@ -253,19 +265,16 @@ class Dirac:
         _coeffs = lib.std.vector['double'](range(n))
         if coeffs is None:
             coeffs = [1.0 for _ in range(n)]
-            
-        symm = "_ASYMMETRIC" if "CLOVER" in self.type else ""
-        self._change_attr("matPCtype", "INVALID" if parity is None else f"{parity}_{parity}{symm}")
 
         solver = self.MdagM.Solver()
         s_params = {k:v for k,v in params.items() if k in solver.default_params}
 
         D = self
-        if parity is None:
+        if self.full:
             for i, phi in enumerate(phis):
                 xs.append(solver(phi, **s_params))
                 D(xs[-1], spinor_out = ps[i])
-        elif parity == "EVEN":
+        elif self.even:
             # Even-odd preconditioned case (i.e., PC in Dirac.type):
             # use only even part of phi
             for i, phi in enumerate(phis):
@@ -275,7 +284,7 @@ class Dirac:
                 D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
                 D.quda_dirac.Dslash(ps[i].quda_field.Odd(), ps[i].quda_field.Even(), getattr(lib, "QUDA_ODD_PARITY"));
                 D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_NO"))
-        elif parity == "ODD":
+        else:
             # Even-odd preconditioned case (i.e., PC in Dirac.type):
             # use only odd part of phi
             for i, phi in enumerate(phis):
@@ -285,23 +294,21 @@ class Dirac:
                 D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
                 D.quda_dirac.Dslash(ps[i].quda_field.Even(), ps[i].quda_field.Odd(), getattr(lib, "QUDA_EVEN_PARITY"))
                 D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_NO"))
-        else:
-            raise ValueError("parity should be either EVEN or ODD!")
         
         for i in range(n):
             xs[i].apply_gamma5()
             ps[i].apply_gamma5()
-            _coeffs[i] = 2.0*coeffs[i]*D.kappa*D.kappa if parity is not None else 2.0*coeffs[i]*D.kappa
+            _coeffs[i] = 2.0*coeffs[i]*D.kappa*D.kappa if not self.full else 2.0*coeffs[i]*D.kappa
 
         vxs = lib.std.vector['quda::ColorSpinorField *']([x.quda_field.__smartptr__().get() for x in xs])
         vps = lib.std.vector['quda::ColorSpinorField *']([p.quda_field.__smartptr__().get() for p in ps])
         lib.computeCloverForce(out.quda_field, self.gauge.quda_field, vxs, vps, _coeffs)
-
+        
         if "CLOVER" in D.type:
-            out = D.clover.computeCloverForce(self.gauge, out, D, vxs, vps,  mult=mult, coeffs=coeffs, parity=parity)
+            out = D.clover.computeCloverForce(self.gauge, out, D, vxs, vps,  mult=mult, coeffs=coeffs)
             
         return out
-
+    
 
 GaugeField.Dirac = wraps(Dirac)(lambda *args, **kwargs: Dirac(*args, **kwargs))
 
