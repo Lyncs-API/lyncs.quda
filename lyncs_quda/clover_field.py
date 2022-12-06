@@ -319,24 +319,27 @@ class CloverField(LatticeField):
         # coeff: Array of residues for each contribution (multiplied by stepsize)
         #  interface_quda.cpp suggests that it is an overall coeffs to the entire force term except for sigmaTr
 
+        # TODO
+        # does not work when D.type == CLOVERPC
+        
         ck = D.kappa*D.csw/8.0
         k2 = D.kappa*D.kappa
         n = len(vxs)
         
-        if not self.full and not self.even:
+        if not D.full and not D.even:
             # The obstacle is computeCloverSigmaTrace
             # This needs to be able to work on both A_o and A_e
             raise NotImplementedError("QUDA implements only for EVEN case")
         
         # First compute the contribution from Tr ln A
         oprod = force.new(reconstruct="NO", empty=False, is_momentum=False, dofs=(6,18))
-        if not self.full and self.even::
+        if not D.full and D.even:
             # check!: we need only TrLn A_o for EVEN and TrLn A_e for ODD.
             D.clover.inverse_field
             lib.computeCloverSigmaTrace(oprod.quda_field, D.clover.quda_field, 2.0*ck*mult)
             
         # Now the U dA/dU terms (for the moment, we assume either full or even)
-        ferm_epsilon = lib.std.vector([lib.std.vector([2.0*ck*coeffs[i], -k2 * 2.0*ck*coeffs[i]] if self.full
+        ferm_epsilon = lib.std.vector([lib.std.vector([2.0*ck*coeffs[i], -k2 * 2.0*ck*coeffs[i]] if not D.full
                                                       else [2.0*ck*coeffs[i], 2.0*ck*coeffs[i]]
                                                       ) for i in range(n)])
         lib.computeCloverSigmaOprod(oprod.quda_field, vxs, vps, ferm_epsilon)

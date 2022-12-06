@@ -64,10 +64,10 @@ class Dirac:
 
     @property
     def matPCtype(self):
-        if not self.full:
+        if self.full:
             return "INVALID"
         parity = "EVEN" if self.even else "ODD"
-        symm = '_ASYMMETRIC' if self.symm else ''
+        symm = '_ASYMMETRIC' if not self.symm else ''
         return f"{parity}_{parity}{symm}"
 
     @property
@@ -216,7 +216,7 @@ class Dirac:
         """
         Retruns pseudo-fermionic action given the pseudo-fermion field
         IN: phi = random field according to exp(-phi*(D^dag D)^{-1}phi
-        IN: params = params for Dirac matrix and solver
+        IN: params = params for solver
         """
 
         if not self.full:
@@ -229,19 +229,18 @@ class Dirac:
 
         parity = None
         if not self.full:
-            parity = "EVEN" if self.even else None
+            parity = "EVEN" if self.even else "ODD"
         s_params = {k:v for k,v in params.items() if k in self.Solver.default_params}
         solver = self.Mdag.Solver(**s_params)
-        inv = solver(phi, parity=parity, **s_params)
+        
+        inv = solver(phi, **s_params)
         out = inv.norm2(parity=parity)
-
         if not self.full and "CLOVER" in self.type:
             self.clover.inverse_field
-            #? so trLog[0] contains trLog A_odd, and trLog[1] trLog A_even? (c.f., clover_invert.cuh)
             if self.even:
-                out -= 2*self.clover.trLog[0]
-            else:
                 out -= 2*self.clover.trLog[1]
+            else:
+                out -= 2*self.clover.trLog[0]
 
         return out
 
@@ -278,7 +277,7 @@ class Dirac:
             # Even-odd preconditioned case (i.e., PC in Dirac.type):
             # use only even part of phi
             for i, phi in enumerate(phis):
-                xs.append(solver(phi, parity="EVEN", **s_params)) # phi = (MdagM)^{-1}phi_even
+                xs.append(solver(phi, **s_params)) # phi = (MdagM)^{-1}phi_even
                 D.quda_dirac.Dslash(xs[-1].quda_field.Odd(), xs[-1].quda_field.Even(), getattr(lib, "QUDA_ODD_PARITY"))
                 D.quda_dirac.M(ps[i].quda_field.Even(), xs[-1].quda_field.Even())
                 D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
@@ -288,7 +287,7 @@ class Dirac:
             # Even-odd preconditioned case (i.e., PC in Dirac.type):
             # use only odd part of phi
             for i, phi in enumerate(phis):
-                xs.append(solver(phi, parity="ODD", **s_params))
+                xs.append(solver(phi, **s_params))
                 D.quda_dirac.Dslash(xs[-1].quda_field.Even(), xs[-1].quda_field.Odd(), getattr(lib, "QUDA_EVEN_PARITY"))
                 D.quda_dirac.M(ps[i].quda_field.Odd(), xs[-1].quda_field.Odd())
                 D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
@@ -325,7 +324,13 @@ class DiracMatrix:
     def __call__(self, rhs, out=None):
         rhs = spinor(rhs)
         out = rhs.prepare(out)
-        self.quda(out.quda_field, rhs.quda_field)
+
+        if self.dirac.full:
+            self.quda(out.quda_field, rhs.quda_field)
+        elif self.dirac.even:
+            self.quda(out.quda_field.Even(), rhs.quda_field.Even())
+        else:
+            self.quda(out.quda_field.Odd(), rhs.quda_field.Odd())
         return out
 
 
