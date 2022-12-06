@@ -67,13 +67,13 @@ class Dirac:
         if self.full:
             return "INVALID"
         parity = "EVEN" if self.even else "ODD"
-        symm = '_ASYMMETRIC' if not self.symm else ''
+        symm = "_ASYMMETRIC" if not self.symm else ""
         return f"{parity}_{parity}{symm}"
 
     @property
     def quda_matPCtype(self):
         return getattr(lib, f"QUDA_MATPC_{self.matPCtype}")
-    
+
     @property
     def is_coarse(self):
         "Whether is a coarse operator"
@@ -104,7 +104,7 @@ class Dirac:
         params.epsilon = self.epsilon
         params.dagger = self.quda_dagger
         params.matpcType = self.quda_matPCtype
-        
+
         # Needs to prevent the gauge field to get destroyed
         #  now we store QUDA gauge object in _quda, but it
         #  still can be a problem if we create DiracMatrix object
@@ -140,9 +140,11 @@ class Dirac:
     def quda_dirac(self):
         if not self.is_coarse:
             if self._quda is None:
-                object.__setattr__(self, "_quda", make_shared(lib.Dirac.create(self.quda_params)))
+                object.__setattr__(
+                    self, "_quda", make_shared(lib.Dirac.create(self.quda_params))
+                )
             return self._quda
-            
+
         #  This constcutor seems to rely on initializeLazy when performing M, MdagM, etc.
         #  initializeLazy seems to assume that if gauge is allocated on LOCATION,
         #  then coarse_* is alredy allocated on LOCATION too if we use the follwing constructor
@@ -153,33 +155,37 @@ class Dirac:
         assert self.clover is not None and isinstance(self.clover, GaugeField)
         if self._quda is None:
             object.__setattr__(
-                self,"_quda",
-                make_shared(lib.DiracCoarse(
-                    self.quda_params,
-                    self.gauge.cpu_field,
-                    self.clover.cpu_field,
-                    self.coarse_clover_inv.cpu_field
-                    if self.coarse_clover_inv is not None
-                    else nullptr,
-                    self.coarse_precond.cpu_field
-                    if self.coarse_precond is not None
-                    else nullptr,
-                    self.gauge.gpu_field,
-                    self.clover.gpu_field,
-                    self.coarse_clover_inv.gpu_field
-                    if self.coarse_clover_inv is not None
-                    else nullptr,
-                    self.coarse_precond.gpu_field
-                    if self.coarse_precond is not None
-                    else nullptr,
-                )))
+                self,
+                "_quda",
+                make_shared(
+                    lib.DiracCoarse(
+                        self.quda_params,
+                        self.gauge.cpu_field,
+                        self.clover.cpu_field,
+                        self.coarse_clover_inv.cpu_field
+                        if self.coarse_clover_inv is not None
+                        else nullptr,
+                        self.coarse_precond.cpu_field
+                        if self.coarse_precond is not None
+                        else nullptr,
+                        self.gauge.gpu_field,
+                        self.clover.gpu_field,
+                        self.coarse_clover_inv.gpu_field
+                        if self.coarse_clover_inv is not None
+                        else nullptr,
+                        self.coarse_precond.gpu_field
+                        if self.coarse_precond is not None
+                        else nullptr,
+                    )
+                ),
+            )
         return self._quda
 
     def get_matrix(self, key="M"):
         "Returns the respective quda matrix."
         return DiracMatrix(self, key)
 
-    #? DiracMatrix simply calls the corresponding method
+    # ? DiracMatrix simply calls the corresponding method
     #  of Dirac with the same name, e.g., DiracM() -> Dirac.M()
     #  Why not directly invoking this method?  to reduce the code duplicacy?
     def __call__(self, spinor_in, spinor_out=None, key="M"):
@@ -223,91 +229,125 @@ class Dirac:
             if "CLOVER" in self.type and self.symm == True:
                 raise ValueError("Preconditioned matrix should be asymmetric")
             if "CLOVER" not in self.type and self.symm != True:
-                raise ValueError("Preconditioned matrix should be symmetric for non-clover type Dirac matrix")
+                raise ValueError(
+                    "Preconditioned matrix should be symmetric for non-clover type Dirac matrix"
+                )
             if "CLOVER" in self.type and self.computeTrLog != True:
-                raise ValueError("computeTrLog should be set True in the preconditioned case")
+                raise ValueError(
+                    "computeTrLog should be set True in the preconditioned case"
+                )
 
         parity = None
         if not self.full:
             parity = "EVEN" if self.even else "ODD"
-        s_params = {k:v for k,v in params.items() if k in self.Solver.default_params}
+        s_params = {k: v for k, v in params.items() if k in self.Solver.default_params}
         solver = self.Mdag.Solver(**s_params)
-        
+
         inv = solver(phi, **s_params)
         out = inv.norm2(parity=parity)
         if not self.full and "CLOVER" in self.type:
             self.clover.inverse_field
             if self.even:
-                out -= 2*self.clover.trLog[1]
+                out -= 2 * self.clover.trLog[1]
             else:
-                out -= 2*self.clover.trLog[0]
+                out -= 2 * self.clover.trLog[0]
 
         return out
 
     def force(self, *phis, out=None, mult=2, coeffs=None, **params):
         """
-        Description: Returns fermionic force 
+        Description: Returns fermionic force
         phis (IN): a tuple of pdeudofermion fields
         coeffs (IN): Array of residues for each contribution (multiplied by stepsize) and dt
-        mult (IN): Number fermions this bilinear reresents 
+        mult (IN): Number fermions this bilinear reresents
         """
 
         if not self.full and "CLOVER" in self.type and self.symm == True:
-            raise ValueError("The preconditioned matrix should be asymmetric for clover-type Wilson operators")
-        
+            raise ValueError(
+                "The preconditioned matrix should be asymmetric for clover-type Wilson operators"
+            )
+
         if out is None:
-            out = self.gauge.new(dofs=(4, 18), empty=False) #ZERO_FIELD (c.f. interface_quda.cpp)
+            out = self.gauge.new(
+                dofs=(4, 18), empty=False
+            )  # ZERO_FIELD (c.f. interface_quda.cpp)
 
         n = len(phis)
         xs = []
         ps = [spinor(self.gauge.lattice) for i in range(n)]
-        _coeffs = lib.std.vector['double'](range(n))
+        _coeffs = lib.std.vector["double"](range(n))
         if coeffs is None:
             coeffs = [1.0 for _ in range(n)]
 
         solver = self.MdagM.Solver()
-        s_params = {k:v for k,v in params.items() if k in solver.default_params}
+        s_params = {k: v for k, v in params.items() if k in solver.default_params}
 
         D = self
         if self.full:
             for i, phi in enumerate(phis):
                 xs.append(solver(phi, **s_params))
-                D(xs[-1], spinor_out = ps[i])
+                D(xs[-1], spinor_out=ps[i])
         elif self.even:
             # Even-odd preconditioned case (i.e., PC in Dirac.type):
             # use only even part of phi
             for i, phi in enumerate(phis):
-                xs.append(solver(phi, **s_params)) # phi = (MdagM)^{-1}phi_even
-                D.quda_dirac.Dslash(xs[-1].quda_field.Odd(), xs[-1].quda_field.Even(), getattr(lib, "QUDA_ODD_PARITY"))
+                xs.append(solver(phi, **s_params))  # phi = (MdagM)^{-1}phi_even
+                D.quda_dirac.Dslash(
+                    xs[-1].quda_field.Odd(),
+                    xs[-1].quda_field.Even(),
+                    getattr(lib, "QUDA_ODD_PARITY"),
+                )
                 D.quda_dirac.M(ps[i].quda_field.Even(), xs[-1].quda_field.Even())
-                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
-                D.quda_dirac.Dslash(ps[i].quda_field.Odd(), ps[i].quda_field.Even(), getattr(lib, "QUDA_ODD_PARITY"));
-                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_NO"))
+                D.quda_dirac.Dagger(getattr(lib, "QUDA_DAG_YES"))
+                D.quda_dirac.Dslash(
+                    ps[i].quda_field.Odd(),
+                    ps[i].quda_field.Even(),
+                    getattr(lib, "QUDA_ODD_PARITY"),
+                )
+                D.quda_dirac.Dagger(getattr(lib, "QUDA_DAG_NO"))
         else:
             # Even-odd preconditioned case (i.e., PC in Dirac.type):
             # use only odd part of phi
             for i, phi in enumerate(phis):
                 xs.append(solver(phi, **s_params))
-                D.quda_dirac.Dslash(xs[-1].quda_field.Even(), xs[-1].quda_field.Odd(), getattr(lib, "QUDA_EVEN_PARITY"))
+                D.quda_dirac.Dslash(
+                    xs[-1].quda_field.Even(),
+                    xs[-1].quda_field.Odd(),
+                    getattr(lib, "QUDA_EVEN_PARITY"),
+                )
                 D.quda_dirac.M(ps[i].quda_field.Odd(), xs[-1].quda_field.Odd())
-                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_YES"))
-                D.quda_dirac.Dslash(ps[i].quda_field.Even(), ps[i].quda_field.Odd(), getattr(lib, "QUDA_EVEN_PARITY"))
-                D.quda_dirac.Dagger(getattr(lib,"QUDA_DAG_NO"))
-        
+                D.quda_dirac.Dagger(getattr(lib, "QUDA_DAG_YES"))
+                D.quda_dirac.Dslash(
+                    ps[i].quda_field.Even(),
+                    ps[i].quda_field.Odd(),
+                    getattr(lib, "QUDA_EVEN_PARITY"),
+                )
+                D.quda_dirac.Dagger(getattr(lib, "QUDA_DAG_NO"))
+
         for i in range(n):
             xs[i].apply_gamma5()
             ps[i].apply_gamma5()
-            _coeffs[i] = 2.0*coeffs[i]*D.kappa*D.kappa if not self.full else 2.0*coeffs[i]*D.kappa
+            _coeffs[i] = (
+                2.0 * coeffs[i] * D.kappa * D.kappa
+                if not self.full
+                else 2.0 * coeffs[i] * D.kappa
+            )
 
-        vxs = lib.std.vector['quda::ColorSpinorField *']([x.quda_field.__smartptr__().get() for x in xs])
-        vps = lib.std.vector['quda::ColorSpinorField *']([p.quda_field.__smartptr__().get() for p in ps])
+        vxs = lib.std.vector["quda::ColorSpinorField *"](
+            [x.quda_field.__smartptr__().get() for x in xs]
+        )
+        vps = lib.std.vector["quda::ColorSpinorField *"](
+            [p.quda_field.__smartptr__().get() for p in ps]
+        )
         lib.computeCloverForce(out.quda_field, self.gauge.quda_field, vxs, vps, _coeffs)
-        
+
         if "CLOVER" in D.type:
-            out = D.clover.computeCloverForce(self.gauge, out, D, vxs, vps,  mult=mult, coeffs=coeffs)
-            
+            out = D.clover.computeCloverForce(
+                self.gauge, out, D, vxs, vps, mult=mult, coeffs=coeffs
+            )
+
         return out
-    
+
 
 GaugeField.Dirac = wraps(Dirac)(lambda *args, **kwargs: Dirac(*args, **kwargs))
 
@@ -316,7 +356,7 @@ class DiracMatrix:
     __slots__ = ["dirac", "_prec", "_matrix", "_key"]
 
     def __init__(self, dirac, key="M"):
-        self.dirac = dirac 
+        self.dirac = dirac
         self._matrix = getattr(lib, "Dirac" + key)(self.dirac.quda_dirac)
         self._key = key
         self._prec = dirac.precision

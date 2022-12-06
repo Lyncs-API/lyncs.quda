@@ -14,7 +14,7 @@ from lyncs_quda.testing import (
 def test_solve_random(lib, lattice, device, gamma, dtype=None):
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.gaussian()
-    dirac = gf.Dirac(kappa=0.01, csw = 1, computeTrLog=True)
+    dirac = gf.Dirac(kappa=0.01, csw=1, computeTrLog=True)
     rhs = spinor(lattice, dtype=dtype, device=device, gamma_basis=gamma)
     rhs.uniform()
     mat = dirac.M

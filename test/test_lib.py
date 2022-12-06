@@ -13,5 +13,6 @@ def test_init(lib):
     lib.init_quda()
     assert lib.initialized
 
+
 def test_excep(lib):
     lib.test_exception()

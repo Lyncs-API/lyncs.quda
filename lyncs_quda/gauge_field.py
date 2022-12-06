@@ -78,9 +78,12 @@ class GaugeField(LatticeField):
         elif reconstruct == self.reconstruct:
             pass
         elif reconstruct == "NO":  # ? what if geometry == COARSE?
-            if "dofs" not in kwargs.keys(): #just a quick fix. 
+            if "dofs" not in kwargs.keys():  # just a quick fix.
                 size = self.ncol**2
-                kwargs["dofs"] = (self.geometry_size, size if self.iscomplex else size * 2)
+                kwargs["dofs"] = (
+                    self.geometry_size,
+                    size if self.iscomplex else size * 2,
+                )
         else:
             try:
                 val = int(reconstruct)
