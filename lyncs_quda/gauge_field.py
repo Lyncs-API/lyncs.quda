@@ -95,38 +95,45 @@ class GaugeField(LatticeField):
         out.is_momentum = is_momentum
         return out
 
-    def equivalent(self, other, switch=False, **kwargs):
+    def equivalent(self, other, **kwargs):
         "Whether a field is equivalent to the current"
-        if not super().equivalent(other, switch=switch, **kwargs):
+        if not super().equivalent(other, **kwargs):
             return False
-        if switch:
-            self, other = other, self
         reconstruct = kwargs.get("reconstruct", self.reconstruct)
         if other.reconstruct != str(reconstruct):
             return False
         return True
+
+    def copy(self, other=None, out=None, **kwargs):
+        "Returns out, a copy+=kwargs, of other if given, else of self"
+        # Note for Future Developers:
+        # This will turn every term in the expression into the one
+        #  with link_type = MOM if there is one such term in the expression
+        # As for other link types except SU3 and MOM, such mixture simply
+        #  results in QUDA errors
+
+        src = self if other is None else other
+        dst = self if out is None else out
+        if src.is_momentum != dst.is_momentum:
+            kwargs.update({"is_momentum": True})
+
+        return super().copy(other, out, **kwargs)
 
     def __array_finalize__(self, obj):
         "Support for __array_finalize__ standard"
         # need to reset QUDA object when meta data of its Python wrapper is changed
         self._quda = None
 
-    def prepare(self, *fields, **kwargs):
-        "Prepares the fields by creating new one if None given else casting them to type(self) then  checking them if compatible with self and/or copying them"
+    def _prepare(self, *fields, **kwargs):
+        "Prepares the fields by creating new one if None given else casting them to type(self) then checking them if compatible with self and/or copying them"
 
-        fields = super().prepare(*fields, **kwargs)
-        if type(fields) is not tuple:
+        fields = super()._prepare(*fields, **kwargs)
+        # ? we don't need to do the following except for the base case?
+        for field in fields if isinstance(fields, tuple) else (fields,):
             is_momentum = kwargs.get("is_momentum", self.is_momentum)
-            fields.is_momentum = is_momentum
+            field.is_momentum = is_momentum
+
         return fields
-
-    def cast(self, other=None, **kwargs):
-        "Cast a field into its type and check for compatibility"
-
-        other = super().cast(other, **kwargs)
-        is_momentum = kwargs.get("is_momentum", self.is_momentum)
-        other.is_momentum = is_momentum
-        return other
 
     @property
     def dofs_per_link(self):
@@ -392,7 +399,7 @@ class GaugeField(LatticeField):
 
     def dagger(self, out=None):
         "Returns the complex conjugate transpose of the field"
-        out = self.prepare(out)
+        out = self.prepare_out(out)
         self.backend.conj(
             self.default_view().transpose((0, 1, 3, 2, 4)), out=out.default_view()
         )
@@ -416,7 +423,7 @@ class GaugeField(LatticeField):
             raise ValueError
         self = self.full()
         other = other.full()
-        out = self.prepare(out)
+        out = self.prepare_out(out)
         self.backend.matmul(
             self.default_view(),
             other.default_view(),
@@ -442,7 +449,7 @@ class GaugeField(LatticeField):
         assert self.device == cupy.cuda.runtime.getDevice()
         fails = cupy.zeros((1,), dtype="int32")
         lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
-        #return fails.get()[0]  # shouldn't we reduce?
+        # return fails.get()[0]  # shouldn't we reduce?
         return super().reduce(fails.get()[0])
 
     def gaussian(self, epsilon=1, seed=None):
@@ -459,6 +466,13 @@ class GaugeField(LatticeField):
         # TODO: Check the acceptable geometries of the gauge field
         seed = seed or int(time() * 1e9)
         lib.gaugeGauss(self.quda_field, seed, epsilon)
+
+    def uniform(self, epsilon=1, seed=None):
+        """
+        Generates Uniform distributed SU(N) field.
+        """
+        seed = seed or int(time() * 1e9)
+        lib.gaugeUniform(self.quda_field, seed)
 
     def plaquette(self):
         """
@@ -485,7 +499,7 @@ class GaugeField(LatticeField):
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
 
-        out = self.prepare(out, dofs=(6, 9 if self.iscomplex else 18))
+        out = self.prepare_out(out, dofs=(6, 9 if self.iscomplex else 18))
         lib.computeFmunu(out.quda_field, self.extended_field(1))
         return out
 
@@ -648,8 +662,7 @@ class GaugeField(LatticeField):
 
         # Preparing grad and fnc
         if grad is not None:
-            force = True
-            grad = self.cast(grad, reconstruct=10)
+            grad = self.prepare_in(grad, reconstruct=10)
             fnc = lambda out, u, *args: self._gaugeForceGradient(
                 out,
                 u,
@@ -673,7 +686,7 @@ class GaugeField(LatticeField):
         max_length = paths.shape[2]
         quda_paths_array = array_to_pointers(paths)
         coeffs = numpy.array(coeffs, dtype="float64")
-        out = self.prepare(out, empty=False, reconstruct=10 if force else None)
+        out = self.prepare_out(out, empty=False, reconstruct=10 if force else None)
 
         fnc(
             out.quda_field,
@@ -738,7 +751,11 @@ class GaugeField(LatticeField):
         """
         # TODO: Check the acceptable geometries of the gauge field
         if out is None:
-            out = mul_to.new() if mul_to is not None else self.new(reconstruct="NO", is_momentum=False) #the result of exponentiation should be SU3?
+            out = (
+                mul_to.new()
+                if mul_to is not None
+                else self.new(reconstruct="NO", is_momentum=False)
+            )  # the result of exponentiation should be SU3?
         if mul_to is None:
             mul_to = out.new()
             mul_to.unity()
@@ -752,6 +769,7 @@ class GaugeField(LatticeField):
         """
         Updates a gauge field with momentum field
         """
+        mom = self.prepare_in(mom, reconstruct="10")
         return mom.exponentiate(
             coeff=coeff, mul_to=self, out=out, conj=conj, exact=exact
         )
@@ -784,21 +802,3 @@ class GaugeField(LatticeField):
     def iwasaki_gauge_action(self, plaq_coeff=0):
         "Returns the Iwasaki gauge action"
         return self.gauge_action(plaq_coeff, -0.331)
-
-    def __array_ufunc__(self, ufunc, method, *args, **kwargs):
-        prepare = (
-            lambda arg: arg.full()
-            if isinstance(arg, GaugeField)
-            else arg
-	)
-        
-        args = tuple(map(prepare, args))
-
-        for key, val in kwargs.items():
-            if isinstance(val, (tuple, list)):
-                kwargs[key] = type(val)(map(prepare, val))
-            else:
-                kwargs[key] = prepare(val)
-                
-        return super().__array_ufunc__(ufunc, method, *args, **kwargs)
-        

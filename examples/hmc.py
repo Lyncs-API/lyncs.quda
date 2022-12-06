@@ -253,8 +253,8 @@ class HMC:
     "--lattice-dims",
     nargs=4,
     type=int,
-    default=(0, 0, 0, 0),
-    help="Size of asymmetric lattice",
+    default=None,
+    help="Size of lattice dimensions (replaces lattice-size)",
 )
 @click.option(
     "--procs",
@@ -287,12 +287,18 @@ class HMC:
     default="random",
     help="Initial field",
 )
+@click.option(
+    "--logdir",
+    type=click.Path(writable=True),
+    default=".",
+    help="Logging directory",
+)
 def main(**kwargs):
     args = Namespace(**kwargs)
 
     lattice = (
-        args.lattice_dims if prod(args.lattice_dims) != 0 else (args.lattice_size,) * 4
-        )
+        args.lattice_dims if args.lattice_dims is not None else (args.lattice_size,) * 4
+    )
     lib.set_comm(procs=args.procs)
     helper = HMCHelper(args.beta, lattice)
     integr = HMC_INTEGRATORS[args.integrator]
@@ -306,16 +312,15 @@ def main(**kwargs):
     else:
         raise ValueError("Unknown start")
 
-    dname = "/cyclamen/home/syamamoto/Lattice2022/"
+    dname = args.logdir
     fname = (
         "".join(tuple(map(str, args.procs + lattice)))
         + f"_beta{args.beta}_{args.integrator}_tsteps{args.t_steps}_ntraj_{args.n_trajs}with{args.start}"
     )
     fp = open(dname + fname, "w")
 
-    # run = Run(repo='/cyclamen/home/syamamoto/Lattice2022/aim', run_hash=hash_id, experiment=experiment, system_tracking_interval=1)
     run = Run(
-        repo="/cyclamen/home/syamamoto/Lattice2022/aim",
+        repo=dname + "/aim",
         experiment=experiment,
         system_tracking_interval=1,
     )

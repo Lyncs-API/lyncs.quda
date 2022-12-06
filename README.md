@@ -34,35 +34,3 @@ git clone https://github.com/Lyncs-API/lyncs.quda
 cd lyncs.quda		
 pip install -e .		
 ```
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-

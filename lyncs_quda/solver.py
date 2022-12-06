@@ -123,8 +123,7 @@ class Solver:
         current = getattr(self, key)
         if current is not None and current.precision == precision:
             return current
-        # ? DiracMatrix has no method called "new"
-        setattr(self, key, self.mat.new(precision=precision))
+        setattr(self, key, self.mat.copy(precision=precision))
         return getattr(self, key)
 
     @property
@@ -220,7 +219,7 @@ class Solver:
 
     def __call__(self, rhs, out=None, warning=True, **kwargs):
         rhs = spinor(rhs)
-        out = rhs.prepare(out)
+        out = rhs.prepare_out(out)
         kwargs = self.swap(**kwargs)
         # ASSUME: QUDA_FULL_SITE_SUBSET
         if self.mat.dirac.full:

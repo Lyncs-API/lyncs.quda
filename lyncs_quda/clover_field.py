@@ -67,7 +67,7 @@ class CloverField(LatticeField):
         )
 
         new = lambda idof: LatticeField.create(
-            self._fmunu.lattice,
+            self._fmunu.global_lattice,
             dofs=(idof,),
             dtype=prec,
             device=self._fmunu.device,
@@ -297,16 +297,6 @@ class CloverField(LatticeField):
     def abs_min(self, inverse=False):
         "Computes the absolute minimum of the field"
         return self.quda_field.abs_min(inverse)
-
-    # ? may not be necessary
-    def backup(self):
-        "Back up clover field (& its inverse if computed) onto CPU"
-        self.quda_field.backup()
-
-    # ? may not be necessary
-    def restore(self):
-        "Restore clover field (& its inverse if computed) from CPU to GPU"
-        self.quda_field.restore()
 
     def computeCloverForce(self, gauge, force, D, vxs, vps, mult=2, coeffs=None):
         # contribution from TrLn A and U dA/dU are similar except for the factor in the middle of the expression

@@ -48,7 +48,7 @@ index 6bf0477..4d3b58f 100644
  
  
 diff --git a/include/kernels/gauge_force.cuh b/include/kernels/gauge_force.cuh
-index 09b7f97..f4e3f9a 100644
+index 09b7f97..b7efe19 100644
 --- a/include/kernels/gauge_force.cuh
 +++ b/include/kernels/gauge_force.cuh
 @@ -16,14 +16,21 @@ namespace quda {
@@ -119,7 +119,7 @@ index 09b7f97..f4e3f9a 100644
      }
      void free() {
        pool_device_free(buffer);
-@@ -61,16 +75,18 @@ namespace quda {
+@@ -61,16 +75,19 @@ namespace quda {
    };
  
  
@@ -133,13 +133,14 @@ index 09b7f97..f4e3f9a 100644
      static_assert(nColor == 3, "Only nColor=3 enabled at this time");
      typedef typename gauge_mapper<Float,recon_u>::type Gauge;
      typedef typename gauge_mapper<Float,recon_m>::type Mom;
++    typedef typename gauge_mapper<Float,QUDA_RECONSTRUCT_10>::type dU;
  
      Mom mom;
-+    const Mom du;
++    const dU du;
      const Gauge u;
  
      int X[4]; // the regular volume parameters
-@@ -80,10 +96,11 @@ namespace quda {
+@@ -80,10 +97,11 @@ namespace quda {
      Float epsilon; // stepsize and any other overall scaling factor
      const paths p;
  
@@ -152,7 +153,7 @@ index 09b7f97..f4e3f9a 100644
        epsilon(epsilon),
        p(p)
      {
-@@ -103,6 +120,8 @@ namespace quda {
+@@ -103,6 +121,8 @@ namespace quda {
    {
      using real = typename Arg::Float;
      typedef Matrix<complex<real>,Arg::nColor> Link;
@@ -161,7 +162,7 @@ index 09b7f97..f4e3f9a 100644
  
      int x[4] = {0, 0, 0, 0};
      getCoords(x, idx, arg.X, parity);
-@@ -111,60 +130,78 @@ namespace quda {
+@@ -111,60 +131,78 @@ namespace quda {
      //linkA: current matrix
      //linkB: the loaded matrix in this round
      Link linkA, linkB, staple;
@@ -268,7 +269,7 @@ index 09b7f97..f4e3f9a 100644
        mom = mom - arg.epsilon * linkA;
        makeAntiHerm(mom);
      }
-@@ -182,6 +219,7 @@ namespace quda {
+@@ -182,6 +220,7 @@ namespace quda {
  
      __device__ __host__ void operator()(int x_cb, int parity, int dir)
      {
@@ -277,7 +278,7 @@ index 09b7f97..f4e3f9a 100644
        case 0: GaugeForceKernel<Arg,0>(arg, x_cb, parity); break;
        case 1: GaugeForceKernel<Arg,1>(arg, x_cb, parity); break;
 diff --git a/lib/gauge_force.cu b/lib/gauge_force.cu
-index 476de20..b8ecfd2 100644
+index 476de20..aba7936 100644
 --- a/lib/gauge_force.cu
 +++ b/lib/gauge_force.cu
 @@ -4,18 +4,20 @@
@@ -312,16 +313,18 @@ index 476de20..b8ecfd2 100644
      }
  
      void preTune() { mom.backup(); }
-@@ -39,44 +41,65 @@ namespace quda {
+@@ -39,44 +41,69 @@ namespace quda {
      long long bytes() const { return (p.count + 1ll) * u.Bytes() + 2 * mom.Bytes(); }
    };
  
 -  template<typename Float, int nColor, QudaReconstructType recon_u> using GaugeForce_ = ForceGauge<Float,nColor,recon_u,true>;
++  template<typename Float, int nColor, QudaReconstructType recon_u> using GaugeForceGradientNoProj = ForceGauge<Float,nColor,recon_u,false,true>;
++  
 +  template<typename Float, int nColor, QudaReconstructType recon_u> using GaugeForceGradient = ForceGauge<Float,nColor,recon_u,true,true>;
++
++  template<typename Float, int nColor, QudaReconstructType recon_u> using GaugeForce_ = ForceGauge<Float,nColor,recon_u,true,false>;
  
 -  template<typename Float, int nColor, QudaReconstructType recon_u> using GaugePath = ForceGauge<Float,nColor,recon_u,false>;
-+  template<typename Float, int nColor, QudaReconstructType recon_u> using GaugeForce_ = ForceGauge<Float,nColor,recon_u,true,false>;
-+
 +  template<typename Float, int nColor, QudaReconstructType recon_u> using GaugePath = ForceGauge<Float,nColor,recon_u,false,false>;
  
  #ifdef GPU_GAUGE_FORCE
@@ -330,13 +333,15 @@ index 476de20..b8ecfd2 100644
 +  {
 +    checkPrecision(mom, u, du);
 +    checkLocation(mom, u, du);
-+    if (mom.Reconstruct() != QUDA_RECONSTRUCT_10) errorQuda("Reconstruction type %d not supported", mom.Reconstruct());
 +    if (du.Reconstruct() != QUDA_RECONSTRUCT_10) errorQuda("Reconstruction type %d not supported", du.Reconstruct());
 +
 +    paths p(input_path, length_h, path_coeff_h, num_paths, path_max_length, per_dir, left);
 +
 +    // gauge field must be passed as first argument so we peel off its reconstruct type
-+    instantiate<GaugeForceGradient,ReconstructNo12>(u, mom, du, epsilon, p);
++    if (mom.Reconstruct() == QUDA_RECONSTRUCT_10)
++      instantiate<GaugeForceGradient,ReconstructNo12>(u, mom, du, epsilon, p);
++    else
++      instantiate<GaugeForceGradientNoProj,ReconstructNo12>(u, mom, du, epsilon, p);      
 +    p.free();
 +  }
 +  

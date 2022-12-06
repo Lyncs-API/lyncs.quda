@@ -331,8 +331,13 @@ class DiracMatrix:
             self.quda(out.quda_field.Even(), rhs.quda_field.Even())
         else:
             self.quda(out.quda_field.Odd(), rhs.quda_field.Odd())
+
         return out
 
+    def copy(self, **kwargs):
+        "Returns a new copy of self with different paramters"
+        # e.g. useful for changing precision
+        raise NotImplementedError
 
     @property
     def key(self):
@@ -361,7 +366,7 @@ class DiracMatrix:
     @property
     def mat_PC(self):
         return QudaMatPCType[self.quda.getMatPCType()]
-    
+
     @property
     def flops(self):
         "The flops of the operator"
