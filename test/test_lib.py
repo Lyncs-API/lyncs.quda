@@ -12,7 +12,3 @@ def test_init(lib):
     assert not lib.initialized
     lib.init_quda()
     assert lib.initialized
-
-
-def test_excep(lib):
-    lib.test_exception()

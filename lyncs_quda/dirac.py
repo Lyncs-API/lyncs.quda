@@ -32,9 +32,9 @@ class Dirac:
     csw: float = 0
     mu: float = 0
     epsilon: float = 0
-    full: int = field(default=True)
-    even: int = True
-    symm: int = True
+    full: bool = True
+    even: bool = True
+    symm: bool = True
     # For QUDA CloverField class:
     rho: float = 0
     computeTrLog: bool = False
