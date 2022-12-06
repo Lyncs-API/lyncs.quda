@@ -276,7 +276,7 @@ class Dirac:
         xs = []
 
         ps = [spinor(self.gauge.global_lattice) for i in range(n)]
-        _coeffs = lib.std.vector['double'](range(n))
+        _coeffs = lib.std.vector["double"](range(n))
         if coeffs is None:
             coeffs = [1.0 for _ in range(n)]
 
