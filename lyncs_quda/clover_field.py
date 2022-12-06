@@ -311,35 +311,50 @@ class CloverField(LatticeField):
 
         # TODO
         # does not work when D.type == CLOVERPC
-        
-        ck = D.kappa*D.csw/8.0
-        k2 = D.kappa*D.kappa
+
+        ck = D.kappa * D.csw / 8.0
+        k2 = D.kappa * D.kappa
         n = len(vxs)
-        
+
         if not D.full and not D.even:
             # The obstacle is computeCloverSigmaTrace
             # This needs to be able to work on both A_o and A_e
             raise NotImplementedError("QUDA implements only for EVEN case")
-        
+
         # First compute the contribution from Tr ln A
-        oprod = force.new(reconstruct="NO", empty=False, is_momentum=False, dofs=(6,18))
+        oprod = force.new(
+            reconstruct="NO", empty=False, is_momentum=False, dofs=(6, 18)
+        )
         if not D.full and D.even:
             # check!: we need only TrLn A_o for EVEN and TrLn A_e for ODD.
             D.clover.inverse_field
-            lib.computeCloverSigmaTrace(oprod.quda_field, D.clover.quda_field, 2.0*ck*mult)
-            
+            lib.computeCloverSigmaTrace(
+                oprod.quda_field, D.clover.quda_field, 2.0 * ck * mult
+            )
+
         # Now the U dA/dU terms (for the moment, we assume either full or even)
-        ferm_epsilon = lib.std.vector([lib.std.vector([2.0*ck*coeffs[i], -k2 * 2.0*ck*coeffs[i]] if not D.full
-                                                      else [2.0*ck*coeffs[i], 2.0*ck*coeffs[i]]
-                                                      ) for i in range(n)])
+        ferm_epsilon = lib.std.vector(
+            [
+                lib.std.vector(
+                    [2.0 * ck * coeffs[i], -k2 * 2.0 * ck * coeffs[i]]
+                    if not D.full
+                    else [2.0 * ck * coeffs[i], 2.0 * ck * coeffs[i]]
+                )
+                for i in range(n)
+            ]
+        )
         lib.computeCloverSigmaOprod(oprod.quda_field, vxs, vps, ferm_epsilon)
-        
+
         R = [2 if d == 0 else 1 for d in range(4)]
-        oprodEx = oprod.extended_field(sites = R)
-        u = gauge.extended_field(sites = R)
+        oprodEx = oprod.extended_field(sites=R)
+        u = gauge.extended_field(sites=R)
         if gauge.precision == "double":
             u = gauge.prepare_in(gauge, reconstruct="NO").extended_field(sites = R)
-        lib.cloverDerivative(force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_ODD_PARITY"))
-        lib.cloverDerivative(force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_EVEN_PARITY"))
+        lib.cloverDerivative(
+            force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_ODD_PARITY")
+        )
+        lib.cloverDerivative(
+            force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_EVEN_PARITY")
+        )
 
         return force
