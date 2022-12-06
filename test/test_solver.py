@@ -14,11 +14,11 @@ from lyncs_quda.testing import (
 def test_solve_random(lib, lattice, device, gamma, dtype=None):
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.gaussian()
-    dirac = gf.Dirac(kappa=0.01)
+    dirac = gf.Dirac(kappa=0.01, csw=1, computeTrLog=True)
     rhs = spinor(lattice, dtype=dtype, device=device, gamma_basis=gamma)
     rhs.uniform()
     mat = dirac.M
-    out = mat.solve(rhs, delta=10.0)  # this value allowed convergence for all cases
+    out = mat.solve(rhs, delta=1e-4)  # this value allowed convergence for all cases
     res = mat(out)
     res.field -= rhs.field
     res = res.norm() / rhs.norm()

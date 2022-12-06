@@ -6,7 +6,8 @@ from collections import namedtuple
 
 
 class EnumValue(namedtuple("EnumValue", ["cls", "key"])):
-    "The value of an enum entry"
+    "Representation of an enum entry as (enum_class_name, val)"
+    "val can either be string or int"
 
     def __str__(self):
         return self.cls.to_string(self.key)
@@ -43,6 +44,7 @@ class EnumMeta(type):
 
     def clean(cls, key):
         "Strips away prefix and suffix from key"
+        "See enums.py to find what is prefix and suffix for a given enum value"
         if isinstance(key, EnumValue):
             key = str(key)
         if isinstance(key, str):
@@ -77,22 +79,22 @@ class EnumMeta(type):
         assert isinstance(key, int)
         return key
 
-    def __contains__(cls, key):
-        key = cls.clean(key)
+    def __contains__(cls, entry):
+        entry = cls.clean(entry)
 
-        if isinstance(key, str):
-            return key in cls.keys()
+        if isinstance(entry, str):
+            return entry in cls.keys()
 
-        if isinstance(key, int):
-            return key in cls.values()
+        if isinstance(entry, int):
+            return entry in cls.values()
 
         return False
 
-    def __getitem__(cls, key):
-        if key not in cls:
-            raise ValueError(f"Unknown enum '{key}' for {cls.__name__}")
-        key = cls.clean(key)
-        return EnumValue(cls, key)
+    def __getitem__(cls, entry):
+        if entry not in cls:
+            raise ValueError(f"Unknown enum '{entry}' for {cls.__name__}")
+        entry = cls.clean(entry)
+        return EnumValue(cls, entry)
 
 
 class Enum(metaclass=EnumMeta):

@@ -16,11 +16,13 @@ __all__ = [
 from time import time
 from math import sqrt
 from collections import defaultdict
+from array import array
 import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
 from lyncs_utils import prod, isiterable
 from .lib import lib, cupy
 from .lattice_field import LatticeField, backend
+from .spinor_field import spinor
 from .time_profile import default_profiler
 
 # TODO: Make array dims consistent with gauge order
@@ -76,8 +78,12 @@ class GaugeField(LatticeField):
         elif reconstruct == self.reconstruct:
             pass
         elif reconstruct == "NO":  # ? what if geometry == COARSE?
-            size = self.ncol**2
-            kwargs["dofs"] = (self.geometry_size, size if self.iscomplex else size * 2)
+            if "dofs" not in kwargs.keys():  # just a quick fix.
+                size = self.ncol**2
+                kwargs["dofs"] = (
+                    self.geometry_size,
+                    size if self.iscomplex else size * 2,
+                )
         else:
             try:
                 val = int(reconstruct)
@@ -799,13 +805,3 @@ class GaugeField(LatticeField):
     def iwasaki_gauge_action(self, plaq_coeff=0):
         "Returns the Iwasaki gauge action"
         return self.gauge_action(plaq_coeff, -0.331)
-
-    def S_F(self, phi, **params):
-        "Retruns pseudo-fermionic action given the pseudo-fermion field"
-        solver = self.Dirac(**params).Solver()
-        s_params = {k: v for k, v in params.items() if k in solver.default_params}
-        out = solver(phi, **s_params)
-        return out.norm2()
-
-    def fermionic_force(self):
-        pass

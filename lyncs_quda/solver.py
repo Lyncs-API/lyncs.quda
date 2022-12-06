@@ -103,7 +103,7 @@ class Solver:
     @mat.setter
     def mat(self, mat):
         if isinstance(mat, Dirac):
-            mat = mat.get_mat()
+            mat = mat.get_matrix()
         if not isinstance(mat, DiracMatrix):
             raise TypeError("mat should be an instance of Dirac or DiracMatrix")
         self._mat = mat
@@ -221,7 +221,13 @@ class Solver:
         rhs = spinor(rhs)
         out = rhs.prepare_out(out)
         kwargs = self.swap(**kwargs)
-        self.quda(out.quda_field, rhs.quda_field)
+        # ASSUME: QUDA_FULL_SITE_SUBSET
+        if self.mat.dirac.full:
+            self.quda(out.quda_field, rhs.quda_field)
+        elif self.mat.dirac.even:
+            self.quda(out.quda_field.Even(), rhs.quda_field.Even())
+        else:
+            self.quda(out.quda_field.Odd(), rhs.quda_field.Odd())
         self.swap(**kwargs)
 
         if self.true_res > self.tol:
