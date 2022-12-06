@@ -260,7 +260,7 @@ class Dirac:
 
         n = len(phis)
         xs = []
-        ps = [spinor(self.gauge.lattice) for i in range(n)]
+        ps = [spinor(self.gauge.global_lattice) for i in range(n)]
         _coeffs = lib.std.vector['double'](range(n))
         if coeffs is None:
             coeffs = [1.0 for _ in range(n)]
@@ -323,7 +323,7 @@ class DiracMatrix:
 
     def __call__(self, rhs, out=None):
         rhs = spinor(rhs)
-        out = rhs.prepare(out)
+        out = rhs.prepare_out(out)
 
         if self.dirac.full:
             self.quda(out.quda_field, rhs.quda_field)
