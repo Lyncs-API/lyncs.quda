@@ -349,7 +349,7 @@ class CloverField(LatticeField):
         oprodEx = oprod.extended_field(sites=R)
         u = gauge.extended_field(sites=R)
         if gauge.precision == "double":
-            u = gauge.prepare_in(gauge, reconstruct="NO").extended_field(sites = R)
+            u = gauge.prepare_in(gauge, reconstruct="NO").extended_field(sites=R)
         lib.cloverDerivative(
             force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_ODD_PARITY")
         )
