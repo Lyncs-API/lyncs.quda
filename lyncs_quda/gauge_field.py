@@ -454,7 +454,9 @@ class GaugeField(LatticeField):
             raise ValueError(shift, axis)
         shifts = [0] * self.ndims
         for ax, val in zip(axis, shift):
-            shifts[ax] = val
+            shifts[ax] = val % self.dims[ax]
+        if shifts == [0] * self.ndims:
+            return self
         shifts = array("i", shifts)
         out = self.prepare_out(out)
         out.quda_field.shift(self.quda_field, shifts)

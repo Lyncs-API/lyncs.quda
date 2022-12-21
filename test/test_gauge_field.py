@@ -335,7 +335,6 @@ def roll(self, shift, axis):
     out = self.default_view()
     shape = out.shape
     out = out.reshape(*shape[:-1], *lath)
-    print(shape, out.shape)
     if axis == 0 and self.ndims == 4:
         if shift // 2 != 0:
             out = cp.roll(out, shift // 2, axis=-1)
