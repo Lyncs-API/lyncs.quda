@@ -18,7 +18,7 @@ from lyncs_cppyy import Lib, nullptr, cppdef
 from lyncs_cppyy.ll import addressof, to_pointer
 from lyncs_utils import static_property, lazy_import
 from . import __path__
-from .config import QUDA_MPI, GITVERSION
+from .config import QUDA_MPI, GITVERSION, QUDA_PRECISION, QUDA_RECONSTRUCT
 
 cupy = lazy_import("cupy")
 
@@ -257,7 +257,7 @@ headers = [
     "quda.h",
     "gauge_field.h",
     "gauge_tools.h",
-    "gauge_force_quda.h",
+    "gauge_path_quda.h",
     "gauge_update_quda.h",
     "clover_field.h",
     "dirac_quda.h",
@@ -265,6 +265,7 @@ headers = [
     "blas_quda.h",
     "multigrid.h",
     "evenodd.h",
+    "array.h",
 ]
 
 
@@ -273,6 +274,7 @@ lib = QudaLib(
     header=headers,
     library=["libquda.so"] + libs,
     namespace=["quda", "lyncs_quda"],
+    defined={"QUDA_PRECISION":QUDA_PRECISION, "QUDA_RECONSTRUCT":QUDA_RECONSTRUCT},
 )
 lib.MPI = MPI
 

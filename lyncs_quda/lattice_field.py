@@ -13,6 +13,7 @@ from lyncs_cppyy import nullptr
 from lyncs_utils import prod
 from .enums import QudaPrecision
 from .lib import lib, cupy
+from .array import lat_dims
 
 from lyncs_cppyy import to_pointer
 import ctypes
@@ -371,7 +372,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def quda_dims(self):
         "Memory array with lattice dimensions"
-        return array("i", reversed(self.dims))
+        return lat_dims(list(reversed(self.dims)))
 
     @property
     def dofs(self):
@@ -432,6 +433,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             self.ndims,
             self.quda_dims,
             self.pad,
+            self.quda_location,
             self.quda_precision,
             self.quda_ghost_exchange,
         )

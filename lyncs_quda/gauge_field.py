@@ -659,6 +659,7 @@ class GaugeField(LatticeField):
 
         # Preparing grad and fnc
         if grad is not None:
+            #gaugeForceGradient is missing from QUDA
             grad = self.prepare_in(grad, reconstruct=10)
             fnc = lambda out, u, *args: self._gaugeForceGradient(
                 out,
@@ -694,8 +695,7 @@ class GaugeField(LatticeField):
             coeffs,
             num_paths,
             max_length,
-            False,
-        )
+            )
         return out
 
     # for profiling
