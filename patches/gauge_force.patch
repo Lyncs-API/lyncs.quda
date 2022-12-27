@@ -48,7 +48,7 @@ index 6bf0477..4d3b58f 100644
  
  
 diff --git a/include/kernels/gauge_force.cuh b/include/kernels/gauge_force.cuh
-index 09b7f97..b7efe19 100644
+index 09b7f97..045efe2 100644
 --- a/include/kernels/gauge_force.cuh
 +++ b/include/kernels/gauge_force.cuh
 @@ -16,14 +16,21 @@ namespace quda {
@@ -162,7 +162,7 @@ index 09b7f97..b7efe19 100644
  
      int x[4] = {0, 0, 0, 0};
      getCoords(x, idx, arg.X, parity);
-@@ -111,60 +131,78 @@ namespace quda {
+@@ -111,60 +131,86 @@ namespace quda {
      //linkA: current matrix
      //linkB: the loaded matrix in this round
      Link linkA, linkB, staple;
@@ -216,8 +216,13 @@ index 09b7f97..b7efe19 100644
 -          dx[lnkdir]++; // now have to update to new location
 -          nbr_oddbit = nbr_oddbit^1;
 -        } else {
+-          dx[lnkdir]--; // if we are going backwards the link is on the adjacent site
 +	if (not isForwards(pathj)) {
-           dx[lnkdir]--; // if we are going backwards the link is on the adjacent site
++	  // if we are going backwards the link is on the adjacent site
++          dx[lnkdir]--;
++	  if (x[lnkdir] + dx[lnkdir] == -arg.X[lnkdir]) {
++	    dx[lnkdir] = arg.X[lnkdir] - x[lnkdir];
++	  }
  	  nbr_oddbit = nbr_oddbit^1;
 -          linkB = arg.u(lnkdir, linkIndexShift(x,dx,arg.E), nbr_oddbit);
 -          linkA = linkA * conj(linkB);
@@ -238,7 +243,11 @@ index 09b7f97..b7efe19 100644
 +	else linkA = linkA * linkB;
 +
 +	if (isForwards(pathj)) {
-+          dx[lnkdir]++; // if we go forward now have to update to new location
++	  // if we go forward now have to update to new location
++	  dx[lnkdir] ++;
++	  if (x[lnkdir] + dx[lnkdir] == arg.X[lnkdir]) {
++	    dx[lnkdir] = - x[lnkdir];
++	  }
 +          nbr_oddbit = nbr_oddbit^1;
 +	}	  
        } //j
@@ -269,7 +278,7 @@ index 09b7f97..b7efe19 100644
        mom = mom - arg.epsilon * linkA;
        makeAntiHerm(mom);
      }
-@@ -182,6 +220,7 @@ namespace quda {
+@@ -182,6 +228,7 @@ namespace quda {
  
      __device__ __host__ void operator()(int x_cb, int parity, int dir)
      {
