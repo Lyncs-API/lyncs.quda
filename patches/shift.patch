@@ -8,7 +8,7 @@ index 4da624c..dc4fdf5 100644
      /**
 +     * Generic gauge field shift
 +     * @param[in] src Source from which we are shifting
-+     * @param[in] dx Shift to apply to the field
++     * @param[in] dx Host array of shifts to apply to the field
 +     */
 +    virtual void shift(const GaugeField &src, const int *dx) = 0;
 +
@@ -22,7 +22,7 @@ index 4da624c..dc4fdf5 100644
      /**
 +     * Generic gauge field shift
 +     * @param[in] src Source from which we are shifting
-+     * @param[in] dx Shift to apply to the field
++     * @param[in] dx Host array of shifts to apply to the field
 +     */
 +    void shift(const GaugeField &src, const int *dx);
 +    
@@ -37,7 +37,7 @@ index 4da624c..dc4fdf5 100644
 +    /**
 +     * Generic gauge field shift
 +     * @param[in] src Source from which we are shifting
-+     * @param[in] dx Shift to apply to the field
++     * @param[in] dx Host array of shifts to apply to the field
 +     */
 +    void shift(const GaugeField &src, const int *dx);
 +    

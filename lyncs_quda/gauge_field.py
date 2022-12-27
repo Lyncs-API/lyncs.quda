@@ -437,7 +437,7 @@ class GaugeField(LatticeField):
 
     def shift(self, shift, axis=None, out=None):
         """
-        Shifts the field of a given shift.
+        Shifts the field of a given distance.
         Shift and axis can be integer or tuple up to length ndims.
         """
         if isinstance(shift, int):
