@@ -435,6 +435,33 @@ class GaugeField(LatticeField):
         )
         return out
 
+    def shift(self, shift, axis=None, out=None):
+        """
+        Shifts the field by a given separation.
+        Shift and axis can be integer or tuple up to length ndims.
+        """
+        if isinstance(shift, int):
+            shift = (shift,)
+        if not isiterable(shift, int):
+            raise TypeError(shift)
+        if axis is None:
+            axis = tuple(range(len(shift)))
+        if isinstance(axis, int):
+            axis = (axis,)
+        if not isiterable(axis, int):
+            raise TypeError(axis)
+        if len(axis) != len(shift):
+            raise ValueError(shift, axis)
+        shifts = [0] * self.ndims
+        for ax, val in zip(axis, shift):
+            shifts[ax] = val % self.dims[ax]
+        if shifts == [0] * self.ndims:
+            return self
+        shifts = array("i", shifts)
+        out = self.prepare_out(out)
+        out.quda_field.shift(self.quda_field, shifts)
+        return out
+
     def project(self, tol=None):
         """
         Project the gauge field onto the SU(3) group.  This
