@@ -152,6 +152,21 @@ index cb574a4..4794bb7 100644
    staggered_oprod.cu clover_trace_quda.cu
    hisq_paths_force_quda.cu
    unitarize_force_quda.cu unitarize_links_quda.cu milc_interface.cpp
+diff --git a/lib/cpu_gauge_field.cpp b/lib/cpu_gauge_field.cpp
+index e75af2c..c05628c 100644
+--- a/lib/cpu_gauge_field.cpp
++++ b/lib/cpu_gauge_field.cpp
+@@ -333,6 +333,10 @@ namespace quda {
+     }
+   }
+ 
++  void cpuGaugeField::shift(const GaugeField &src, const int *dx) {
++    errorQuda("Not Implemented");
++  }
++  
+   void cpuGaugeField::setGauge(void **gauge_)
+   {
+     if(create != QUDA_REFERENCE_FIELD_CREATE) {
 diff --git a/lib/cuda_gauge_field.cpp b/lib/cuda_gauge_field.cpp
 index 79530dd..71af545 100644
 --- a/lib/cuda_gauge_field.cpp
