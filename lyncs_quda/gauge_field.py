@@ -677,21 +677,22 @@ class GaugeField(LatticeField):
         if force and not keep_paths:
             paths, coeffs = self._paths_for_force(paths, coeffs)
             self._check_paths(paths)
-        paths, lengths = self._paths_to_array(paths)
+        paths, lengths = self._paths_to_array(paths) # length is repalaced by vetor
 
         # Calling Quda function
         num_paths = paths.shape[1]
         max_length = paths.shape[2]
-        quda_paths_array = array_to_pointers(paths)
-        coeffs = numpy.array(coeffs, dtype="float64")
+        quda_paths_array = lib.std.vector["int **"](paths)
+        quda_lengths = lib.std.vector[int](lengths)
+        coeffs = lib.std.vector["double"](coeffs)
         out = self.prepare_out(out, empty=False, reconstruct=10 if force else None)
 
         fnc(
             out.quda_field,
             self.extended_field(1),  # TODO: compute correct extension (max distance)
             add_coeff,
-            quda_paths_array.get(),
-            lengths,
+            quda_paths_array,
+            quda_lengths,
             coeffs,
             num_paths,
             max_length,
