@@ -187,13 +187,6 @@ class Dirac:
     #  of Dirac with the same name, e.g., DiracM() -> Dirac.M()
     #  Why not directly invoking this method?  to reduce the code duplicacy?
     def __call__(self, spinor_in, spinor_out=None, key="M"):
-        """
-        rhs = spinor(spinor_in)
-        out = rhs.prepare_out(spinor_out)
-        print(self.quda_dirac)
-        self.quda_dirac.M(out.quda_field, rhs.quda_field)
-        return out
-        """
         return self.get_matrix(key)(spinor_in, spinor_out)
 
     # TODO: Support more functors: Dagger, G5M
