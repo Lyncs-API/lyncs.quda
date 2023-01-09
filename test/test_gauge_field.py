@@ -1,4 +1,4 @@
-from lyncs_quda import gauge, momentum
+from lyncs_quda import gauge, momentum, spinor
 import numpy as np
 import cupy as cp
 from pytest import skip
@@ -225,6 +225,48 @@ def test_force(lib, lattice, device, epsilon):
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 @epsilon_loop  # enables epsilon
+def test_fermionic_force(lib, lattice, device, epsilon):
+    dtype = "float64"
+    gf = gauge(lattice, dtype=dtype, device=device)
+    gf.gaussian()
+    mom = momentum(lattice, dtype=dtype, device=device)
+    mom.gaussian(epsilon=epsilon)
+
+    gf2 = mom.exponentiate(mul_to=gf)
+
+    R = spinor(lattice, dtype=dtype)
+    R.gaussian()
+
+    params = {"kappa": 0.01, "csw": 1, "computeTrLog": True}
+
+    # U'- U ~ eps*mom where U' = exp(eps*mom)*U
+    for parity in [None, "EVEN"]:
+        params.update(
+            {
+                "full": True if parity is None else False,
+                "symm": False if params["csw"] != 0 else True,
+            }
+        )
+        D = gf.Dirac(**params)
+        D2 = gf2.Dirac(**params)
+        phi = D.Mdag(R)
+
+        action = D.action(phi)
+        action2 = D2.action(phi)
+        rel_tol = epsilon * np.prod(lattice) * 4
+        print(parity, action, action2)
+        assert isclose(action, action2, rel_tol=rel_tol / 4)
+
+        daction = D.force(phi).full().dot(mom.full()).reduce(mean=False)
+        daction2 = action2 - action
+        print(parity, daction, daction2, daction / daction2)
+        assert isclose(daction, daction2, rel_tol=rel_tol)
+
+
+# @dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+@epsilon_loop  # enables epsilon
 def test_force_gradient(lib, lattice, device, epsilon):
     dtype = "float64"
     gf = gauge(lattice, dtype=dtype, device=device)
@@ -283,3 +325,51 @@ def test_force_gradient(lib, lattice, device, epsilon):
             .reduce()
         )
         assert isclose(ddaction, ddaction21, rel_tol=rel_tol)
+
+
+def roll(self, shift, axis):
+    "This is an implementation of shifting via rolling"
+    assert 0 <= axis < self.ndims
+    lath = list(self.dims)
+    lath[-1] //= 2
+    out = self.default_view()
+    shape = out.shape
+    out = out.reshape(*shape[:-1], *lath)
+    if axis == 0 and self.ndims == 4:
+        if shift // 2 != 0:
+            out = cp.roll(out, shift // 2, axis=-1)
+    else:
+        out = cp.roll(out, shift, axis=self.ndims - axis - 5)
+    if shift % 2 != 0:
+        # Exchanging even with odd
+        out = cp.roll(out, 1, axis=0)
+    return out
+
+
+@dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+def test_shift(lib, lattice, device, dtype):
+    gf = gauge(lattice, dtype=dtype, device=device)
+    gf.gaussian()
+    out1 = gf.shift((1, 1))
+    out2 = gf.shift((1, 0)).shift((0, 1))
+    out3 = gf.shift((1, 0)).shift((-1, 0))
+    out4 = gf.shift((0, 1)).shift((0, -1))
+
+    assert gf != out1
+    assert gf != out2
+    assert gf == out3
+    assert gf == out4
+    assert out1 == out2
+
+    for shift in -1, 1, -2, 2:
+        for axis in range(4):
+            if axis == 0 and shift % 2 == 1:
+                continue
+            shifts = [0] * 4
+            shifts[axis] = -shift
+            out1 = gf.shift(shifts).default_view()
+            out2 = roll(gf, shift, axis)
+            out1 = out1.reshape(out2.shape)
+            assert (out1 == out2).all()

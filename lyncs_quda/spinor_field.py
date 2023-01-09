@@ -207,12 +207,20 @@ class SpinorField(LatticeField):
         "Applies gamma5 to the field itself"
         return self.gamma5(self)
 
-    def norm1(self):
+    def norm1(self, parity=None):
         "L1 norm of the field"
+        if parity == "EVEN":
+            return lib.blas.norm1(self.quda_field.Even())
+        elif parity == "ODD":
+            return lib.blas.norm1(self.quda_field.Odd())
         return lib.blas.norm1(self.quda_field)
 
-    def norm2(self):
+    def norm2(self, parity=None):
         "L2 norm of the field"
+        if parity == "EVEN":
+            return lib.blas.norm2(self.quda_field.Even())
+        elif parity == "ODD":
+            return lib.blas.norm2(self.quda_field.Odd())
         return lib.blas.norm2(self.quda_field)
 
     norm = norm2
