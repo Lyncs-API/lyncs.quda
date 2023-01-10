@@ -265,6 +265,7 @@ headers = [
     "blas_quda.h",
     "multigrid.h",
     "evenodd.h",
+    "momentum.h",
 ]
 
 

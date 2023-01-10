@@ -157,26 +157,24 @@ class Dirac:
             object.__setattr__(
                 self,
                 "_quda",
-                make_shared(
-                    lib.DiracCoarse(
-                        self.quda_params,
-                        self.gauge.cpu_field,
-                        self.clover.cpu_field,
-                        self.coarse_clover_inv.cpu_field
-                        if self.coarse_clover_inv is not None
-                        else nullptr,
-                        self.coarse_precond.cpu_field
-                        if self.coarse_precond is not None
-                        else nullptr,
-                        self.gauge.gpu_field,
-                        self.clover.gpu_field,
-                        self.coarse_clover_inv.gpu_field
-                        if self.coarse_clover_inv is not None
-                        else nullptr,
-                        self.coarse_precond.gpu_field
-                        if self.coarse_precond is not None
-                        else nullptr,
-                    )
+                lib.DiracCoarse(
+                    self.quda_params,
+                    self.gauge.cpu_field,
+                    self.clover.cpu_field,
+                    self.coarse_clover_inv.cpu_field
+                    if self.coarse_clover_inv is not None
+                    else nullptr,
+                    self.coarse_precond.cpu_field
+                    if self.coarse_precond is not None
+                    else nullptr,
+                    self.gauge.gpu_field,
+                    self.clover.gpu_field,
+                    self.coarse_clover_inv.gpu_field
+                    if self.coarse_clover_inv is not None
+                    else nullptr,
+                    self.coarse_precond.gpu_field
+                    if self.coarse_precond is not None
+                    else nullptr,
                 ),
             )
         return self._quda
@@ -369,8 +367,10 @@ class DiracMatrix:
         if self.dirac.full:
             self.quda(out.quda_field, rhs.quda_field)
         elif self.dirac.even:
+            self.dirac.clover.inverse_field
             self.quda(out.quda_field.Even(), rhs.quda_field.Even())
         else:
+            self.dirac.clover.inverse_field
             self.quda(out.quda_field.Odd(), rhs.quda_field.Odd())
 
         return out
