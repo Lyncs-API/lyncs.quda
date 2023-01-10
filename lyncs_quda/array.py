@@ -12,7 +12,7 @@ from .lib import lib
 
 def lat_dims(elems=[1,1,1,1]):
     # QUDA_MAX_DIM = 6 by default
-    return Array(int, 6, elems).qarray
+    return Array(int, lib.QUDA_MAX_DIM, elems).qarray
 
 class Array:
     "mimics template <typename T, int n> struct array"
@@ -28,7 +28,8 @@ class Array:
                 for i,e in enumerate(elems):
                     self._qarray[i] = e
             else:
-                self._qarray[0] = elems
+                for i in range(size):
+                    self._qarray[i] = elems
 
     @property
     def qarray(self):
@@ -41,6 +42,6 @@ class Array:
         # TODO: suport slicing
         return self.qarray[i]
 
-    def __setitem(self,i , val):
+    def __setitem__(self,i , val):
         self.qarray[i] = val
         
