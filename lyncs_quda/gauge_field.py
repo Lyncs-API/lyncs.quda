@@ -692,7 +692,7 @@ class GaugeField(LatticeField):
 
         # Preparing grad and fnc
         if grad is not None:
-            #gaugeForceGradient is missing from QUDA
+            # gaugeForceGradient is missing from QUDA
             grad = self.prepare_in(grad, reconstruct=10)
             fnc = lambda out, u, *args: self._gaugeForceGradient(
                 out,
@@ -710,7 +710,7 @@ class GaugeField(LatticeField):
         if force and not keep_paths:
             paths, coeffs = self._paths_for_force(paths, coeffs)
             self._check_paths(paths)
-        paths, lengths = self._paths_to_array(paths) # length is repalaced by vetor
+        paths, lengths = self._paths_to_array(paths)  # length is repalaced by vetor
 
         # Calling Quda function
         num_paths = paths.shape[1]
@@ -729,7 +729,7 @@ class GaugeField(LatticeField):
             coeffs,
             num_paths,
             max_length,
-            )
+        )
         return out
 
     # for profiling

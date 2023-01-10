@@ -10,9 +10,11 @@ __all__ = [
 from lyncs_utils import isiterable
 from .lib import lib
 
-def lat_dims(elems=[1,1,1,1]):
+
+def lat_dims(elems=[1, 1, 1, 1]):
     # QUDA_MAX_DIM = 6 by default
     return Array(int, 6, elems).qarray
+
 
 class Array:
     "mimics template <typename T, int n> struct array"
@@ -25,7 +27,7 @@ class Array:
             if isiterable(elems):
                 if len(elems) > size:
                     raise ValueError()
-                for i,e in enumerate(elems):
+                for i, e in enumerate(elems):
                     self._qarray[i] = e
             else:
                 self._qarray[0] = elems
@@ -33,7 +35,7 @@ class Array:
     @property
     def qarray(self):
         return self._qarray
-    
+
     def __len__(self):
         return self._size
 
@@ -41,6 +43,5 @@ class Array:
         # TODO: suport slicing
         return self.qarray[i]
 
-    def __setitem(self,i , val):
+    def __setitem(self, i, val):
         self.qarray[i] = val
-        
