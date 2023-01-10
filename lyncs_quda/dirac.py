@@ -235,6 +235,15 @@ class Dirac:
                     "computeTrLog should be set True in the preconditioned case"
                 )
 
+        out = 0
+        if not self.full and "CLOVER" in self.type:
+            self.quda_dirac
+            self.clover.inverse_field
+            if self.even:
+		out -= 2 * self.clover.trLog[1]
+            else:
+                out -= 2 * self.clover.trLog[0]
+                
         parity = None
         if not self.full:
             parity = "EVEN" if self.even else "ODD"
@@ -242,13 +251,7 @@ class Dirac:
         solver = self.Mdag.Solver(**s_params)
 
         inv = solver(phi, **s_params)
-        out = inv.norm2(parity=parity)
-        if not self.full and "CLOVER" in self.type:
-            self.clover.inverse_field
-            if self.even:
-                out -= 2 * self.clover.trLog[1]
-            else:
-                out -= 2 * self.clover.trLog[0]
+        out += inv.norm2(parity=parity)
 
         return out
 
@@ -367,10 +370,12 @@ class DiracMatrix:
         if self.dirac.full:
             self.quda(out.quda_field, rhs.quda_field)
         elif self.dirac.even:
-            self.dirac.clover.inverse_field
+            if self.dirac.clover is not None:
+                self.dirac.clover.inverse_field
             self.quda(out.quda_field.Even(), rhs.quda_field.Even())
         else:
-            self.dirac.clover.inverse_field
+            if self.dirac.clover is not None:
+                self.dirac.clover.inverse_field
             self.quda(out.quda_field.Odd(), rhs.quda_field.Odd())
 
         return out
