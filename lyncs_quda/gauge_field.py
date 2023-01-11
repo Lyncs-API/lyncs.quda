@@ -431,7 +431,7 @@ class GaugeField(LatticeField):
     def dot(self, other, out=None):
         "Matrix product between two gauge fields"
         if not isinstance(other, GaugeField):
-            raise ValueError
+            other = type(self)(other)
         self = self.full()
         other = other.full()
         out = self.prepare_out(out)
