@@ -238,7 +238,6 @@ class Dirac:
         out = 0
         if not self.full and "CLOVER" in self.type:
             self.quda_dirac
-            self.clover.inverse_field
             if self.even:
 		out -= 2 * self.clover.trLog[1]
             else:
@@ -370,12 +369,8 @@ class DiracMatrix:
         if self.dirac.full:
             self.quda(out.quda_field, rhs.quda_field)
         elif self.dirac.even:
-            if self.dirac.clover is not None:
-                self.dirac.clover.inverse_field
             self.quda(out.quda_field.Even(), rhs.quda_field.Even())
         else:
-            if self.dirac.clover is not None:
-                self.dirac.clover.inverse_field
             self.quda(out.quda_field.Odd(), rhs.quda_field.Odd())
 
         return out
@@ -445,4 +440,6 @@ class DiracMatrix:
 
     @property
     def quda(self):
+        if (not self.dirac.full) and self.dirac.clover is not None:
+            self.dirac.clover.inverse_field
         return self._matrix
