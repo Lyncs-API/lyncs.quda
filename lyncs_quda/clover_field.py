@@ -217,7 +217,7 @@ class CloverField(LatticeField):
 
     @property
     def trLog(self):
-        if self._inverse and self.computeTrLog:
+        if self.computeTrLog:
             self.inverse_field
             # separation into the following two lines is necessary
             arr = self.quda_field.TrLog().data  # can simply use tuple?
