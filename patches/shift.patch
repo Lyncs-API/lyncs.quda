@@ -1,5 +1,5 @@
 diff --git a/include/gauge_field.h b/include/gauge_field.h
-index 4da624c..dc4fdf5 100644
+index 4da624c..4320909 100644
 --- a/include/gauge_field.h
 +++ b/include/gauge_field.h
 @@ -398,6 +398,13 @@ namespace quda {
@@ -60,10 +60,10 @@ index 4da624c..dc4fdf5 100644
  } // namespace quda
 diff --git a/include/kernels/gauge_shift.cuh b/include/kernels/gauge_shift.cuh
 new file mode 100644
-index 0000000..ccda61c
+index 0000000..d80bdda
 --- /dev/null
 +++ b/include/kernels/gauge_shift.cuh
-@@ -0,0 +1,76 @@
+@@ -0,0 +1,79 @@
 +#pragma once
 +
 +#include <gauge_field_order.h>
@@ -83,6 +83,7 @@ index 0000000..ccda61c
 +
 +    Gauge out;
 +    const Gauge in;
++    int geometry;
 +
 +    int S[4]; // the regular volume parameters
 +    int X[4]; // the regular volume parameters
@@ -91,9 +92,10 @@ index 0000000..ccda61c
 +    int P; // change of parity
 +
 +    GaugeShiftArg(GaugeField &out, const GaugeField &in, const int* dx) :
-+      kernel_param(dim3(in.VolumeCB(), 2, 4)),
++      kernel_param(dim3(in.VolumeCB(), 2, in.Geometry())),
 +      out(out),
-+      in(in)
++      in(in),
++      geometry(in.Geometry())
 +    {
 +      P = 0;
 +      for (int i=0; i<4; i++) {
@@ -130,6 +132,7 @@ index 0000000..ccda61c
 +
 +    __device__ __host__ void operator()(int x_cb, int parity, int dir)
 +    {
++      if(dir>=arg.geometry) return;
 +      switch(dir) {
 +      case 0: GaugeShiftKernel<Arg,0>(arg, x_cb, parity); break;
 +      case 1: GaugeShiftKernel<Arg,1>(arg, x_cb, parity); break;
@@ -198,10 +201,10 @@ index 79530dd..71af545 100644
      qudaDeviceSynchronize();
 diff --git a/lib/gauge_shift.cu b/lib/gauge_shift.cu
 new file mode 100644
-index 0000000..2cd8686
+index 0000000..9731902
 --- /dev/null
 +++ b/lib/gauge_shift.cu
-@@ -0,0 +1,53 @@
+@@ -0,0 +1,57 @@
 +#include <tunable_nd.h>
 +#include <instantiate.h>
 +#include <gauge_field.h>
@@ -249,6 +252,10 @@ index 0000000..2cd8686
 +    checkPrecision(in, out);
 +    checkLocation(in, out);
 +    checkReconstruct(in, out);
++
++    if (out.Geometry() != in.Geometry()) {
++      errorQuda("Field geometries %d %d do not match", out.Geometry(), in.Geometry());
++    }
 +
 +    // gauge field must be passed as first argument so we peel off its reconstruct type
 +    instantiate<ShiftGauge>(out, in, dx);
