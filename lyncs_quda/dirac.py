@@ -41,6 +41,11 @@ class Dirac:
 
     _quda: ... = field(init=False, repr=False, default=None)
 
+    def __post_init__(self):
+        # To create clover object if necessary
+        # TODO: remove this with a better approach
+        self.quda_dirac
+
     # TODO: Support more Dirac types
     #   Unsupported: DomainWall(4D/PC), Mobius(PC/Eofa), (Improved)Staggered(KD/PC), GaugeLaplace(PC), GaugeCovDev
     @property
@@ -235,6 +240,13 @@ class Dirac:
                     "computeTrLog should be set True in the preconditioned case"
                 )
 
+        out = 0
+        if not self.full and "CLOVER" in self.type:
+            if self.even:
+                out -= 2 * self.clover.trLog[1]
+            else:
+                out -= 2 * self.clover.trLog[0]
+
         parity = None
         if not self.full:
             parity = "EVEN" if self.even else "ODD"
@@ -242,13 +254,7 @@ class Dirac:
         solver = self.Mdag.Solver(**s_params)
 
         inv = solver(phi, **s_params)
-        out = inv.norm2(parity=parity)
-        if not self.full and "CLOVER" in self.type:
-            self.clover.inverse_field
-            if self.even:
-                out -= 2 * self.clover.trLog[1]
-            else:
-                out -= 2 * self.clover.trLog[0]
+        out += inv.norm2(parity=parity)
 
         return out
 
@@ -437,4 +443,6 @@ class DiracMatrix:
 
     @property
     def quda(self):
+        if (not self.dirac.full) and self.dirac.clover is not None:
+            self.dirac.clover.inverse_field
         return self._matrix

@@ -841,3 +841,8 @@ class GaugeField(LatticeField):
     def iwasaki_gauge_action(self, plaq_coeff=0):
         "Returns the Iwasaki gauge action"
         return self.gauge_action(plaq_coeff, -0.331)
+
+    def update_momentum(self, force, coeff=-1):
+        # To take traceless anti-Hermitian part of the matrix in 'force' to compute the actual
+        # momemntum force
+        lib.updateMomentum(self.quda_field, coeff, force.quda_field, "lyncs_quda")

@@ -266,6 +266,7 @@ headers = [
     "multigrid.h",
     "evenodd.h",
     "array.h",
+    "momentum.h",
 ]
 
 
