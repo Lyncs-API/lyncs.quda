@@ -41,6 +41,11 @@ class Dirac:
 
     _quda: ... = field(init=False, repr=False, default=None)
 
+    def __post_init__(self):
+        # To create clover object if necessary
+        # TODO: remove this with a better approach
+        self.quda_dirac
+
     # TODO: Support more Dirac types
     #   Unsupported: DomainWall(4D/PC), Mobius(PC/Eofa), (Improved)Staggered(KD/PC), GaugeLaplace(PC), GaugeCovDev
     @property
@@ -157,26 +162,24 @@ class Dirac:
             object.__setattr__(
                 self,
                 "_quda",
-                make_shared(
-                    lib.DiracCoarse(
-                        self.quda_params,
-                        self.gauge.cpu_field,
-                        self.clover.cpu_field,
-                        self.coarse_clover_inv.cpu_field
-                        if self.coarse_clover_inv is not None
-                        else nullptr,
-                        self.coarse_precond.cpu_field
-                        if self.coarse_precond is not None
-                        else nullptr,
-                        self.gauge.gpu_field,
-                        self.clover.gpu_field,
-                        self.coarse_clover_inv.gpu_field
-                        if self.coarse_clover_inv is not None
-                        else nullptr,
-                        self.coarse_precond.gpu_field
-                        if self.coarse_precond is not None
-                        else nullptr,
-                    )
+                lib.DiracCoarse(
+                    self.quda_params,
+                    self.gauge.cpu_field,
+                    self.clover.cpu_field,
+                    self.coarse_clover_inv.cpu_field
+                    if self.coarse_clover_inv is not None
+                    else nullptr,
+                    self.coarse_precond.cpu_field
+                    if self.coarse_precond is not None
+                    else nullptr,
+                    self.gauge.gpu_field,
+                    self.clover.gpu_field,
+                    self.coarse_clover_inv.gpu_field
+                    if self.coarse_clover_inv is not None
+                    else nullptr,
+                    self.coarse_precond.gpu_field
+                    if self.coarse_precond is not None
+                    else nullptr,
                 ),
             )
         return self._quda
@@ -237,6 +240,13 @@ class Dirac:
                     "computeTrLog should be set True in the preconditioned case"
                 )
 
+        out = 0
+        if not self.full and "CLOVER" in self.type:
+            if self.even:
+                out -= 2 * self.clover.trLog[1]
+            else:
+                out -= 2 * self.clover.trLog[0]
+
         parity = None
         if not self.full:
             parity = "EVEN" if self.even else "ODD"
@@ -244,13 +254,7 @@ class Dirac:
         solver = self.Mdag.Solver(**s_params)
 
         inv = solver(phi, **s_params)
-        out = inv.norm2(parity=parity)
-        if not self.full and "CLOVER" in self.type:
-            self.clover.inverse_field
-            if self.even:
-                out -= 2 * self.clover.trLog[1]
-            else:
-                out -= 2 * self.clover.trLog[0]
+        out += inv.norm2(parity=parity)
 
         return out
 
@@ -440,4 +444,6 @@ class DiracMatrix:
 
     @property
     def quda(self):
+        if (not self.dirac.full) and self.dirac.clover is not None:
+            self.dirac.clover.inverse_field
         return self._matrix
