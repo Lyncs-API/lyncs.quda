@@ -13,7 +13,7 @@ from .lib import lib
 
 def lat_dims(elems=[1, 1, 1, 1]):
     # QUDA_MAX_DIM = 6 by default
-    return Array(int, 6, elems).qarray
+    return Array(int, lib.QUDA_MAX_DIM, elems).qarray
 
 
 class Array:
@@ -27,10 +27,10 @@ class Array:
             if isiterable(elems):
                 if len(elems) > size:
                     raise ValueError()
-                for i, e in enumerate(elems):
-                    self._qarray[i] = e
+                for idx, val in enumerate(elems):
+                    self[idx] = val
             else:
-                self._qarray[0] = elems
+                self[0] = elems
 
     @property
     def qarray(self):
@@ -39,9 +39,9 @@ class Array:
     def __len__(self):
         return self._size
 
-    def __getitem__(self, i):
+    def __getitem__(self, idx):
         # TODO: suport slicing
-        return self.qarray[i]
+        return self.qarray[idx]
 
-    def __setitem(self, i, val):
-        self.qarray[i] = val
+    def __setitem__(self, idx, val):
+        self.qarray[idx] = val
