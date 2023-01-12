@@ -1,8 +1,8 @@
 diff --git a/include/gauge_field.h b/include/gauge_field.h
-index 4da624c..4320909 100644
+index 706e82c..f75894c 100644
 --- a/include/gauge_field.h
 +++ b/include/gauge_field.h
-@@ -398,6 +398,13 @@ namespace quda {
+@@ -394,6 +394,13 @@ namespace quda {
      virtual void copy(const GaugeField &src) = 0;
  
      /**
@@ -16,7 +16,7 @@ index 4da624c..4320909 100644
         @brief Compute the L1 norm of the field
         @param[in] dim Which dimension we are taking the norm of (dim=-1 mean all dimensions)
         @return L1 norm
-@@ -548,6 +555,13 @@ namespace quda {
+@@ -544,6 +551,13 @@ namespace quda {
      void copy(const GaugeField &src);
  
      /**
@@ -30,7 +30,7 @@ index 4da624c..4320909 100644
         @brief Download into this field from a CPU field
         @param[in] cpu The CPU field source
      */
-@@ -684,6 +698,13 @@ namespace quda {
+@@ -680,6 +694,13 @@ namespace quda {
       */
      void copy(const GaugeField &src);
  
@@ -44,7 +44,7 @@ index 4da624c..4320909 100644
      void* Gauge_p() { return gauge; }
      const void* Gauge_p() const { return gauge; }
  
-@@ -876,4 +897,13 @@ namespace quda {
+@@ -872,4 +893,13 @@ namespace quda {
  
  #define checkReconstruct(...) Reconstruct_(__func__, __FILE__, __LINE__, __VA_ARGS__)
  
@@ -60,17 +60,16 @@ index 4da624c..4320909 100644
  } // namespace quda
 diff --git a/include/kernels/gauge_shift.cuh b/include/kernels/gauge_shift.cuh
 new file mode 100644
-index 0000000..d80bdda
+index 0000000..978a396
 --- /dev/null
 +++ b/include/kernels/gauge_shift.cuh
-@@ -0,0 +1,79 @@
+@@ -0,0 +1,78 @@
 +#pragma once
 +
 +#include <gauge_field_order.h>
 +#include <quda_matrix.h>
 +#include <index_helper.cuh>
 +#include <kernel.h>
-+#include <shared_memory_cache_helper.cuh>
 +
 +namespace quda {
 +
@@ -144,10 +143,10 @@ index 0000000..d80bdda
 +  
 +}
 diff --git a/lib/CMakeLists.txt b/lib/CMakeLists.txt
-index cb574a4..4794bb7 100644
+index 492fdfb..99678b8 100644
 --- a/lib/CMakeLists.txt
 +++ b/lib/CMakeLists.txt
-@@ -70,6 +70,7 @@ set (QUDA_OBJS
+@@ -72,6 +72,7 @@ set (QUDA_OBJS
    copy_gauge_half.cu copy_gauge_quarter.cu
    copy_gauge.cpp copy_gauge_mg.cu copy_clover.cu
    copy_gauge_offset.cu copy_color_spinor_offset.cu copy_clover_offset.cu
@@ -156,10 +155,10 @@ index cb574a4..4794bb7 100644
    hisq_paths_force_quda.cu
    unitarize_force_quda.cu unitarize_links_quda.cu milc_interface.cpp
 diff --git a/lib/cpu_gauge_field.cpp b/lib/cpu_gauge_field.cpp
-index e75af2c..c05628c 100644
+index f4b2710..65c1d7f 100644
 --- a/lib/cpu_gauge_field.cpp
 +++ b/lib/cpu_gauge_field.cpp
-@@ -333,6 +333,10 @@ namespace quda {
+@@ -334,6 +334,10 @@ namespace quda {
      }
    }
  
@@ -171,10 +170,10 @@ index e75af2c..c05628c 100644
    {
      if(create != QUDA_REFERENCE_FIELD_CREATE) {
 diff --git a/lib/cuda_gauge_field.cpp b/lib/cuda_gauge_field.cpp
-index 79530dd..71af545 100644
+index 568209a..45565bd 100644
 --- a/lib/cuda_gauge_field.cpp
 +++ b/lib/cuda_gauge_field.cpp
-@@ -644,6 +644,24 @@ namespace quda {
+@@ -610,6 +610,24 @@ namespace quda {
      qudaDeviceSynchronize(); // include sync here for accurate host-device profiling
    }
  
