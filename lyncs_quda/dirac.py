@@ -45,7 +45,7 @@ class Dirac:
         # To create clover object if necessary
         # TODO: remove this with a better approach
         self.quda_dirac
-        
+
     # TODO: Support more Dirac types
     #   Unsupported: DomainWall(4D/PC), Mobius(PC/Eofa), (Improved)Staggered(KD/PC), GaugeLaplace(PC), GaugeCovDev
     @property
@@ -246,7 +246,7 @@ class Dirac:
                 out -= 2 * self.clover.trLog[1]
             else:
                 out -= 2 * self.clover.trLog[0]
-                
+
         parity = None
         if not self.full:
             parity = "EVEN" if self.even else "ODD"
