@@ -10,7 +10,7 @@ FILE(GLOB_RECURSE PATCHES "${CMAKE_CURRENT_SOURCE_DIR}/patches/*.patch")
 
 ExternalProject_Add(quda
   GIT_REPOSITORY https://github.com/lattice/quda
-  GIT_TAG eba2c53cca9ede7d956cddb59bfe00b87b11c0ed
+  GIT_TAG 762576a
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX=${EXTERNAL_INSTALL_LOCATION} ${QUDA_CMAKE_ARGS}
   PATCH_COMMAND test ! -n "${PATCHES}" || git apply ${PATCHES} || git apply ${PATCHES} -R --check
 )
