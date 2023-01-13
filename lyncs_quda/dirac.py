@@ -41,6 +41,11 @@ class Dirac:
 
     _quda: ... = field(init=False, repr=False, default=None)
 
+    def __post_init__(self):
+        # To create clover object if necessary
+        # TODO: remove this with a better approach
+        self.quda_dirac
+
     # TODO: Support more Dirac types
     #   Unsupported: DomainWall(4D/PC), Mobius(PC/Eofa), (Improved)Staggered(KD/PC), GaugeLaplace(PC), GaugeCovDev
     @property
@@ -234,14 +239,14 @@ class Dirac:
                 raise ValueError(
                     "computeTrLog should be set True in the preconditioned case"
                 )
+
         out = 0
         if not self.full and "CLOVER" in self.type:
-            self.quda_dirac
             if self.even:
                 out -= 2 * self.clover.trLog[1]
             else:
                 out -= 2 * self.clover.trLog[0]
-                
+
         parity = None
         if not self.full:
             parity = "EVEN" if self.even else "ODD"

@@ -1,0 +1,13 @@
+diff --git a/lib/copy_gauge_inc.cu b/lib/copy_gauge_inc.cu
+index 1638cfb..25cca46 100644
+--- a/lib/copy_gauge_inc.cu
++++ b/lib/copy_gauge_inc.cu
+@@ -292,7 +292,7 @@ namespace quda {
+         // we are doing gauge field packing
+         copyGauge<FloatOut,FloatIn,18>(out, in, location, Out, In, outGhost, inGhost, type);
+       } else {
+-        if (out.Geometry() != QUDA_VECTOR_GEOMETRY) errorQuda("Unsupported geometry %d", out.Geometry());
++        //if (out.Geometry() != QUDA_VECTOR_GEOMETRY) errorQuda("Unsupported geometry %d", out.Geometry());
+ 
+         checkMomOrder(in);
+         checkMomOrder(out);

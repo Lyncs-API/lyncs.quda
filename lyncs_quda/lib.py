@@ -266,6 +266,7 @@ headers = [
     "multigrid.h",
     "evenodd.h",
     "array.h",
+    "momentum.h",
 ]
 
 
@@ -274,7 +275,7 @@ lib = QudaLib(
     header=headers,
     library=["libquda.so"] + libs,
     namespace=["quda", "lyncs_quda"],
-    defined={"QUDA_PRECISION":QUDA_PRECISION, "QUDA_RECONSTRUCT":QUDA_RECONSTRUCT},
+    defined={"QUDA_PRECISION": QUDA_PRECISION, "QUDA_RECONSTRUCT": QUDA_RECONSTRUCT},
 )
 lib.MPI = MPI
 

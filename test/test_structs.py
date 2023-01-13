@@ -1,4 +1,4 @@
-from lyncs_quda import structs #This is also importing Enum
+from lyncs_quda import structs  # This is also importing Enum
 from lyncs_quda.testing import fixlib as lib
 
 

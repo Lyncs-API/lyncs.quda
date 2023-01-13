@@ -71,24 +71,33 @@ class GaugeField(LatticeField):
         if self.reconstruct == "INVALID":
             raise TypeError(f"Unrecognized field dofs {self.dofs}")
 
-    def new(self, reconstruct=None, **kwargs):
+    def new(self, reconstruct=None, geometry=None, **kwargs):
         "Returns a new empty field based on the current"
+        size = self.dofs_per_link
+        if self.iscomplex:
+            size //= 2
+        kwargs.setdefault("dofs", (self.nlinks, size))
+        if geometry is not None:
+            keys, vals = self._geometry_values
+            geometry = geometry.upper()
+            if geometry not in keys:
+                raise ValueError(geometry)
+            kwargs["dofs"] = (vals[keys.index(geometry)], kwargs["dofs"][1])
         if reconstruct is None:
             pass
         elif reconstruct == self.reconstruct:
             pass
-        elif reconstruct == "NO":  # ? what if geometry == COARSE?
-            if "dofs" not in kwargs.keys():  # just a quick fix.
-                size = self.ncol**2
-                kwargs["dofs"] = (
-                    self.geometry_size,
-                    size if self.iscomplex else size * 2,
-                )
+        elif reconstruct == "NO":
+            size = self.ncol**2
+            kwargs["dofs"] = (
+                kwargs["dofs"][0],
+                size if self.iscomplex else size * 2,
+            )
         else:
             try:
                 val = int(reconstruct)
                 kwargs["dofs"] = (
-                    self.geometry_size,
+                    kwargs["dofs"][0],
                     val // 2 if self.iscomplex else val,
                 )
             except ValueError:
@@ -114,7 +123,6 @@ class GaugeField(LatticeField):
         #  with link_type = MOM if there is one such term in the expression
         # As for other link types except SU3 and MOM, such mixture simply
         #  results in QUDA errors
-
         src = self if other is None else other
         dst = self if out is None else out
         if src.is_momentum != dst.is_momentum:
@@ -214,7 +222,7 @@ class GaugeField(LatticeField):
         return "SCALAR"
 
     @property
-    def geometry_size(self):
+    def nlinks(self):
         "Size of the geometry index"
         keys, vals = self._geometry_values
         if self.dofs[0] in vals:
@@ -423,7 +431,7 @@ class GaugeField(LatticeField):
     def dot(self, other, out=None):
         "Matrix product between two gauge fields"
         if not isinstance(other, GaugeField):
-            raise ValueError
+            other = type(self)(other)
         self = self.full()
         other = other.full()
         out = self.prepare_out(out)
@@ -569,17 +577,17 @@ class GaugeField(LatticeField):
 
     def norm1(self, link_dir=-1):
         "Computes the L1 norm of the field"
-        if not -1 <= link_dir < self.ndims:
+        if not -1 <= link_dir < self.nlinks:
             raise ValueError(
-                f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
+                f"link_dir can be either -1 (all) or must be between 0 and {self.nlinks}"
             )
         return self.quda_field.norm1(link_dir)
 
     def norm2(self, link_dir=-1):
         "Computes the L2 norm of the field"
-        if not -1 <= link_dir < self.ndims:
+        if not -1 <= link_dir < self.nlinks:
             raise ValueError(
-                f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
+                f"link_dir can be either -1 (all) or must be between 0 and {self.nlinks}"
             )
         if self.reconstruct == "10":
             # TODO: patch quda, reconstruct 10 not supported
@@ -591,17 +599,17 @@ class GaugeField(LatticeField):
 
     def abs_max(self, link_dir=-1):
         "Computes the absolute maximum of the field (Linfinity norm)"
-        if not -1 <= link_dir < self.ndims:
+        if not -1 <= link_dir < self.nlinks:
             raise ValueError(
-                f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
+                f"link_dir can be either -1 (all) or must be between 0 and {self.nlinks}"
             )
         return self.quda_field.abs_max(link_dir)
 
     def abs_min(self, link_dir=-1):
         "Computes the absolute minimum of the field"
-        if not -1 <= link_dir < self.ndims:
+        if not -1 <= link_dir < self.nlinks:
             raise ValueError(
-                f"link_dir can be either -1 (all) or must be between 0 and {self.ndims}"
+                f"link_dir can be either -1 (all) or must be between 0 and {self.nlinks}"
             )
         return self.quda_field.abs_min(link_dir)
 
@@ -692,7 +700,7 @@ class GaugeField(LatticeField):
 
         # Preparing grad and fnc
         if grad is not None:
-            #gaugeForceGradient is missing from QUDA
+            # gaugeForceGradient is missing from QUDA
             grad = self.prepare_in(grad, reconstruct=10)
             fnc = lambda out, u, *args: self._gaugeForceGradient(
                 out,
@@ -710,7 +718,7 @@ class GaugeField(LatticeField):
         if force and not keep_paths:
             paths, coeffs = self._paths_for_force(paths, coeffs)
             self._check_paths(paths)
-        paths, lengths = self._paths_to_array(paths) # length is repalaced by vetor
+        paths, lengths = self._paths_to_array(paths)  # length is repalaced by vetor
 
         # Calling Quda function
         num_paths = paths.shape[1]
@@ -729,7 +737,7 @@ class GaugeField(LatticeField):
             coeffs,
             num_paths,
             max_length,
-            )
+        )
         return out
 
     # for profiling
@@ -833,3 +841,8 @@ class GaugeField(LatticeField):
     def iwasaki_gauge_action(self, plaq_coeff=0):
         "Returns the Iwasaki gauge action"
         return self.gauge_action(plaq_coeff, -0.331)
+
+    def update_momentum(self, force, coeff=-1):
+        # To take traceless anti-Hermitian part of the matrix in 'force' to compute the actual
+        # momemntum force
+        lib.updateMomentum(self.quda_field, coeff, force.quda_field, "lyncs_quda")

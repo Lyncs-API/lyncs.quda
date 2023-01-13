@@ -231,9 +231,9 @@ def test_fermionic_force(lib, lattice, device, epsilon):
     gf.gaussian()
     mom = momentum(lattice, dtype=dtype, device=device)
     mom.gaussian(epsilon=epsilon)
-    
+
     gf2 = mom.exponentiate(mul_to=gf)
-    
+
     R = spinor(lattice, dtype=dtype)
     R.gaussian()
 
