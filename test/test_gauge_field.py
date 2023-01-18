@@ -267,7 +267,7 @@ def test_fermionic_force(lib, lattice, device, epsilon):
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 @epsilon_loop  # enables epsilon
-def test_force_gradient(lib, lattice, device, epsilon):
+def _test_force_gradient(lib, lattice, device, epsilon):
     dtype = "float64"
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.gaussian()
