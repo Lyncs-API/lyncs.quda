@@ -633,13 +633,13 @@ class GaugeField(LatticeField):
         return tuple(tuple(path) for path in paths)
 
     def _paths_for_sum(self, paths, coeffs):
-        aux = ([],[],[],[])
+        aux = ([], [], [], [])
         for i, (path, coeff) in enumerate(zip(paths, coeffs)):
             if path[0] < 0:
                 raise ValueError(f"Path {i} = {path} nevative first movement")
-            aux[path[0]-1].append((coeff, len(path), path[1:]))
+            aux[path[0] - 1].append((coeff, len(path), path[1:]))
         # Sorting by coeffs and lengths
-        aux = tuple(map(sorted,aux))
+        aux = tuple(map(sorted, aux))
         coeffs = tuple(tuple(__[0] for __ in _) for _ in aux)
         lengths = tuple(tuple(__[1] for __ in _) for _ in aux)
         paths = tuple(tuple(__[2] for __ in _) for _ in aux)
@@ -648,7 +648,7 @@ class GaugeField(LatticeField):
         if not all(lens == lengths[0] for lens in lengths[1:]):
             raise ValueError(f"Not all directions have the same lengths: {aux}")
         return paths, coeffs[0]
-            
+
     def _paths_for_force(self, paths, coeffs):
         "Create all paths needed for force"
         out = defaultdict(int)
@@ -678,7 +678,7 @@ class GaugeField(LatticeField):
             for j, path in enumerate(per_dir):
                 for k, step in enumerate(path):
                     paths_array[i, j, k] = convert(step)
-            
+
         return paths_array, lengths
 
     def compute_paths(
@@ -733,7 +733,7 @@ class GaugeField(LatticeField):
         else:
             paths = (paths,)
         paths, lengths = self._paths_to_array(paths)
-        
+
         # Preparing out
         if sum_paths:
             out = self.prepare_out(out, empty=False, reconstruct=10 if force else None)
@@ -748,7 +748,7 @@ class GaugeField(LatticeField):
             out_quda = lib.std.vector["GaugeField"](
                 tuple(field.quda_field for field in out)
             )
-        
+
         # Calling Quda function
         ndims = paths.shape[0]
         num_paths = paths.shape[1]
@@ -786,7 +786,7 @@ class GaugeField(LatticeField):
             (mu, nu, -mu, -nu)
             for mu in range(1, self.ndims + 1)
             for nu in range(1, self.ndims + 1)
-            if mu!= nu
+            if mu != nu
         )
 
     def plaquette_field(self, **kwargs):
@@ -804,7 +804,7 @@ class GaugeField(LatticeField):
             (mu, nu, nu, -mu, -nu, -nu)
             for mu in range(1, self.ndims + 1)
             for nu in range(1, self.ndims + 1)
-            if mu!= nu
+            if mu != nu
         )
 
     def rectangle_field(self, **kwargs):
