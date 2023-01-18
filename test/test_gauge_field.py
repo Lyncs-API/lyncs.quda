@@ -121,6 +121,13 @@ def test_random(lib, lattice, device, dtype):
     total = gf.plaquettes()
     assert np.isclose(plaq[0], total)
 
+    total = gf.plaquette_field().reduce()
+    assert np.isclose(plaq[0], total)
+    
+    parts = gf.plaquette_field(sum_paths=False)
+    total = np.mean([part.reduce() for part in parts])
+    assert np.isclose(plaq[0], total)
+    
     gf2 = gf.copy()
     assert gf == gf2
     assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)

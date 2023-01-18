@@ -714,6 +714,8 @@ class GaugeField(LatticeField):
             coeffs = [coeffs] * len(paths)
         if not len(paths) == len(coeffs):
             raise ValueError("Paths and coeffs must have the same length")
+        if not sum_paths and add_coeff != 1:
+            coeffs = [coeff * add_coeff for coeff in coeffs]
 
         # Preparing fnc
         if force and sum_paths:
@@ -734,22 +736,7 @@ class GaugeField(LatticeField):
             paths = (paths,)
         paths, lengths = self._paths_to_array(paths)
 
-        # Preparing out
-        if sum_paths:
-            out = self.prepare_out(out, empty=False, reconstruct=10 if force else None)
-            out_quda = out.quda_field
-        else:
-            if out is None:
-                out = [None] * num_paths
-            assert isiterable(out, size=num_paths)
-            out = tuple(
-                self.prepare_out(field, empty=False, geometry="scalar") for field in out
-            )
-            out_quda = lib.std.vector["GaugeField"](
-                tuple(field.quda_field for field in out)
-            )
-
-        # Calling Quda function
+        # Preparing function's arguments
         ndims = paths.shape[0]
         num_paths = paths.shape[1]
         max_length = paths.shape[2]
@@ -757,16 +744,37 @@ class GaugeField(LatticeField):
         paths_array = lib.std.vector["int **"]([ptrs.get()[i] for i in range(ndims)])
         lengths = lib.std.vector[int](lengths)
         coeffs = lib.std.vector["double"](coeffs)
-        fnc(
-            out_quda,
+        args = [
             self.extended_field(1),  # TODO: compute correct extension (max distance)
-            add_coeff,
             paths_array,
             lengths,
             coeffs,
             num_paths,
             max_length,
-        )
+        ]
+        if sum_paths:
+            args.insert(1, add_coeff)
+
+        # Preparing out
+        if sum_paths:
+            out = self.prepare_out(out, empty=False, reconstruct=10 if force else None)
+            args.insert(0, out.quda_field)
+        else:
+            if out is None:
+                out = [None] * num_paths
+            assert isiterable(out, size=num_paths)
+            out = tuple(
+                self.prepare_out(
+                    field, empty=False, geometry=("scalar" if field is None else None)
+                )
+                for field in out
+            )
+            args.insert(
+                0,
+                lib.std.vector["quda::GaugeField*"](tuple(field.quda_field for field in out)),
+            )
+
+        fnc(*args)
         return out
 
     # for profiling

@@ -60,7 +60,7 @@ index 706e82c..f75894c 100644
  } // namespace quda
 diff --git a/include/kernels/gauge_shift.cuh b/include/kernels/gauge_shift.cuh
 new file mode 100644
-index 0000000..978a396
+index 0000000..d8f97a8
 --- /dev/null
 +++ b/include/kernels/gauge_shift.cuh
 @@ -0,0 +1,78 @@
@@ -131,7 +131,7 @@ index 0000000..978a396
 +
 +    __device__ __host__ void operator()(int x_cb, int parity, int dir)
 +    {
-+      if(dir>=arg.geometry) return;
++      assert(dir<arg.geometry);
 +      switch(dir) {
 +      case 0: GaugeShiftKernel<Arg,0>(arg, x_cb, parity); break;
 +      case 1: GaugeShiftKernel<Arg,1>(arg, x_cb, parity); break;
@@ -143,14 +143,14 @@ index 0000000..978a396
 +  
 +}
 diff --git a/lib/CMakeLists.txt b/lib/CMakeLists.txt
-index 492fdfb..99678b8 100644
+index 492fdfb..4c4fc49 100644
 --- a/lib/CMakeLists.txt
 +++ b/lib/CMakeLists.txt
 @@ -72,6 +72,7 @@ set (QUDA_OBJS
    copy_gauge_half.cu copy_gauge_quarter.cu
    copy_gauge.cpp copy_gauge_mg.cu copy_clover.cu
    copy_gauge_offset.cu copy_color_spinor_offset.cu copy_clover_offset.cu
-+  gauge_shift.cu
++  gauge_shift.cu gauge_paths.cu
    staggered_oprod.cu clover_trace_quda.cu
    hisq_paths_force_quda.cu
    unitarize_force_quda.cu unitarize_links_quda.cu milc_interface.cpp
@@ -200,7 +200,7 @@ index 568209a..45565bd 100644
      qudaDeviceSynchronize();
 diff --git a/lib/gauge_shift.cu b/lib/gauge_shift.cu
 new file mode 100644
-index 0000000..9731902
+index 0000000..6549e48
 --- /dev/null
 +++ b/lib/gauge_shift.cu
 @@ -0,0 +1,57 @@
@@ -220,7 +220,7 @@ index 0000000..9731902
 +
 +  public:
 +    ShiftGauge(GaugeField &out, const GaugeField &in, const int * dx) :
-+      TunableKernel3D(in, 2, 4),
++      TunableKernel3D(in, 2, in.Geometry()),
 +      out(out),
 +      in(in),
 +      dx(dx)
