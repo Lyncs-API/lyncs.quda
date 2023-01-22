@@ -14,10 +14,10 @@ index 714ad7d..27f5560 100644
        {
          const int M = reconLen / N;
 diff --git a/include/gauge_path_helper.cuh b/include/gauge_path_helper.cuh
-index d1c2ae5..43593a9 100644
+index d1c2ae5..3e8e22c 100644
 --- a/include/gauge_path_helper.cuh
 +++ b/include/gauge_path_helper.cuh
-@@ -85,7 +85,7 @@ namespace quda {
+@@ -85,16 +85,21 @@ namespace quda {
       @param[in] dx Temporary shared memory storage for relative coordinate shift
    */
    template <typename Arg, typename I>
@@ -26,15 +26,23 @@ index d1c2ae5..43593a9 100644
    computeGaugePath(const Arg &arg, int x[4], int parity, const int* path, int length, I& dx)
    {
      using Link = typename Arg::Link;
-@@ -93,7 +93,6 @@ namespace quda {
+ 
      // linkA: current matrix
      // linkB: the loaded matrix in this round
-     Link linkA, linkB;
+-    Link linkA, linkB;
 -    setIdentity(&linkA);
++    Link linkA;
  
++    if (length==0) {
++      setIdentity(&linkA);
++      return linkA;
++    }
++
++    Link linkB;
      int nbr_oddbit = parity;
  
-@@ -104,19 +103,100 @@ namespace quda {
+     for (int j = 0; j < length; j++) {
+@@ -104,19 +109,105 @@ namespace quda {
  
        if (isForwards(pathj)) {
          linkB = arg.u(lnkdir, linkIndexShift(x,dx,arg.E), nbr_oddbit);
@@ -83,8 +91,13 @@ index d1c2ae5..43593a9 100644
 +    // aux[0]: current matrix
 +    // aux[1]: the loaded matrix in this round
 +    LinkPair<Link> out;
++    if (length==0) {
++      setIdentity(&out.A);
++      setIdentity(&out.B);
++      return out;
++    }
++    
 +    Link aux0, aux1, aux2;
-+
 +    int nbr_oddbit = parity;
 +
 +    for (int j = 0; j < length; j++) {

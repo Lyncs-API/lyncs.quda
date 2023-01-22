@@ -110,6 +110,10 @@ def test_unity(lib, lattice, device, dtype):
     gf2.gaussian()
     assert gf.dot(gf2) == gf2
 
+    gf3 = gf.new(geometry="scalar")
+    gf3.unity()
+    assert gf2.compute_paths(((),), sum_paths=False)[0] == gf3
+
 
 @dtype_loop  # enables dtype
 @device_loop  # enables device

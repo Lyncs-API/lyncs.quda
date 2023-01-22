@@ -615,6 +615,8 @@ class GaugeField(LatticeField):
         for i, path in enumerate(paths):
             if not isiterable(path):
                 raise TypeError(f"Path {i} = {path} is not iterable")
+            if len(path) == 0:
+                continue
             if min(path) < -self.ndims:
                 raise ValueError(
                     f"Path {i} = {path} has direction smaller than {-self.ndims}"
@@ -661,7 +663,7 @@ class GaugeField(LatticeField):
         "Returns array of paths and their length"
 
         lengths = numpy.array(list(map(len, paths[0])), dtype="int32")
-        max_length = lengths.max()
+        max_length = max(lengths.max(), 1)
         ndims = len(paths)
         npaths = len(paths[0])
         paths_array = numpy.empty((ndims, npaths, max_length), dtype="int32")
