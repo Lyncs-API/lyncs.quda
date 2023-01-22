@@ -241,6 +241,19 @@ def test_paths_wins(lib, lattice, device):
     gf.gaussian()
 
     mom = momentum(lattice, dtype=dtype, device=device)
+    mom.zero()
+
+    out = gf.new(geometry="scalar", empty=False)
+
+    lparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=True)
+    rparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=False)
+    lparts = tuple(zip(*lparts))
+    rparts = tuple(zip(*rparts))
+    assert allclose(lparts[0], rparts[0])
+    assert allclose(lparts[1], out)
+    assert allclose(rparts[1], out)
+
+    mom = momentum(lattice, dtype=dtype, device=device)
     mom.gaussian()
 
     lparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=True)
@@ -248,6 +261,9 @@ def test_paths_wins(lib, lattice, device):
     lparts = tuple(zip(*lparts))
     rparts = tuple(zip(*rparts))
     assert allclose(lparts[0], rparts[0])
+    ltracs = tuple(loop.reduce() for loop in lparts[1])
+    rtracs = tuple(loop.reduce() for loop in rparts[1])
+    assert np.allclose(ltracs, rtracs)
 
 
 # @dtype_loop  # enables dtype
