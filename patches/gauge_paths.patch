@@ -13,8 +13,132 @@ index 714ad7d..27f5560 100644
        __device__ __host__ inline void load(complex v[length / 2], int x, int dir, int parity, real phase = 1.0) const
        {
          const int M = reconLen / N;
+diff --git a/include/gauge_path_helper.cuh b/include/gauge_path_helper.cuh
+index d1c2ae5..43593a9 100644
+--- a/include/gauge_path_helper.cuh
++++ b/include/gauge_path_helper.cuh
+@@ -85,7 +85,7 @@ namespace quda {
+      @param[in] dx Temporary shared memory storage for relative coordinate shift
+   */
+   template <typename Arg, typename I>
+-  __device__ __host__ inline typename Arg::Link
++  __device__ __host__ inline typename Arg::Link&
+   computeGaugePath(const Arg &arg, int x[4], int parity, const int* path, int length, I& dx)
+   {
+     using Link = typename Arg::Link;
+@@ -93,7 +93,6 @@ namespace quda {
+     // linkA: current matrix
+     // linkB: the loaded matrix in this round
+     Link linkA, linkB;
+-    setIdentity(&linkA);
+ 
+     int nbr_oddbit = parity;
+ 
+@@ -104,19 +103,100 @@ namespace quda {
+ 
+       if (isForwards(pathj)) {
+         linkB = arg.u(lnkdir, linkIndexShift(x,dx,arg.E), nbr_oddbit);
+-        linkA = linkA * linkB;
+         dx[lnkdir]++; // now have to update to new location
+         nbr_oddbit = nbr_oddbit^1;
+       } else {
+         dx[lnkdir]--; // if we are going backwards the link is on the adjacent site
+         nbr_oddbit = nbr_oddbit^1;
+         linkB = arg.u(lnkdir, linkIndexShift(x,dx,arg.E), nbr_oddbit);
+-        linkA = linkA * conj(linkB);
++	linkB = conj(linkB);
+       }
++      if (j>0)
++	linkA = linkA * linkB;
++      else
++	linkA = linkB;
+     } //j
+ 
+     return linkA;
+   }
+ 
++  template <typename Link>
++  struct LinkPair {
++    Link A,B;
++  };
++
++  
++  /**
++     @brief Calculates an arbitary gauge path with insertion, returning the product matrix
++
++     @return The product of the gauge path
++     @param[in] arg Kernel argumnt
++     @param[in] x Full index array
++     @param[in] parity Parity index (note: assumes that an offset from a non-zero dx is baked in)
++     @param[in] path Gauge link path
++     @param[in] length Length of gauge path
++     @param[in] dx Temporary shared memory storage for relative coordinate shift
++  */
++  template <typename Arg, typename I>
++  __device__ __host__ inline LinkPair<typename Arg::Link>&
++  computeGaugePathWIns(const Arg &arg, int x[4], int parity, const int* path, int length, I& dx)
++  {
++    using Link = typename Arg::Link;
++
++    // aux[0]: current matrix
++    // aux[1]: the loaded matrix in this round
++    LinkPair<Link> out;
++    Link aux0, aux1, aux2;
++
++    int nbr_oddbit = parity;
++
++    for (int j = 0; j < length; j++) {
++
++      int pathj = path[j];
++      int lnkdir = isForwards(pathj) ? pathj : flipDir(pathj);
++
++      if (isForwards(pathj)) {
++	aux0 = arg.u(lnkdir, linkIndexShift(x,dx,arg.E), nbr_oddbit);
++	aux1 = arg.ins(lnkdir, linkIndexShift(x,dx,arg.E), nbr_oddbit);
++	if (not (arg.left and j==0)) {
++	  aux1 = aux1 * aux0;
++	}
++        dx[lnkdir]++; // now have to update to new location
++        nbr_oddbit = nbr_oddbit^1;
++      } else {
++        dx[lnkdir]--; // if we are going backwards the link is on the adjacent site
++        nbr_oddbit = nbr_oddbit^1;
++	aux0 = arg.u(lnkdir, linkIndexShift(x,dx,arg.E), nbr_oddbit);
++	aux0 = conj(aux0);
++	aux1 = arg.ins(lnkdir, linkIndexShift(x,dx,arg.E), nbr_oddbit);
++	if (not (arg.left and j==0)) {
++	  aux1 = - aux0 * aux1;
++	}
++      }
++
++      if (j>0) {
++	if(arg.left and j==1)
++	  out.B = out.A * aux1;
++	else
++	  out.B = out.B * aux0 + out.A * aux1;
++	out.A = out.A * aux0;
++      }
++      else if(arg.left) {
++	out.A = aux0;
++	aux2 = aux1;
++      }
++      else {
++	out.A = aux0;
++	out.B = aux1;
++      }
++    } //j
++
++    if(arg.left) {
++      out.B = out.B + out.A*aux2;
++    }
++    
++    return out;
++  }
++
+ }
+ 
 diff --git a/include/gauge_path_quda.h b/include/gauge_path_quda.h
-index db398c1..b198ac9 100644
+index db398c1..79c4075 100644
 --- a/include/gauge_path_quda.h
 +++ b/include/gauge_path_quda.h
 @@ -11,7 +11,7 @@ namespace quda
@@ -35,7 +159,7 @@ index db398c1..b198ac9 100644
       @param[in] max_length Maximum length of each path
     */
    void gaugePath(GaugeField &out, const GaugeField &u, double coeff, std::vector<int **> &input_path,
-@@ -39,11 +39,38 @@ namespace quda
+@@ -39,11 +39,37 @@ namespace quda
       @param[in] factor Multiplicative factor for each loop (i.e., volume normalization, etc)
       @param[in] length Host array holding the length of all paths
       @param[in] path_coeff Coefficient of each path
@@ -71,178 +195,6 @@ index db398c1..b198ac9 100644
 +     @param[in] num_paths Number of paths
 +     @param[in] max_length Maximum length of each path
 +   */
-+  void gaugePathsWIns(std::vector<GaugeField*> &out, const GaugeField &u, const GaugeField &ins,
-+		      std::vector<int **> &input_path, std::vector<int> &length, std::vector<double> &path_coeff,
-+		      int num_paths, int max_length);
++  void gaugePathsWIns(std::vector<GaugeField*> &out, std::vector<GaugeField*> &out_wins, const GaugeField &u, const GaugeField &ins, bool left,
++		      std::vector<int **> &input_path, std::vector<int> &length, std::vector<double> &path_coeff, int num_paths, int max_length);
  } // namespace quda
-diff --git a/include/kernels/gauge_paths.cuh b/include/kernels/gauge_paths.cuh
-new file mode 100644
-index 0000000..7653408
---- /dev/null
-+++ b/include/kernels/gauge_paths.cuh
-@@ -0,0 +1,86 @@
-+#pragma once
-+
-+#include <gauge_field_order.h>
-+#include <quda_matrix.h>
-+#include <index_helper.cuh>
-+#include <kernel.h>
-+#include <thread_array.h>
-+#include <array.h>
-+#include <reduce_helper.h>
-+#include <reduction_kernel.h>
-+#include <gauge_path_helper.cuh>
-+
-+namespace quda {
-+
-+  template <typename store_t, int nColor_, QudaReconstructType recon_>
-+  struct GaugePathsArg : kernel_param<> {
-+    using real = typename mapper<store_t>::type;
-+    static constexpr int nColor = nColor_;
-+    static constexpr QudaReconstructType recon = recon_;
-+    using Link = Matrix<complex<real>, nColor>;
-+    static_assert(nColor == 3, "Only nColor=3 enabled at this time");
-+    using Gauge = typename gauge_mapper<real,recon>::type;
-+
-+    const Gauge u;
-+    Gauge *out;
-+    const paths<1> p;
-+
-+    static constexpr int nParity = 2; // always true for gauge fields
-+    int X[4]; // the regular volume parameters
-+    int E[4]; // the extended volume parameters
-+    int border[4]; // radius of border
-+
-+    GaugePathsArg(const GaugeField &u, Gauge *out_h, const paths<1> &p) :
-+      kernel_param(dim3(u.VolumeCB(), 2, p.num_paths)),
-+      u(u),
-+      p(p)
-+    {
-+      size_t bytes = p.num_paths*sizeof(Gauge);
-+      out = static_cast<Gauge*>(pool_device_malloc(bytes));
-+      qudaMemcpy(out, out_h, bytes, qudaMemcpyHostToDevice);
-+
-+      for (int dir = 0; dir < 4; dir++) {
-+        border[dir] = u.R()[dir];
-+      	E[dir] = u.X()[dir];
-+      	X[dir] = u.X()[dir] - border[dir]*2;
-+      }
-+    }
-+    
-+    void free() {
-+      pool_device_free(out);
-+    }
-+  };
-+
-+  template <typename Arg> struct GaugePathsK
-+  {
-+    const Arg &arg;
-+    constexpr GaugePathsK(const Arg &arg) : arg(arg) {}
-+    static constexpr const char *filename() { return KERNEL_FILE; }
-+
-+    __device__ __host__ void operator()(int x_cb, int parity, int path_id)
-+    {
-+      using Link = typename Arg::Link;
-+      using real = typename Arg::real;
-+
-+      int x[4] = {0, 0, 0, 0};
-+      getCoords(x, x_cb, arg.X, parity);
-+      for (int dr=0; dr<4; ++dr) x[dr] += arg.border[dr]; // extended grid coordinates
-+
-+      thread_array<int, 4> dx{0};
-+
-+      real coeff = arg.p.path_coeff[path_id];
-+      if (coeff == 0) return;
-+
-+      const int* path = arg.p.input_path[0] + path_id * arg.p.max_length;
-+
-+      // compute the path
-+      Link link_prod = computeGaugePath(arg, x, parity, path, arg.p.length[path_id], dx);
-+
-+      // storing path
-+      Link out = arg.out[path_id](0, x_cb, parity);
-+      out = out + coeff * link_prod;
-+      arg.out[path_id](0, x_cb, parity) = out;
-+    }
-+  };
-+
-+}
-diff --git a/lib/gauge_paths.cu b/lib/gauge_paths.cu
-new file mode 100644
-index 0000000..c21f6ef
---- /dev/null
-+++ b/lib/gauge_paths.cu
-@@ -0,0 +1,73 @@
-+#include <gauge_field.h>
-+#include <gauge_path_quda.h>
-+#include <instantiate.h>
-+#include <tunable_nd.h>
-+#include <kernels/gauge_paths.cuh>
-+
-+namespace quda {
-+
-+  template<typename Float, int nColor, QudaReconstructType recon>
-+  class GaugePaths : public TunableKernel3D {
-+    using real = typename mapper<Float>::type;
-+    using Gauge = typename gauge_mapper<real,recon>::type;
-+    const GaugeField &u;
-+    std::vector<Gauge> out;
-+    const paths<1> &p;
-+    unsigned int minThreads() const { return u.VolumeCB(); }
-+
-+  public:
-+    GaugePaths(const GaugeField &u, std::vector<GaugeField*> &out, const paths<1>& p) :
-+      TunableKernel3D(u, 2, p.num_paths),
-+      u(u),
-+      out(out.begin(),out.end()),
-+      p(p)
-+    {
-+      if (p.num_paths != static_cast<int>(out.size()))
-+	errorQuda("Out vector size %lu != number of paths %d", out.size(), p.num_paths);
-+      
-+      strcat(aux, "num_paths=");
-+      char loop_str[4];
-+      u32toa(loop_str, p.num_paths);
-+      strcat(aux, loop_str);
-+
-+      apply(device::get_default_stream());
-+    }
-+
-+    void apply(const qudaStream_t &stream)
-+    {
-+      TuneParam tp = tuneLaunch(*this, getTuning(), getVerbosity());
-+      GaugePathsArg<Float, nColor, recon> arg(u, out.data(), p);
-+      launch<GaugePathsK>(tp, stream, arg);
-+      arg.free();
-+    }
-+
-+    long long flops() const
-+    {
-+      auto Nc = u.Ncolor();
-+      auto mat_mul_flops = 8ll * Nc * Nc * Nc - 2 * Nc * Nc;
-+      // matrix multiplies + rescale
-+      return (p.count * mat_mul_flops + p.num_paths * (Nc * Nc)) * u.Volume();
-+    }
-+
-+    long long bytes() const {
-+      // links * one LatticeColorMatrix worth of data
-+      return p.count * u.Bytes() / 4;
-+    }
-+  };
-+
-+  void gaugePaths(std::vector<GaugeField*> &out, const GaugeField &u, std::vector<int **> &input_path,
-+		  std::vector<int> &length, std::vector<double> &path_coeff, int num_paths, int max_length)
-+  {
-+    if (static_cast<int>(out.size()) != num_paths)
-+      errorQuda("Output gauge vector is of size %lu, expected %d", out.size(), num_paths);
-+    for (int i = 0; i < num_paths; i++) {
-+      checkPrecision(*out[i], u);
-+      checkLocation(*out[i], u);
-+      checkReconstruct(*out[i], u);
-+    }
-+    paths<1> p(input_path, length, path_coeff, num_paths, max_length);
-+    instantiate<GaugePaths, ReconstructNo12>(u, out, p);
-+    p.free();
-+  }
-+
-+} // namespace quda

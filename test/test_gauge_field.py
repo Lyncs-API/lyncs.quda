@@ -10,7 +10,7 @@ from lyncs_quda.testing import (
     epsilon_loop,
 )
 from lyncs_cppyy.ll import addressof
-from math import isclose
+from lyncs_utils import isclose, allclose
 
 
 @lattice_loop
@@ -123,11 +123,11 @@ def test_random(lib, lattice, device, dtype):
 
     total = gf.plaquette_field().reduce()
     assert np.isclose(plaq[0], total)
-    
+
     parts = gf.plaquette_field(sum_paths=False)
     total = np.mean([part.reduce() for part in parts])
     assert np.isclose(plaq[0], total)
-    
+
     gf2 = gf.copy()
     assert gf == gf2
     assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)
@@ -226,6 +226,24 @@ def test_force(lib, lattice, device, epsilon):
 
         zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
         assert zeros == 0
+
+
+# @dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+def test_paths_wins(lib, lattice, device):
+    dtype = "float64"
+    gf = gauge(lattice, dtype=dtype, device=device)
+    gf.gaussian()
+
+    mom = momentum(lattice, dtype=dtype, device=device)
+    mom.gaussian()
+
+    lparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=True)
+    rparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=False)
+    lparts = tuple(zip(*lparts))
+    rparts = tuple(zip(*rparts))
+    assert allclose(lparts[0], rparts[0])
 
 
 # @dtype_loop  # enables dtype

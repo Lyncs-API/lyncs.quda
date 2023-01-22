@@ -219,44 +219,45 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             return False
         return True
 
-    def _prepare(self, *fields, copy=False, check=False, **kwargs):
-        "Prepares the fields by creating new ones if None given; else casting them to type(self), then checking them if compatible with self, and/or copying them"
-        if not fields:
-            raise ValueError("No fields given")
-        if len(fields) == 1:
-            field = fields[0]
-            if field is self:
-                return field
-            if field is None:
-                return self.new(**kwargs)
-            cls = type(self)
-            if not isinstance(field, cls):
-                field = cls(field)
-            if check and not self.equivalent(field, **kwargs):
-                if copy:
-                    return self.copy(other=field, **kwargs)
-                raise ValueError("The given field is not appropriate")
-            field.__array_finalize__(self)
+    def _prepare(self, field, copy=False, check=False, **kwargs):
+        if field is self:
             return field
-        return tuple(
-            self._prepare(field, copy=copy, check=check, **kwargs) for field in fields
-        )
+        if field is None:
+            return self.new(**kwargs)
+        cls = type(self)
+        if not isinstance(field, cls):
+            field = cls(field)
+        if check and not self.equivalent(field, **kwargs):
+            if copy:
+                return self.copy(other=field, **kwargs)
+            raise ValueError("The given field is not appropriate")
+        field.__array_finalize__(self)
+        return field
 
-    def prepare_out(self, *fields, **kwargs):
+    def prepare(self, fields, **kwargs):
+        """Prepares the fields by creating new ones if None given;
+        else casting them to type(self), then checking them if compatible with self,
+        and/or copying them
+        """
+        if isinstance(fields, (tuple, list)):
+            return type(fields)(self.prepare(field, **kwargs) for field in fields)
+        return self._prepare(fields, **kwargs)
+
+    def prepare_out(self, fields, **kwargs):
         "Function to call for preparing output(s) to be passed for a calculation"
         # Typically, we do want to check but not copy an output
         kwargs.setdefault("check", True)
         kwargs.setdefault("copy", False)
         if kwargs["copy"]:
             raise ValueError("An output should never be copied")
-        return self._prepare(*fields, **kwargs)
+        return self.prepare(fields, **kwargs)
 
-    def prepare_in(self, *fields, **kwargs):
+    def prepare_in(self, fields, **kwargs):
         "Function to call for preparing input(s) to be used for a calculation"
         # Typically, we want to check and copy an input
         kwargs.setdefault("check", True)
         kwargs.setdefault("copy", True)
-        return self._prepare(*fields, **kwargs)
+        return self.prepare(fields, **kwargs)
 
     def __init__(self, field, comm=None, **kwargs):
         self.field = field

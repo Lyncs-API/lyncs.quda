@@ -135,16 +135,11 @@ class GaugeField(LatticeField):
         # need to reset QUDA object when meta data of its Python wrapper is changed
         self._quda = None
 
-    def _prepare(self, *fields, **kwargs):
-        "Prepares the fields by creating new one if None given else casting them to type(self) then checking them if compatible with self and/or copying them"
-
-        fields = super()._prepare(*fields, **kwargs)
-        # ? we don't need to do the following except for the base case?
-        for field in fields if isinstance(fields, tuple) else (fields,):
-            is_momentum = kwargs.get("is_momentum", self.is_momentum)
-            field.is_momentum = is_momentum
-
-        return fields
+    def _prepare(self, field, **kwargs):
+        field = super()._prepare(field, **kwargs)
+        is_momentum = kwargs.get("is_momentum", self.is_momentum)
+        field.is_momentum = is_momentum
+        return field
 
     @property
     def dofs_per_link(self):
@@ -689,6 +684,8 @@ class GaugeField(LatticeField):
         add_coeff=1,
         force=False,
         sum_paths=True,  # If False, returns a list of gauge fields for every path
+        insertion=None,
+        left=True,
     ):
         """
         Computes the gauge paths on the lattice.
@@ -718,7 +715,10 @@ class GaugeField(LatticeField):
             coeffs = [coeff * add_coeff for coeff in coeffs]
 
         # Preparing fnc
-        if force and sum_paths:
+        if insertion is not None:
+            assert not sum_paths
+            fnc = self._gaugePathsWIns
+        elif force and sum_paths:
             fnc = self._gaugeForce
         elif sum_paths:
             fnc = self._gaugePath
@@ -761,17 +761,29 @@ class GaugeField(LatticeField):
             args.insert(0, out.quda_field)
         else:
             if out is None:
-                out = [None] * num_paths
+                out = (None if insertion is None else (None, None),) * num_paths
             assert isiterable(out, size=num_paths)
-            out = tuple(
-                self.prepare_out(
-                    field, empty=False, geometry=("scalar" if field is None else None)
+            out = self.prepare_out(out, empty=False, geometry="scalar")
+            if insertion is not None:
+                args.insert(1, left)
+                insertion = self.prepare_in(insertion, reconstruct=10).extended_field(1)
+                args.insert(1, insertion)
+                tmp = tuple(zip(*out))
+                args.insert(
+                    0,
+                    lib.std.vector["quda::GaugeField*"](
+                        tuple(field.quda_field for field in tmp[1])
+                    ),
                 )
-                for field in out
-            )
+                tmp = tmp[0]
+            else:
+                tmp = out
+
             args.insert(
                 0,
-                lib.std.vector["quda::GaugeField*"](tuple(field.quda_field for field in out)),
+                lib.std.vector["quda::GaugeField*"](
+                    tuple(field.quda_field for field in tmp)
+                ),
             )
 
         fnc(*args)
@@ -786,6 +798,9 @@ class GaugeField(LatticeField):
 
     def _gaugePaths(self, *args, **kwargs):
         return lib.gaugePaths(*args, **kwargs)
+
+    def _gaugePathsWIns(self, *args, **kwargs):
+        return lib.gaugePathsWIns(*args, **kwargs)
 
     @property
     def plaquette_paths(self):
