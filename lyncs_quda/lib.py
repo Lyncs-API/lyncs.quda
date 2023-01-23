@@ -225,6 +225,8 @@ class QudaLib(Lib):
     def end_quda(self):
         if not self.initialized:
             raise RuntimeError("Quda has not been initialized")
+        if self.tune_enabled:
+            self.saveTuneCache()
         self.endQuda()
         self._comm = None
         self._initialized = False
@@ -267,6 +269,7 @@ headers = [
     "evenodd.h",
     "array.h",
     "momentum.h",
+    "tune_quda.h",
 ]
 
 
