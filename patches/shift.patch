@@ -58,6 +58,89 @@ index 706e82c..f75894c 100644
 +  void gaugeShift(GaugeField &Uout, const GaugeField &Uin, const int *dx);
 +  
  } // namespace quda
+diff --git a/include/kernels/gauge_shift.cuh b/include/kernels/gauge_shift.cuh
+new file mode 100644
+index 0000000..eea7fb3
+--- /dev/null
++++ b/include/kernels/gauge_shift.cuh
+@@ -0,0 +1,77 @@
++#pragma once
++
++#include <gauge_field_order.h>
++#include <quda_matrix.h>
++#include <index_helper.cuh>
++#include <kernel.h>
++
++namespace quda {
++
++  template <typename Float_, int nColor_, QudaReconstructType recon_u>
++  struct GaugeShiftArg : kernel_param<> {
++    using Float = Float_;
++    static constexpr int nColor = nColor_;
++    static_assert(nColor == 3, "Only nColor=3 enabled at this time");
++    typedef typename gauge_mapper<Float,recon_u>::type Gauge;
++
++    Gauge out;
++    const Gauge in;
++    int geometry;
++
++    int S[4]; // the regular volume parameters
++    int X[4]; // the regular volume parameters
++    int E[4]; // the extended volume parameters
++    int border[4]; // radius of border
++    int P; // change of parity
++
++    GaugeShiftArg(GaugeField &out, const GaugeField &in, const int* dx) :
++      kernel_param(dim3(in.VolumeCB(), 2, in.Geometry())),
++      out(out),
++      in(in),
++      geometry(in.Geometry())
++    {
++      P = 0;
++      for (int i=0; i<4; i++) {
++	S[i] = dx[i];
++	X[i] = out.X()[i];
++	E[i] = in.X()[i];
++	border[i] = (E[i] - X[i])/2;
++	P += dx[i];
++      }
++      P = std::abs(P)%2;
++    }
++  };
++
++  template <typename Arg, int dir>
++  __device__ __host__ inline void GaugeShiftKernel(const Arg &arg, int idx, int parity)
++  {
++    using real = typename Arg::Float;
++    typedef Matrix<complex<real>,Arg::nColor> Link;
++    
++    int x[4] = {0, 0, 0, 0};
++    getCoords(x, idx, arg.X, parity);
++    for (int dr=0; dr<4; ++dr) x[dr] += arg.border[dr]; // extended grid coordinates
++    int nbr_oddbit = arg.P==1 ? (parity^1) : parity;
++    
++    Link link = arg.in(dir, linkIndexShift(x,arg.S,arg.E), nbr_oddbit);
++    arg.out(dir, idx, parity) = link;
++  }
++  
++  template <typename Arg> struct GaugeShift
++  {
++    const Arg &arg;
++    constexpr GaugeShift(const Arg &arg) : arg(arg) {}
++    static constexpr const char *filename() { return KERNEL_FILE; }    
++
++    __device__ __host__ void operator()(int x_cb, int parity, int dir)
++    {
++      switch(dir) {
++      case 0: GaugeShiftKernel<Arg,0>(arg, x_cb, parity); break;
++      case 1: GaugeShiftKernel<Arg,1>(arg, x_cb, parity); break;
++      case 2: GaugeShiftKernel<Arg,2>(arg, x_cb, parity); break;
++      case 3: GaugeShiftKernel<Arg,3>(arg, x_cb, parity); break;
++      }
++    }
++  };
++  
++}
 diff --git a/lib/CMakeLists.txt b/lib/CMakeLists.txt
 index 492fdfb..dc8ded1 100644
 --- a/lib/CMakeLists.txt
@@ -114,3 +197,66 @@ index 568209a..45565bd 100644
    void cudaGaugeField::loadCPUField(const cpuGaugeField &cpu) {
      copy(cpu);
      qudaDeviceSynchronize();
+diff --git a/lib/gauge_shift.cu b/lib/gauge_shift.cu
+new file mode 100644
+index 0000000..6549e48
+--- /dev/null
++++ b/lib/gauge_shift.cu
+@@ -0,0 +1,57 @@
++#include <tunable_nd.h>
++#include <instantiate.h>
++#include <gauge_field.h>
++#include <kernels/gauge_shift.cuh>
++
++namespace quda {
++
++  template <typename Float, int nColor, QudaReconstructType recon_u> class ShiftGauge : public TunableKernel3D
++  {
++    GaugeField &out;
++    const GaugeField &in;
++    const int* dx;
++    unsigned int minThreads() const { return in.VolumeCB(); }
++
++  public:
++    ShiftGauge(GaugeField &out, const GaugeField &in, const int * dx) :
++      TunableKernel3D(in, 2, in.Geometry()),
++      out(out),
++      in(in),
++      dx(dx)
++    {
++      strcat(aux, ",shift=");
++      for(int i=0; i<in.Ndim(); i++) {
++	strcat(aux, std::to_string(dx[i]).c_str());
++      }
++      strcat(aux, comm_dim_partitioned_string());
++      apply(device::get_default_stream());
++    }
++
++    void apply(const qudaStream_t &stream)
++    {
++      TuneParam tp = tuneLaunch(*this, getTuning(), getVerbosity());
++      launch<GaugeShift>(tp, stream, GaugeShiftArg<Float, nColor, recon_u>(out, in, dx));
++    }
++
++    void preTune() { }
++    void postTune() { }
++
++    long long flops() const { return in.Volume() * 4; }
++    long long bytes() const { return in.Bytes(); }
++  };
++
++  void gaugeShift(GaugeField& out, const GaugeField& in, const int *dx)
++  {
++    checkPrecision(in, out);
++    checkLocation(in, out);
++    checkReconstruct(in, out);
++
++    if (out.Geometry() != in.Geometry()) {
++      errorQuda("Field geometries %d %d do not match", out.Geometry(), in.Geometry());
++    }
++
++    // gauge field must be passed as first argument so we peel off its reconstruct type
++    instantiate<ShiftGauge>(out, in, dx);
++  }
++
++} // namespace quda
