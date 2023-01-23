@@ -705,7 +705,7 @@ class GaugeField(LatticeField):
 
         if not paths:
             return ()
-        
+
         # Checking paths for error
         paths = self._check_paths(paths)
 
