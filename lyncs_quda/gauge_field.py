@@ -703,6 +703,9 @@ class GaugeField(LatticeField):
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
 
+        if not paths:
+            return ()
+        
         # Checking paths for error
         paths = self._check_paths(paths)
 

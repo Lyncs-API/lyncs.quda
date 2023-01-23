@@ -222,6 +222,10 @@ def test_force(lib, lattice, device, epsilon):
         rel_tol = epsilon * np.prod(lattice)
         assert isclose(action, action2, rel_tol=rel_tol)
 
+        parts = getattr(gf, path + "_field")(sum_paths=False)
+        total = np.mean([part.reduce() for part in parts])
+        assert np.isclose(action, total)
+
         daction = (
             getattr(gf, path + "_field")(force=True).full().dot(mom.full()).reduce()
         )
