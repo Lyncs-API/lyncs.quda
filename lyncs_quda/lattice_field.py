@@ -286,7 +286,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         if isinstance(field, LatticeField):
             field = field.field
         if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
-            raise TypeError(f"Supporting only numpy or cupy for field, got {type(field)}")
+            raise TypeError(
+                f"Supporting only numpy or cupy for field, got {type(field)}"
+            )
         if isinstance(field, cupy.ndarray) and field.device.id != lib.device_id:
             raise TypeError("Field is stored on a different device than the quda lib")
         if len(field.shape) < 4:

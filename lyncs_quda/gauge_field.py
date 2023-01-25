@@ -472,7 +472,7 @@ class GaugeField(LatticeField):
         out = self.prepare_out(out, reconstruct="10")
         lib.gaugeToMom(out.quda_field, self.quda_field, anti)
         return out
-    
+
     def project(self, tol=None):
         """
         Project the gauge field onto the SU(3) group.  This
@@ -720,14 +720,14 @@ class GaugeField(LatticeField):
         # Preparing coeffs
         if sum_paths:
             if coeffs is None:
-                coeffs = (self.ndims / len(paths))
+                coeffs = self.ndims / len(paths)
             if isinstance(coeffs, (int, float)):
                 coeffs = [coeffs] * len(paths)
             if not len(paths) == len(coeffs):
                 raise ValueError("Paths and coeffs must have the same length")
         else:
-            assert coeffs==None, "coeffs not used in case of not sum_paths"
-                
+            assert coeffs == None, "coeffs not used in case of not sum_paths"
+
         # Preparing fnc
         if insertion is not None:
             assert not sum_paths
