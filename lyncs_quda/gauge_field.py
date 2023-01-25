@@ -465,6 +465,14 @@ class GaugeField(LatticeField):
         out.quda_field.shift(self.quda_field, shifts)
         return out
 
+    def to_algebra(self, out=None, anti=True):
+        """
+        Project group to algrbra
+        """
+        out = self.prepare_out(out, reconstruct="10")
+        lib.gaugeToMom(out.quda_field, self.quda_field, anti)
+        return out
+    
     def project(self, tol=None):
         """
         Project the gauge field onto the SU(3) group.  This

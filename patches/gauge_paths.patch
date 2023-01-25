@@ -201,7 +201,7 @@ index d1c2ae5..e8cc951 100644
  }
  
 diff --git a/include/gauge_path_quda.h b/include/gauge_path_quda.h
-index db398c1..09c4e9f 100644
+index db398c1..63db338 100644
 --- a/include/gauge_path_quda.h
 +++ b/include/gauge_path_quda.h
 @@ -11,7 +11,7 @@ namespace quda
@@ -222,7 +222,7 @@ index db398c1..09c4e9f 100644
       @param[in] max_length Maximum length of each path
     */
    void gaugePath(GaugeField &out, const GaugeField &u, double coeff, std::vector<int **> &input_path,
-@@ -39,11 +39,37 @@ namespace quda
+@@ -39,11 +39,45 @@ namespace quda
       @param[in] factor Multiplicative factor for each loop (i.e., volume normalization, etc)
       @param[in] length Host array holding the length of all paths
       @param[in] path_coeff Coefficient of each path
@@ -260,6 +260,14 @@ index db398c1..09c4e9f 100644
 +   */
 +  void gaugePathsWIns(std::vector<GaugeField*> &out, std::vector<GaugeField*> &out_wins, const GaugeField &u, const GaugeField &ins, bool left,
 +		      std::vector<int **> &input_path, std::vector<int> &length, int num_paths, int max_length);
++
++  /**
++     @brief Project group to algebra
++     @param[out] mom Momentum field
++     @param[in] u Gauge field (extended when running on multiple GPUs)
++     @param[in] anti Whether making it an antihermitian matrix or not (default: true)
++   */
++  void gaugeToMom(GaugeField &mom, const GaugeField &u, bool anti=true);
  } // namespace quda
 diff --git a/include/kernels/gauge_paths.cuh b/include/kernels/gauge_paths.cuh
 new file mode 100644
@@ -443,12 +451,98 @@ index 0000000..f2533f8
 +  };
 +
 +}
+diff --git a/include/kernels/gauge_to_mom.cuh b/include/kernels/gauge_to_mom.cuh
+new file mode 100644
+index 0000000..1ae9afb
+--- /dev/null
++++ b/include/kernels/gauge_to_mom.cuh
+@@ -0,0 +1,51 @@
++#pragma once
++
++#include <gauge_field_order.h>
++#include <quda_matrix.h>
++#include <index_helper.cuh>
++#include <kernel.h>
++
++namespace quda {
++
++  template <typename Float_, int nColor_, QudaReconstructType recon_u, bool anti_>
++  struct GaugeToMomArg : kernel_param<> {
++    using Float = Float_;
++    static constexpr int nColor = nColor_;
++    static constexpr bool anti = anti_;
++    static_assert(nColor == 3, "Only nColor=3 enabled at this time");
++    typedef typename gauge_mapper<Float,recon_u>::type Gauge;
++    typedef typename gauge_mapper<Float,QUDA_RECONSTRUCT_10>::type Mom;
++
++    Mom out;
++    const Gauge in;
++
++    GaugeToMomArg(GaugeField &out, const GaugeField &in) :
++      kernel_param(dim3(in.VolumeCB(), 2, in.Geometry())),
++      out(out),
++      in(in)
++    {
++    }
++  };
++
++  template <typename Arg> struct GaugeToMomK
++  {
++    const Arg &arg;
++    constexpr GaugeToMomK(const Arg &arg) : arg(arg) {}
++    static constexpr const char *filename() { return KERNEL_FILE; }    
++
++    __device__ __host__ void operator()(int x_cb, int parity, int dir)
++    {
++      using real = typename Arg::Float;
++      typedef Matrix<complex<real>,Arg::nColor> Link;
++      
++      Link link = arg.in(dir, x_cb, parity);
++      if constexpr(Arg::anti) {
++	makeAntiHerm(link);
++      }	else {
++	makeIHerm(link);
++      }	
++      arg.out(dir, x_cb, parity) = link;
++    }
++  };
++  
++}
+diff --git a/include/quda_matrix.h b/include/quda_matrix.h
+index ce51093..6cc3808 100644
+--- a/include/quda_matrix.h
++++ b/include/quda_matrix.h
+@@ -752,6 +752,24 @@ namespace quda {
+     m = static_cast<real>(0.5) * am;
+   }
+ 
++  template<typename Complex,int N>
++    __device__ __host__ inline void makeIHerm(Matrix<Complex,N> &m) {
++    typedef typename Complex::value_type real;
++    // first make the matrix hermitian
++    Matrix<Complex,N> hm = m + conj(m);
++
++    // second make it traceless
++    real imag_trace = 0.0;
++#pragma unroll
++    for (int i=0; i<N; i++) imag_trace += hm(i,i).y;
++#pragma unroll
++    for (int i=0; i<N; i++) {
++      hm(i,i).y -= imag_trace/N;
++    }
++    Complex i_2(0.0, -0.5);
++    m = i_2 * hm;
++  }
++
+   template <typename Complex, int N> __device__ __host__ inline void makeHerm(Matrix<Complex, N> &m)
+   {
+     typedef typename Complex::value_type real;
 diff --git a/lib/gauge_paths.cu b/lib/gauge_paths.cu
 new file mode 100644
-index 0000000..2510892
+index 0000000..d91c9d0
 --- /dev/null
 +++ b/lib/gauge_paths.cu
-@@ -0,0 +1,87 @@
+@@ -0,0 +1,76 @@
 +#include <gauge_field.h>
 +#include <gauge_path_quda.h>
 +#include <instantiate.h>
@@ -494,17 +588,6 @@ index 0000000..2510892
 +      arg.free();
 +    }
 +
-+    void preTune() {
-+      std::for_each(out0.begin(), out0.end(), [&](GaugeField* &i){
-+        i->backup();
-+      });
-+    }
-+    void postTune() {
-+      std::for_each(out0.begin(), out0.end(), [&](GaugeField* &i){
-+        i->restore();
-+      });
-+    }
-+
 +    long long flops() const
 +    {
 +      auto Nc = u.Ncolor();
@@ -538,10 +621,10 @@ index 0000000..2510892
 +} // namespace quda
 diff --git a/lib/gauge_paths_wins.cu b/lib/gauge_paths_wins.cu
 new file mode 100644
-index 0000000..ab298f3
+index 0000000..2481739
 --- /dev/null
 +++ b/lib/gauge_paths_wins.cu
-@@ -0,0 +1,121 @@
+@@ -0,0 +1,104 @@
 +#include <gauge_field.h>
 +#include <gauge_path_quda.h>
 +#include <instantiate.h>
@@ -605,23 +688,6 @@ index 0000000..ab298f3
 +      }
 +    }
 +
-+    void preTune() {
-+      std::for_each(out0.begin(), out0.end(), [&](GaugeField* &i){
-+        i->backup();
-+      });
-+      std::for_each(out0_wins.begin(), out0_wins.end(), [&](GaugeField* &i){
-+        i->backup();
-+      });
-+    }
-+    void postTune() {
-+      std::for_each(out0.begin(), out0.end(), [&](GaugeField* &i){
-+        i->restore();
-+      });
-+      std::for_each(out0_wins.begin(), out0_wins.end(), [&](GaugeField* &i){
-+        i->restore();
-+      });
-+    }
-+
 +    long long flops() const
 +    {
 +      auto Nc = u.Ncolor();
@@ -660,6 +726,73 @@ index 0000000..ab298f3
 +    paths<1> p(input_path, length, foo_coeff, num_paths, max_length);
 +    instantiate<GaugePathsWIns, ReconstructNo12>(u, out, out_wins, ins, p, left);
 +    p.free();
++  }
++
++} // namespace quda
+diff --git a/lib/gauge_to_mom.cu b/lib/gauge_to_mom.cu
+new file mode 100644
+index 0000000..bfb91a7
+--- /dev/null
++++ b/lib/gauge_to_mom.cu
+@@ -0,0 +1,61 @@
++#include <tunable_nd.h>
++#include <instantiate.h>
++#include <gauge_field.h>
++#include <kernels/gauge_to_mom.cuh>
++
++namespace quda {
++
++  template <typename Float, int nColor, QudaReconstructType recon_u> class GaugeToMom : public TunableKernel3D
++  {
++    GaugeField &out;
++    const GaugeField &in;
++    bool anti;
++    unsigned int minThreads() const { return in.VolumeCB(); }
++
++  public:
++    GaugeToMom(const GaugeField &in, GaugeField &out, bool anti) :
++      TunableKernel3D(in, 2, in.Geometry()),
++      out(out),
++      in(in),
++      anti(anti)
++    {
++      if(anti)
++	strcat(aux, ",anti=true");
++      else
++	strcat(aux, ",anti=false");
++      apply(device::get_default_stream());
++    }
++
++    void apply(const qudaStream_t &stream)
++    {
++      TuneParam tp = tuneLaunch(*this, getTuning(), getVerbosity());
++      if(anti)
++	launch<GaugeToMomK>(tp, stream, GaugeToMomArg<Float, nColor, recon_u, true>(out, in));
++      else
++	launch<GaugeToMomK>(tp, stream, GaugeToMomArg<Float, nColor, recon_u, false>(out, in));
++    }
++
++    void preTune() { }
++    void postTune() { }
++
++    long long flops() const { return in.Volume() * 4; }
++    long long bytes() const { return in.Bytes(); }
++  };
++
++  void gaugeToMom(GaugeField& out, const GaugeField& in, bool anti)
++  {
++    checkPrecision(in, out);
++    checkLocation(in, out);
++
++    if (out.Reconstruct() != QUDA_RECONSTRUCT_10)
++      errorQuda("Reconstruction type %d not supported", out.Reconstruct());
++
++    if (out.Geometry() != in.Geometry()) {
++      errorQuda("Field geometries %d %d do not match", out.Geometry(), in.Geometry());
++    }
++
++    // gauge field must be passed as first argument so we peel off its reconstruct type
++    instantiate<GaugeToMom>(in, out, anti);
 +  }
 +
 +} // namespace quda
