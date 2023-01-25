@@ -14,10 +14,60 @@ index 714ad7d..27f5560 100644
        {
          const int M = reconLen / N;
 diff --git a/include/gauge_path_helper.cuh b/include/gauge_path_helper.cuh
-index d1c2ae5..3e8e22c 100644
+index d1c2ae5..e8cc951 100644
 --- a/include/gauge_path_helper.cuh
 +++ b/include/gauge_path_helper.cuh
-@@ -85,16 +85,21 @@ namespace quda {
+@@ -22,19 +22,23 @@ namespace quda {
+     paths(std::vector<int**>& input_path, std::vector<int>& length_h, std::vector<double>& path_coeff_h, int num_paths, int max_length) :
+       num_paths(num_paths),
+       max_length(max_length),
++      path_coeff(nullptr),
+       count(0)
+     {
+       if (static_cast<int>(input_path.size()) != dim)
+         errorQuda("Input path vector is of size %lu, expected %d", input_path.size(), dim);
+       if (static_cast<int>(length_h.size()) != num_paths)
+         errorQuda("Path length vector is of size %lu, expected %d", length_h.size(), num_paths);
+-      if (static_cast<int>(path_coeff_h.size()) != num_paths)
+-        errorQuda("Path coefficient vector is of size %lu, expected %d", path_coeff_h.size(), num_paths);
+ 
+       // create path struct in a single allocation
+       size_t bytes = dim * num_paths * max_length * sizeof(int) + num_paths * sizeof(int);
+-      int pad = ((sizeof(double) - bytes % sizeof(double)) % sizeof(double))/sizeof(int);
+-      bytes += pad*sizeof(int) + num_paths*sizeof(double);
++      int pad = 0;
++      if (path_coeff_h.size()>0) {
++	if (static_cast<int>(path_coeff_h.size()) != num_paths)
++	  errorQuda("Path coefficient vector is of size %lu, expected %d", path_coeff_h.size(), num_paths);
++	pad = ((sizeof(double) - bytes % sizeof(double)) % sizeof(double))/sizeof(int);
++	bytes += pad*sizeof(int) + num_paths*sizeof(double);
++      }
+ 
+       buffer = static_cast<int*>(pool_device_malloc(bytes));
+       int *path_h = static_cast<int*>(safe_malloc(bytes));
+@@ -53,8 +57,11 @@ namespace quda {
+       // length array
+       memcpy(path_h + dim * num_paths * max_length, length_h.data(), num_paths*sizeof(int));
+ 
+-      // path_coeff array
+-      memcpy(path_h + dim * num_paths * max_length + num_paths + pad, path_coeff_h.data(), num_paths*sizeof(double));
++      if (path_coeff_h.size()>0) {
++	// path_coeff array
++	memcpy(path_h + dim * num_paths * max_length + num_paths + pad, path_coeff_h.data(), num_paths*sizeof(double));
++	path_coeff = reinterpret_cast<double*>(buffer + dim * num_paths * max_length + num_paths + pad);
++      }
+ 
+       qudaMemcpy(buffer, path_h, bytes, qudaMemcpyHostToDevice);
+       host_free(path_h);
+@@ -62,7 +69,6 @@ namespace quda {
+       // finally set the pointers to the correct offsets in the buffer
+       for (int d=0; d < dim; d++) this->input_path[d] = buffer + d*num_paths*max_length;
+       length = buffer + dim*num_paths*max_length;
+-      path_coeff = reinterpret_cast<double*>(buffer + dim * num_paths * max_length + num_paths + pad);
+     }
+ 
+     void free() {
+@@ -85,16 +91,21 @@ namespace quda {
       @param[in] dx Temporary shared memory storage for relative coordinate shift
    */
    template <typename Arg, typename I>
@@ -32,17 +82,17 @@ index d1c2ae5..3e8e22c 100644
 -    Link linkA, linkB;
 -    setIdentity(&linkA);
 +    Link linkA;
- 
++
 +    if (length==0) {
 +      setIdentity(&linkA);
 +      return linkA;
 +    }
-+
+ 
 +    Link linkB;
      int nbr_oddbit = parity;
  
      for (int j = 0; j < length; j++) {
-@@ -104,19 +109,105 @@ namespace quda {
+@@ -104,19 +115,105 @@ namespace quda {
  
        if (isForwards(pathj)) {
          linkB = arg.u(lnkdir, linkIndexShift(x,dx,arg.E), nbr_oddbit);
@@ -151,7 +201,7 @@ index d1c2ae5..3e8e22c 100644
  }
  
 diff --git a/include/gauge_path_quda.h b/include/gauge_path_quda.h
-index db398c1..79c4075 100644
+index db398c1..09c4e9f 100644
 --- a/include/gauge_path_quda.h
 +++ b/include/gauge_path_quda.h
 @@ -11,7 +11,7 @@ namespace quda
@@ -195,7 +245,7 @@ index db398c1..79c4075 100644
 +     @param[in] max_length Maximum length of each path
 +   */
 +  void gaugePaths(std::vector<GaugeField*> &out, const GaugeField &u, std::vector<int **> &input_path,
-+		  std::vector<int> &length, std::vector<double> &path_coeff, int num_paths, int max_length);
++		  std::vector<int> &length, int num_paths, int max_length);
 +
 +  /**
 +     @brief Compute the product of gauge-links along the given paths inserting a gauge field at every step
@@ -209,14 +259,14 @@ index db398c1..79c4075 100644
 +     @param[in] max_length Maximum length of each path
 +   */
 +  void gaugePathsWIns(std::vector<GaugeField*> &out, std::vector<GaugeField*> &out_wins, const GaugeField &u, const GaugeField &ins, bool left,
-+		      std::vector<int **> &input_path, std::vector<int> &length, std::vector<double> &path_coeff, int num_paths, int max_length);
++		      std::vector<int **> &input_path, std::vector<int> &length, int num_paths, int max_length);
  } // namespace quda
 diff --git a/include/kernels/gauge_paths.cuh b/include/kernels/gauge_paths.cuh
 new file mode 100644
-index 0000000..7653408
+index 0000000..31a8a4a
 --- /dev/null
 +++ b/include/kernels/gauge_paths.cuh
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,81 @@
 +#pragma once
 +
 +#include <gauge_field_order.h>
@@ -287,28 +337,23 @@ index 0000000..7653408
 +
 +      thread_array<int, 4> dx{0};
 +
-+      real coeff = arg.p.path_coeff[path_id];
-+      if (coeff == 0) return;
-+
 +      const int* path = arg.p.input_path[0] + path_id * arg.p.max_length;
 +
 +      // compute the path
 +      Link link_prod = computeGaugePath(arg, x, parity, path, arg.p.length[path_id], dx);
 +
 +      // storing path
-+      Link out = arg.out[path_id](0, x_cb, parity);
-+      out = out + coeff * link_prod;
-+      arg.out[path_id](0, x_cb, parity) = out;
++      arg.out[path_id](0, x_cb, parity) = link_prod;
 +    }
 +  };
 +
 +}
 diff --git a/include/kernels/gauge_paths_wins.cuh b/include/kernels/gauge_paths_wins.cuh
 new file mode 100644
-index 0000000..03fec08
+index 0000000..f2533f8
 --- /dev/null
 +++ b/include/kernels/gauge_paths_wins.cuh
-@@ -0,0 +1,97 @@
+@@ -0,0 +1,89 @@
 +#pragma once
 +
 +#include <gauge_field_order.h>
@@ -386,32 +431,24 @@ index 0000000..03fec08
 +
 +      thread_array<int, 4> dx{0};
 +
-+      real coeff = arg.p.path_coeff[path_id];
-+      if (coeff == 0) return;
-+
 +      const int* path = arg.p.input_path[0] + path_id * arg.p.max_length;
 +
 +      // compute the path
 +      auto link_prod = computeGaugePathWIns(arg, x, parity, path, arg.p.length[path_id], dx);
 +
 +      // storing path
-+      Link out = arg.out[path_id](0, x_cb, parity);
-+      out = out + coeff * link_prod.A;
-+      arg.out[path_id](0, x_cb, parity) = out;
-+      
-+      out = arg.out_wins[path_id](0, x_cb, parity);
-+      out = out + coeff * link_prod.B;
-+      arg.out_wins[path_id](0, x_cb, parity) = out;
++      arg.out[path_id](0, x_cb, parity) = link_prod.A;
++      arg.out_wins[path_id](0, x_cb, parity) = link_prod.B;
 +    }
 +  };
 +
 +}
 diff --git a/lib/gauge_paths.cu b/lib/gauge_paths.cu
 new file mode 100644
-index 0000000..fbbee37
+index 0000000..2510892
 --- /dev/null
 +++ b/lib/gauge_paths.cu
-@@ -0,0 +1,86 @@
+@@ -0,0 +1,87 @@
 +#include <gauge_field.h>
 +#include <gauge_path_quda.h>
 +#include <instantiate.h>
@@ -483,7 +520,7 @@ index 0000000..fbbee37
 +  };
 +
 +  void gaugePaths(std::vector<GaugeField*> &out, const GaugeField &u, std::vector<int **> &input_path,
-+		  std::vector<int> &length, std::vector<double> &path_coeff, int num_paths, int max_length)
++		  std::vector<int> &length, int num_paths, int max_length)
 +  {
 +    if (static_cast<int>(out.size()) != num_paths)
 +      errorQuda("Output gauge vector is of size %lu, expected %d", out.size(), num_paths);
@@ -492,7 +529,8 @@ index 0000000..fbbee37
 +      checkLocation(*out[i], u);
 +      checkReconstruct(*out[i], u);
 +    }
-+    paths<1> p(input_path, length, path_coeff, num_paths, max_length);
++    std::vector<double> foo_coeff;
++    paths<1> p(input_path, length, foo_coeff, num_paths, max_length);
 +    instantiate<GaugePaths, ReconstructNo12>(u, out, p);
 +    p.free();
 +  }
@@ -500,10 +538,10 @@ index 0000000..fbbee37
 +} // namespace quda
 diff --git a/lib/gauge_paths_wins.cu b/lib/gauge_paths_wins.cu
 new file mode 100644
-index 0000000..f4ce43a
+index 0000000..ab298f3
 --- /dev/null
 +++ b/lib/gauge_paths_wins.cu
-@@ -0,0 +1,120 @@
+@@ -0,0 +1,121 @@
 +#include <gauge_field.h>
 +#include <gauge_path_quda.h>
 +#include <instantiate.h>
@@ -547,7 +585,7 @@ index 0000000..f4ce43a
 +      strcat(aux, loop_str);
 +
 +      if(left)
-+	strcat(aux, ",left");
++	strcat(aux, "left");
 +      
 +      apply(device::get_default_stream());
 +    }
@@ -599,7 +637,7 @@ index 0000000..f4ce43a
 +  };
 +
 +  void gaugePathsWIns(std::vector<GaugeField*> &out, std::vector<GaugeField*> &out_wins, const GaugeField &u, const GaugeField &ins, bool left,
-+		      std::vector<int **> &input_path, std::vector<int> &length, std::vector<double> &path_coeff, int num_paths, int max_length)
++		      std::vector<int **> &input_path, std::vector<int> &length, int num_paths, int max_length)
 +  {
 +    if (static_cast<int>(out.size()) != num_paths)
 +      errorQuda("Output gauge vector is of size %lu, expected %d", out.size(), num_paths);
@@ -618,7 +656,8 @@ index 0000000..f4ce43a
 +      checkLocation(*out_wins[i], u);
 +      checkReconstruct(*out_wins[i], u);
 +    }
-+    paths<1> p(input_path, length, path_coeff, num_paths, max_length);
++    std::vector<double> foo_coeff;
++    paths<1> p(input_path, length, foo_coeff, num_paths, max_length);
 +    instantiate<GaugePathsWIns, ReconstructNo12>(u, out, out_wins, ins, p, left);
 +    p.free();
 +  }

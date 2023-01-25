@@ -710,15 +710,16 @@ class GaugeField(LatticeField):
         paths = self._check_paths(paths)
 
         # Preparing coeffs
-        if coeffs is None:
-            coeffs = 1 if not sum_paths else (self.ndims / len(paths))
-        if isinstance(coeffs, (int, float)):
-            coeffs = [coeffs] * len(paths)
-        if not len(paths) == len(coeffs):
-            raise ValueError("Paths and coeffs must have the same length")
-        if not sum_paths and add_coeff != 1:
-            coeffs = [coeff * add_coeff for coeff in coeffs]
-
+        if sum_paths:
+            if coeffs is None:
+                coeffs = (self.ndims / len(paths))
+            if isinstance(coeffs, (int, float)):
+                coeffs = [coeffs] * len(paths)
+            if not len(paths) == len(coeffs):
+                raise ValueError("Paths and coeffs must have the same length")
+        else:
+            assert coeffs==None, "coeffs not used in case of not sum_paths"
+                
         # Preparing fnc
         if insertion is not None:
             assert not sum_paths
@@ -748,17 +749,17 @@ class GaugeField(LatticeField):
         ptrs = array_to_pointers(paths)
         paths_array = lib.std.vector["int **"]([ptrs.get()[i] for i in range(ndims)])
         lengths = lib.std.vector[int](lengths)
-        coeffs = lib.std.vector["double"](coeffs)
         args = [
             self.extended_field(1),  # TODO: compute correct extension (max distance)
             paths_array,
             lengths,
-            coeffs,
             num_paths,
             max_length,
         ]
         if sum_paths:
+            coeffs = lib.std.vector["double"](coeffs)
             args.insert(1, add_coeff)
+            args.insert(4, coeffs)
 
         # Preparing out
         if sum_paths:
@@ -768,7 +769,7 @@ class GaugeField(LatticeField):
             if out is None:
                 out = (None if insertion is None else (None, None),) * num_paths
             assert isiterable(out, size=num_paths)
-            out = self.prepare_out(out, empty=False, geometry="scalar")
+            out = self.prepare_out(out, geometry="scalar")
             if insertion is not None:
                 args.insert(1, left)
                 insertion = self.prepare_in(insertion, reconstruct=10).extended_field(1)
