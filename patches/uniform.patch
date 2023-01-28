@@ -1,9 +1,9 @@
 diff --git a/include/gauge_tools.h b/include/gauge_tools.h
-index 4674d5b..2c9af15 100644
+index 503c20b..23c418c 100644
 --- a/include/gauge_tools.h
 +++ b/include/gauge_tools.h
-@@ -69,6 +69,24 @@ namespace quda
-   void gaugeGauss(GaugeField &U, unsigned long long seed, double epsilon);
+@@ -91,6 +91,24 @@ namespace quda
+   void gaugeNoise(GaugeField &U, unsigned long long seed, QudaNoiseType type);
  
    /**
 +     @brief Generate uniformly distributed SU(N) fields.
@@ -28,7 +28,7 @@ index 4674d5b..2c9af15 100644
  
       @param[out] dataDs Output smeared field
 diff --git a/include/kernels/gauge_random.cuh b/include/kernels/gauge_random.cuh
-index 07bee3a..a8b5efc 100644
+index 3c348d7..4a70c0e 100644
 --- a/include/kernels/gauge_random.cuh
 +++ b/include/kernels/gauge_random.cuh
 @@ -37,20 +37,26 @@ namespace quda {
@@ -193,23 +193,25 @@ index 07bee3a..a8b5efc 100644
 +  };
  }
 diff --git a/lib/gauge_random.cu b/lib/gauge_random.cu
-index 5d7ceca..8a4fc38 100644
+index 0e056d3..87ffdac 100644
 --- a/lib/gauge_random.cu
 +++ b/lib/gauge_random.cu
-@@ -24,7 +24,7 @@ namespace quda {
-       sigma(static_cast<Float>(sigma)),
+@@ -25,9 +25,9 @@ namespace quda {
        group(U.LinkType() == QUDA_SU3_LINKS)
      {
--      if (getVerbosity() >= QUDA_SUMMARIZE) {
-+      if (getVerbosity() >= QUDA_VERBOSE) {
-         if (group) printfQuda("Creating Gaussian distrbuted Lie group field with sigma = %e\n", sigma);
-         else printfQuda("Creating Gaussian distrbuted Lie algebra field\n");
+       if (group) {
+-        logQuda(QUDA_SUMMARIZE, "Creating Gaussian distributed Lie group field with sigma = %e\n", sigma);
++        logQuda(QUDA_VERBOSE, "Creating Gaussian distributed Lie group field with sigma = %e\n", sigma);
+       } else {
+-        logQuda(QUDA_SUMMARIZE, "Creating Gaussian distributed Lie algebra field\n");
++        logQuda(QUDA_VERBOSE, "Creating Gaussian distributed Lie algebra field\n");
        }
-@@ -70,4 +70,58 @@ namespace quda {
-     RNG randstates(U, seed);
+       strcat(aux, group ? ",lie_group" : "lie_algebra");
+       apply(device::get_default_stream());
+@@ -71,4 +71,57 @@ namespace quda {
      gaugeGauss(U, randstates, sigma);
    }
-+
+ 
 +  template <typename Float, int nColor, QudaReconstructType recon>
 +  class GaugeUniform : TunableKernel2D
 +  {

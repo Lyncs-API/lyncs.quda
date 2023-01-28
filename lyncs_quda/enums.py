@@ -755,16 +755,24 @@ class QudaFieldOrder(Enum):
 
 class QudaFieldCreate(Enum):
     """
-    null = 0    # create new field
-    zero = 1    # create new field and zero it
-    copy = 2    # create copy to field
-    reference = 3    # create reference to field
+    null = 0    # new field
+    zero = 1    # new field and zero it
+    copy = 2    # copy to field
+    reference = 3    # reference to field
+    ghost = 4    # dummy field used only for ghost storage
     invalid = -2147483648
     """
 
     _prefix = "quda_"
     _suffix = "_field_create"
-    _values = {"null": 0, "zero": 1, "copy": 2, "reference": 3, "invalid": -2147483648}
+    _values = {
+        "null": 0,
+        "zero": 1,
+        "copy": 2,
+        "reference": 3,
+        "ghost": 4,
+        "invalid": -2147483648,
+    }
 
 
 class QudaGammaBasis(Enum):

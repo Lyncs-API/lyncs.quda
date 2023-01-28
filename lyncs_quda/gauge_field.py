@@ -16,11 +16,11 @@ __all__ = [
 from time import time
 from math import sqrt
 from collections import defaultdict
-from array import array
 import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
 from lyncs_utils import prod, isiterable
 from .lib import lib, cupy
+from .array import Array
 from .lattice_field import LatticeField, backend
 from .spinor_field import spinor
 from .time_profile import default_profiler
@@ -460,9 +460,9 @@ class GaugeField(LatticeField):
             shifts[ax] = val % self.dims[ax]
         if shifts == [0] * self.ndims:
             return self
-        shifts = array("i", shifts)
+        shifts = Array(int, self.ndims, shifts)
         out = self.prepare_out(out)
-        out.quda_field.shift(self.quda_field, shifts)
+        out.quda_field.shift(self.quda_field, shifts.qarray)
         return out
 
     def to_algebra(self, out=None, anti=True):
