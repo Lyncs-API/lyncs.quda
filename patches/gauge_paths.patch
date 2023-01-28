@@ -509,34 +509,47 @@ index 0000000..1ae9afb
 +  
 +}
 diff --git a/include/quda_matrix.h b/include/quda_matrix.h
-index ce51093..6cc3808 100644
+index ce51093..db5cb31 100644
 --- a/include/quda_matrix.h
 +++ b/include/quda_matrix.h
-@@ -752,6 +752,24 @@ namespace quda {
-     m = static_cast<real>(0.5) * am;
-   }
+@@ -739,17 +739,33 @@ namespace quda {
+     __device__ __host__ inline void makeAntiHerm(Matrix<Complex,N> &m) {
+     typedef typename Complex::value_type real;
+     // first make the matrix anti-hermitian
+-    Matrix<Complex,N> am = m - conj(m);
++    m = static_cast<real>(0.5) * (m - conj(m));
  
+     // second make it traceless
+     real imag_trace = 0.0;
+ #pragma unroll
+-    for (int i=0; i<N; i++) imag_trace += am(i,i).y;
++    for (int i=0; i<N; i++) imag_trace += m(i,i).y;
+ #pragma unroll
+     for (int i=0; i<N; i++) {
+-      am(i,i).y -= imag_trace/N;
++      m(i,i).y -= imag_trace/N;
++    }
++  }
++
 +  template<typename Complex,int N>
 +    __device__ __host__ inline void makeIHerm(Matrix<Complex,N> &m) {
 +    typedef typename Complex::value_type real;
 +    // first make the matrix hermitian
-+    Matrix<Complex,N> hm = m + conj(m);
++    Complex i_2(0.0, -0.5);
++    m = i_2 * (m + conj(m));
 +
 +    // second make it traceless
 +    real imag_trace = 0.0;
 +#pragma unroll
-+    for (int i=0; i<N; i++) imag_trace += hm(i,i).y;
++    for (int i=0; i<N; i++) imag_trace += m(i,i).y;
 +#pragma unroll
 +    for (int i=0; i<N; i++) {
-+      hm(i,i).y -= imag_trace/N;
-+    }
-+    Complex i_2(0.0, -0.5);
-+    m = i_2 * hm;
-+  }
-+
++      m(i,i).y -= imag_trace/N;
+     }
+-    m = static_cast<real>(0.5) * am;
+   }
+ 
    template <typename Complex, int N> __device__ __host__ inline void makeHerm(Matrix<Complex, N> &m)
-   {
-     typedef typename Complex::value_type real;
 diff --git a/lib/gauge_paths.cu b/lib/gauge_paths.cu
 new file mode 100644
 index 0000000..d91c9d0

@@ -469,6 +469,8 @@ class GaugeField(LatticeField):
         """
         Project group to algrbra
         """
+        if self.reconstruct == "10":
+            return self
         out = self.prepare_out(out, reconstruct="10")
         lib.gaugeToMom(out.quda_field, self.quda_field, anti)
         return out
