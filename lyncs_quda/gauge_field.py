@@ -643,7 +643,7 @@ class GaugeField(LatticeField):
         aux = ([], [], [], [])
         for i, (path, coeff) in enumerate(zip(paths, coeffs)):
             if path[0] < 0:
-                raise ValueError(f"Path {i} = {path} nevative first movement")
+                raise ValueError(f"Path {i} = {path} negative first movement")
             aux[path[0] - 1].append((coeff, len(path), path[1:]))
         # Sorting by coeffs and lengths
         aux = tuple(map(sorted, aux))
@@ -680,7 +680,6 @@ class GaugeField(LatticeField):
 
         convert = lambda step: (step - 1) if step > 0 else (8 + step)
 
-        count = defaultdict(int)
         for i, per_dir in enumerate(paths):
             for j, path in enumerate(per_dir):
                 for k, step in enumerate(path):
@@ -702,13 +701,22 @@ class GaugeField(LatticeField):
         """
         Computes the gauge paths on the lattice.
 
-        The same paths are computed for every direction.
+        The paths are list of integers with the following structure
+        - Directions on the lattice are numbered from 1 to self.ndims
+        - Negative values mean moving in a backward direction
+        - The first movement must be always positive
 
-        - The paths are given with respect to direction "1" and
-          this must be the first number of every path list.
-        - Directions go from 1 to self.ndims
-        - Negative value (-1,...) means backward movement in the direction
-        - Paths are then rotated for every direction.
+        Parameters:
+        -----------
+        - paths: list of paths (see above)
+        - coeffs: multiplicative coefficient for each path (float or tuple)
+        - out: optional output for the result
+        - add_coeff: coefficient for all paths used when summing
+        - force: whether to return the force associated to a list of paths
+        - sum_paths: whether to sum all paths in one output
+        - insertion: whether to insert a momentum field in all possible position
+                     (needed for second derivative)
+        - left: in case of insertion, whether to insert on the left or right of the link
         """
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
