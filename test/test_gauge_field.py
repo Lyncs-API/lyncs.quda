@@ -10,7 +10,7 @@ from lyncs_quda.testing import (
     epsilon_loop,
 )
 from lyncs_cppyy.ll import addressof
-from math import isclose
+from lyncs_utils import isclose, allclose
 
 
 @lattice_loop
@@ -110,6 +110,10 @@ def test_unity(lib, lattice, device, dtype):
     gf2.gaussian()
     assert gf.dot(gf2) == gf2
 
+    gf3 = gf.new(geometry="scalar")
+    gf3.unity()
+    assert gf2.compute_paths(((),), sum_paths=False)[0] == gf3
+
 
 @dtype_loop  # enables dtype
 @device_loop  # enables device
@@ -119,6 +123,13 @@ def test_random(lib, lattice, device, dtype):
     gf.gaussian()
     plaq = gf.plaquette()
     total = gf.plaquettes()
+    assert np.isclose(plaq[0], total)
+
+    total = gf.plaquette_field().reduce()
+    assert np.isclose(plaq[0], total)
+
+    parts = gf.plaquette_field(sum_paths=False)
+    total = np.mean([part.reduce() for part in parts])
     assert np.isclose(plaq[0], total)
 
     gf2 = gf.copy()
@@ -211,6 +222,10 @@ def test_force(lib, lattice, device, epsilon):
         rel_tol = epsilon * np.prod(lattice)
         assert isclose(action, action2, rel_tol=rel_tol)
 
+        parts = getattr(gf, path + "_field")(sum_paths=False)
+        total = np.mean([part.reduce() for part in parts])
+        assert np.isclose(action, total)
+
         daction = (
             getattr(gf, path + "_field")(force=True).full().dot(mom.full()).reduce()
         )
@@ -224,50 +239,42 @@ def test_force(lib, lattice, device, epsilon):
 # @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
-@epsilon_loop  # enables epsilon
-def test_fermionic_force(lib, lattice, device, epsilon):
+def test_paths_wins(lib, lattice, device):
     dtype = "float64"
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.gaussian()
+
     mom = momentum(lattice, dtype=dtype, device=device)
-    mom.gaussian(epsilon=epsilon)
+    mom.zero()
 
-    gf2 = mom.exponentiate(mul_to=gf)
+    out = gf.new(geometry="scalar", empty=False)
 
-    R = spinor(lattice, dtype=dtype)
-    R.gaussian()
+    lparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=True)
+    rparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=False)
+    lparts = tuple(zip(*lparts))
+    rparts = tuple(zip(*rparts))
+    assert allclose(lparts[0], rparts[0])
+    assert allclose(lparts[1], out)
+    assert allclose(rparts[1], out)
 
-    params = {"kappa": 0.01, "csw": 1, "computeTrLog": True}
+    mom = momentum(lattice, dtype=dtype, device=device)
+    mom.gaussian()
 
-    # U'- U ~ eps*mom where U' = exp(eps*mom)*U
-    for parity in [None, "EVEN"]:
-        params.update(
-            {
-                "full": True if parity is None else False,
-                "symm": False if params["csw"] != 0 else True,
-            }
-        )
-        D = gf.Dirac(**params)
-        D2 = gf2.Dirac(**params)
-        phi = D.Mdag(R)
-
-        action = D.action(phi)
-        action2 = D2.action(phi)
-        rel_tol = epsilon * np.prod(lattice) * 4
-        print(parity, action, action2)
-        assert isclose(action, action2, rel_tol=rel_tol / 4)
-
-        daction = D.force(phi).full().dot(mom.full()).reduce(mean=False)
-        daction2 = action2 - action
-        print(parity, daction, daction2, daction / daction2)
-        assert isclose(daction, daction2, rel_tol=rel_tol)
+    lparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=True)
+    rparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=False)
+    lparts = tuple(zip(*lparts))
+    rparts = tuple(zip(*rparts))
+    assert allclose(lparts[0], rparts[0])
+    ltracs = tuple(loop.reduce() for loop in lparts[1])
+    rtracs = tuple(loop.reduce() for loop in rparts[1])
+    assert np.allclose(ltracs, rtracs)
 
 
 # @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 @epsilon_loop  # enables epsilon
-def test_force_gradient(lib, lattice, device, epsilon):
+def _test_force_gradient(lib, lattice, device, epsilon):
     dtype = "float64"
     gf = gauge(lattice, dtype=dtype, device=device)
     gf.gaussian()

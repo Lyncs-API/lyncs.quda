@@ -16,11 +16,11 @@ __all__ = [
 from time import time
 from math import sqrt
 from collections import defaultdict
-from array import array
 import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
 from lyncs_utils import prod, isiterable
 from .lib import lib, cupy
+from .array import Array
 from .lattice_field import LatticeField, backend
 from .spinor_field import spinor
 from .time_profile import default_profiler
@@ -135,16 +135,11 @@ class GaugeField(LatticeField):
         # need to reset QUDA object when meta data of its Python wrapper is changed
         self._quda = None
 
-    def _prepare(self, *fields, **kwargs):
-        "Prepares the fields by creating new one if None given else casting them to type(self) then checking them if compatible with self and/or copying them"
-
-        fields = super()._prepare(*fields, **kwargs)
-        # ? we don't need to do the following except for the base case?
-        for field in fields if isinstance(fields, tuple) else (fields,):
-            is_momentum = kwargs.get("is_momentum", self.is_momentum)
-            field.is_momentum = is_momentum
-
-        return fields
+    def _prepare(self, field, **kwargs):
+        field = super()._prepare(field, **kwargs)
+        is_momentum = kwargs.get("is_momentum", self.is_momentum)
+        field.is_momentum = is_momentum
+        return field
 
     @property
     def dofs_per_link(self):
@@ -465,9 +460,19 @@ class GaugeField(LatticeField):
             shifts[ax] = val % self.dims[ax]
         if shifts == [0] * self.ndims:
             return self
-        shifts = array("i", shifts)
+        shifts = Array(int, self.ndims, shifts)
         out = self.prepare_out(out)
-        out.quda_field.shift(self.quda_field, shifts)
+        out.quda_field.shift(self.quda_field, shifts.qarray)
+        return out
+
+    def to_algebra(self, out=None, anti=True):
+        """
+        Project group to algrbra
+        """
+        if self.reconstruct == "10":
+            return self
+        out = self.prepare_out(out, reconstruct="10")
+        lib.gaugeToMom(out.quda_field, self.quda_field, anti)
         return out
 
     def project(self, tol=None):
@@ -620,8 +625,8 @@ class GaugeField(LatticeField):
         for i, path in enumerate(paths):
             if not isiterable(path):
                 raise TypeError(f"Path {i} = {path} is not iterable")
-            if path[0] < 0:
-                raise ValueError(f"Path {i} = {path} nevative first movement")
+            if len(path) == 0:
+                continue
             if min(path) < -self.ndims:
                 raise ValueError(
                     f"Path {i} = {path} has direction smaller than {-self.ndims}"
@@ -632,21 +637,24 @@ class GaugeField(LatticeField):
                 )
             if 0 in path:
                 raise ValueError(f"Path {i} = {path} has zeros")
+        return tuple(tuple(path) for path in paths)
 
-    def _paths_to_array(self, paths):
-        "Returns array of paths and their length"
-
-        lengths = numpy.array(list(map(len, paths)), dtype="int32")
-        max_length = lengths.max()
-        paths_array = numpy.empty((1, len(paths), max_length), dtype="int32")
-
-        convert = lambda step: (step - 1) if step > 0 else (8 + step)
-
-        for i, path in enumerate(paths):
-            for j, step in enumerate(path):
-                paths_array[0, i, j] = convert(step)
-
-        return paths_array, lengths
+    def _paths_for_sum(self, paths, coeffs):
+        aux = ([], [], [], [])
+        for i, (path, coeff) in enumerate(zip(paths, coeffs)):
+            if path[0] < 0:
+                raise ValueError(f"Path {i} = {path} negative first movement")
+            aux[path[0] - 1].append((coeff, len(path), path[1:]))
+        # Sorting by coeffs and lengths
+        aux = tuple(map(sorted, aux))
+        coeffs = tuple(tuple(__[0] for __ in _) for _ in aux)
+        lengths = tuple(tuple(__[1] for __ in _) for _ in aux)
+        paths = tuple(tuple(__[2] for __ in _) for _ in aux)
+        if not all(cfs == coeffs[0] for cfs in coeffs[1:]):
+            raise ValueError(f"Not all directions have the same coefficients: {aux}")
+        if not all(lens == lengths[0] for lens in lengths[1:]):
+            raise ValueError(f"Not all directions have the same lengths: {aux}")
+        return paths, coeffs[0]
 
     def _paths_for_force(self, paths, coeffs):
         "Create all paths needed for force"
@@ -661,6 +669,24 @@ class GaugeField(LatticeField):
                 out[tmp] -= coeff
         return tuple(out.keys()), tuple(out.values())
 
+    def _paths_to_array(self, paths):
+        "Returns array of paths and their length"
+
+        lengths = numpy.array(list(map(len, paths[0])), dtype="int32")
+        max_length = max(lengths.max(), 1)
+        ndims = len(paths)
+        npaths = len(paths[0])
+        paths_array = numpy.empty((ndims, npaths, max_length), dtype="int32")
+
+        convert = lambda step: (step - 1) if step > 0 else (8 + step)
+
+        for i, per_dir in enumerate(paths):
+            for j, path in enumerate(per_dir):
+                for k, step in enumerate(path):
+                    paths_array[i, j, k] = convert(step)
+
+        return paths_array, lengths
+
     def compute_paths(
         self,
         paths,
@@ -668,86 +694,137 @@ class GaugeField(LatticeField):
         out=None,
         add_coeff=1,
         force=False,
-        grad=None,
-        left_grad=False,
-        keep_paths=False,
+        sum_paths=True,  # If False, returns a list of gauge fields for every path
+        insertion=None,
+        left=True,
     ):
         """
         Computes the gauge paths on the lattice.
 
-        The same paths are computed for every direction.
+        A path is a list of integers with the following structure
+        - Directions on the lattice are numbered from 1 to self.ndims
+        - Negative values mean moving in a backward direction
+        - The first movement must be always positive
 
-        - The paths are given with respect to direction "1" and
-          this must be the first number of every path list.
-        - Directions go from 1 to self.ndims
-        - Negative value (-1,...) means backward movement in the direction
-        - Paths are then rotated for every direction.
+        Parameters:
+        -----------
+        - paths: list of paths (see above)
+        - coeffs: multiplicative coefficient for each path (float or tuple)
+        - out: optional output for the result
+        - add_coeff: coefficient for all paths used when summing
+        - force: whether to return the force associated to a list of paths
+        - sum_paths: whether to sum all paths in one output
+        - insertion: whether to insert a momentum field in all possible position
+                     (needed for second derivative)
+        - left: in case of insertion, whether to insert on the left or right of the link
         """
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
 
+        if not paths:
+            return ()
+
         # Checking paths for error
-        self._check_paths(paths)
-        paths = tuple(tuple(path) for path in paths)
+        paths = self._check_paths(paths)
 
         # Preparing coeffs
-        if coeffs is None:
-            coeffs = self.ndims / len(paths)
-        if isinstance(coeffs, (int, float)):
-            coeffs = [coeffs] * len(paths)
-        if not len(paths) == len(coeffs):
-            raise ValueError("Paths and coeffs must have the same length")
-
-        # Preparing grad and fnc
-        if grad is not None:
-            grad = self.prepare_in(grad, reconstruct=10)
-            fnc = lambda out, u, *args: self._gaugeForceGradient(
-                out,
-                u,
-                grad.quda_field,
-                *args,
-                left=left_grad,
-            )
-        elif force:
-            fnc = self._gaugeForce
+        if sum_paths:
+            if coeffs is None:
+                coeffs = self.ndims / len(paths)
+            if isinstance(coeffs, (int, float)):
+                coeffs = [coeffs] * len(paths)
+            if not len(paths) == len(coeffs):
+                raise ValueError("Paths and coeffs must have the same length")
         else:
-            fnc = self._gaugePath
+            assert coeffs == None, "coeffs not used in case of not sum_paths"
 
-        # Preparing paths
-        if force and not keep_paths:
+        # Preparing fnc
+        if insertion is not None:
+            assert not sum_paths
+            fnc = self._gaugePathsWIns
+        elif force and sum_paths:
+            fnc = self._gaugeForce
+        elif sum_paths:
+            fnc = self._gaugePath
+        elif not force:
+            fnc = self._gaugePaths
+        else:
+            raise RuntimeError("Invalid combination of options")
+
+        # Finalizing paths and coeffs
+        if force:
             paths, coeffs = self._paths_for_force(paths, coeffs)
-            self._check_paths(paths)
+        if sum_paths:
+            paths, coeffs = self._paths_for_sum(paths, coeffs)
+        else:
+            paths = (paths,)
         paths, lengths = self._paths_to_array(paths)
 
-        # Calling Quda function
+        # Preparing function's arguments
+        ndims = paths.shape[0]
         num_paths = paths.shape[1]
         max_length = paths.shape[2]
-        quda_paths_array = array_to_pointers(paths)
-        coeffs = numpy.array(coeffs, dtype="float64")
-        out = self.prepare_out(out, empty=False, reconstruct=10 if force else None)
-
-        fnc(
-            out.quda_field,
+        ptrs = array_to_pointers(paths)
+        paths_array = lib.std.vector["int **"]([ptrs.get()[i] for i in range(ndims)])
+        lengths = lib.std.vector[int](lengths)
+        args = [
             self.extended_field(1),  # TODO: compute correct extension (max distance)
-            add_coeff,
-            quda_paths_array.get(),
+            paths_array,
             lengths,
-            coeffs,
             num_paths,
             max_length,
-            False,
-        )
+        ]
+        if sum_paths:
+            coeffs = lib.std.vector["double"](coeffs)
+            args.insert(1, add_coeff)
+            args.insert(4, coeffs)
+
+        # Preparing out
+        if sum_paths:
+            out = self.prepare_out(out, empty=False, reconstruct=10 if force else None)
+            args.insert(0, out.quda_field)
+        else:
+            if out is None:
+                out = (None if insertion is None else (None, None),) * num_paths
+            assert isiterable(out, size=num_paths)
+            out = self.prepare_out(out, geometry="scalar")
+            if insertion is not None:
+                args.insert(1, left)
+                insertion = self.prepare_in(insertion, reconstruct=10).extended_field(1)
+                args.insert(1, insertion)
+                tmp = tuple(zip(*out))
+                args.insert(
+                    0,
+                    lib.std.vector["quda::GaugeField*"](
+                        tuple(field.quda_field for field in tmp[1])
+                    ),
+                )
+                tmp = tmp[0]
+            else:
+                tmp = out
+
+            args.insert(
+                0,
+                lib.std.vector["quda::GaugeField*"](
+                    tuple(field.quda_field for field in tmp)
+                ),
+            )
+
+        fnc(*args)
         return out
 
     # for profiling
-    def _gaugeForceGradient(self, *args, **kwargs):
-        return lib.gaugeForceGradient(*args, **kwargs)
-
     def _gaugeForce(self, *args, **kwargs):
         return lib.gaugeForce(*args, **kwargs)
 
     def _gaugePath(self, *args, **kwargs):
         return lib.gaugePath(*args, **kwargs)
+
+    def _gaugePaths(self, *args, **kwargs):
+        return lib.gaugePaths(*args, **kwargs)
+
+    def _gaugePathsWIns(self, *args, **kwargs):
+        return lib.gaugePathsWIns(*args, **kwargs)
 
     @property
     def plaquette_paths(self):
@@ -755,7 +832,8 @@ class GaugeField(LatticeField):
         return tuple(
             (mu, nu, -mu, -nu)
             for mu in range(1, self.ndims + 1)
-            for nu in range(mu + 1, self.ndims + 1)
+            for nu in range(1, self.ndims + 1)
+            if mu != nu
         )
 
     def plaquette_field(self, **kwargs):
@@ -772,7 +850,8 @@ class GaugeField(LatticeField):
         return tuple(
             (mu, nu, nu, -mu, -nu, -nu)
             for mu in range(1, self.ndims + 1)
-            for nu in range(mu + 1, self.ndims + 1)
+            for nu in range(1, self.ndims + 1)
+            if mu != nu
         )
 
     def rectangle_field(self, **kwargs):

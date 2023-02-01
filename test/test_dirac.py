@@ -103,3 +103,45 @@ def test_coarse_zero(lib, lattice, device, dtype=None):
     assert (dirac.Mdag(sf).field == sf.field).all()
     assert (dirac.MdagM(sf).field == sf.field).all()
     assert (dirac.MMdag(sf).field == sf.field).all()
+
+
+# @dtype_loop  # enables dtype
+@device_loop  # enables device
+@lattice_loop  # enables lattice
+@epsilon_loop  # enables epsilon
+def test_fermionic_force(lib, lattice, device, epsilon):
+    dtype = "float64"
+    gf = gauge(lattice, dtype=dtype, device=device)
+    gf.gaussian()
+    mom = momentum(lattice, dtype=dtype, device=device)
+    mom.gaussian(epsilon=epsilon)
+
+    gf2 = mom.exponentiate(mul_to=gf)
+
+    R = spinor(lattice, dtype=dtype)
+    R.gaussian()
+
+    params = {"kappa": 0.01, "csw": 1, "computeTrLog": True}
+
+    # U'- U ~ eps*mom where U' = exp(eps*mom)*U
+    for parity in [None, "EVEN"]:
+        params.update(
+            {
+                "full": True if parity is None else False,
+                "symm": False if params["csw"] != 0 else True,
+            }
+        )
+        D = gf.Dirac(**params)
+        D2 = gf2.Dirac(**params)
+        phi = D.Mdag(R)
+
+        action = D.action(phi)
+        action2 = D2.action(phi)
+        rel_tol = epsilon * np.prod(lattice) * 4
+        print(parity, action, action2)
+        assert isclose(action, action2, rel_tol=rel_tol / 4)
+
+        daction = D.force(phi).full().dot(mom.full()).reduce(mean=False)
+        daction2 = action2 - action
+        print(parity, daction, daction2, daction / daction2)
+        assert isclose(daction, daction2, rel_tol=rel_tol)

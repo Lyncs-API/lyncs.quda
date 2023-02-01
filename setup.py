@@ -20,13 +20,10 @@ QUDA_CMAKE_ARGS = {
     "QUDA_BUILD_SHAREDLIB": "ON",
     "QUDA_BUILD_ALL_TESTS": "OFF",
     "QUDA_GPU_ARCH": os.environ.get("QUDA_GPU_ARCH", "sm_60"),
-    "QUDA_FORCE_GAUGE": "ON",
     "QUDA_MPI": os.environ.get("QUDA_MPI", "OFF"),
     "QUDA_MULTIGRID": "ON",
     "QUDA_CLOVER_DYNAMIC": "OFF",
     "QUDA_CLOVER_RECONSTRUCT": "OFF",
-    "QUDA_GAUGE_TOOLS": "ON",
-    "QUDA_GAUGE_ALG": "ON",
 }
 
 

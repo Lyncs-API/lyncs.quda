@@ -219,27 +219,25 @@ class QudaInverterType(Enum):
     bicgstab = 1
     gcr = 2
     mr = 3
-    mpbicgstab = 4
-    sd = 5
-    pcg = 6
-    mpcg = 7
-    eigcg = 8
-    inc_eigcg = 9
-    gmresdr = 10
-    gmresdr_proj = 11
-    gmresdr_sh = 12
-    fgmresdr = 13
-    mg = 14
-    bicgstabl = 15
-    cgne = 16
-    cgnr = 17
-    cg3 = 18
-    cg3ne = 19
-    cg3nr = 20
-    ca_cg = 21
-    ca_cgne = 22
-    ca_cgnr = 23
-    ca_gcr = 24
+    sd = 4
+    pcg = 5
+    eigcg = 6
+    inc_eigcg = 7
+    gmresdr = 8
+    gmresdr_proj = 9
+    gmresdr_sh = 10
+    fgmresdr = 11
+    mg = 12
+    bicgstabl = 13
+    cgne = 14
+    cgnr = 15
+    cg3 = 16
+    cg3ne = 17
+    cg3nr = 18
+    ca_cg = 19
+    ca_cgne = 20
+    ca_cgnr = 21
+    ca_gcr = 22
     invalid = -2147483648
     """
 
@@ -250,27 +248,25 @@ class QudaInverterType(Enum):
         "bicgstab": 1,
         "gcr": 2,
         "mr": 3,
-        "mpbicgstab": 4,
-        "sd": 5,
-        "pcg": 6,
-        "mpcg": 7,
-        "eigcg": 8,
-        "inc_eigcg": 9,
-        "gmresdr": 10,
-        "gmresdr_proj": 11,
-        "gmresdr_sh": 12,
-        "fgmresdr": 13,
-        "mg": 14,
-        "bicgstabl": 15,
-        "cgne": 16,
-        "cgnr": 17,
-        "cg3": 18,
-        "cg3ne": 19,
-        "cg3nr": 20,
-        "ca_cg": 21,
-        "ca_cgne": 22,
-        "ca_cgnr": 23,
-        "ca_gcr": 24,
+        "sd": 4,
+        "pcg": 5,
+        "eigcg": 6,
+        "inc_eigcg": 7,
+        "gmresdr": 8,
+        "gmresdr_proj": 9,
+        "gmresdr_sh": 10,
+        "fgmresdr": 11,
+        "mg": 12,
+        "bicgstabl": 13,
+        "cgne": 14,
+        "cgnr": 15,
+        "cg3": 16,
+        "cg3ne": 17,
+        "cg3nr": 18,
+        "ca_cg": 19,
+        "ca_cgne": 20,
+        "ca_cgnr": 21,
+        "ca_gcr": 22,
         "invalid": -2147483648,
     }
 
@@ -401,6 +397,17 @@ class QudaSchwarzType(Enum):
     _prefix = "quda_"
     _suffix = "_schwarz"
     _values = {"additive": 0, "multiplicative": 1, "invalid": -2147483648}
+
+
+class QudaAcceleratorType(Enum):
+    """
+    madwf = 0    # Use the MADWF accelerator
+    invalid = -2147483648
+    """
+
+    _prefix = "quda_"
+    _suffix = "_accelerator"
+    _values = {"madwf": 0, "invalid": -2147483648}
 
 
 class QudaResidualType(Enum):
@@ -748,16 +755,24 @@ class QudaFieldOrder(Enum):
 
 class QudaFieldCreate(Enum):
     """
-    null = 0    # create new field
-    zero = 1    # create new field and zero it
-    copy = 2    # create copy to field
-    reference = 3    # create reference to field
+    null = 0    # new field
+    zero = 1    # new field and zero it
+    copy = 2    # copy to field
+    reference = 3    # reference to field
+    ghost = 4    # dummy field used only for ghost storage
     invalid = -2147483648
     """
 
     _prefix = "quda_"
     _suffix = "_field_create"
-    _values = {"null": 0, "zero": 1, "copy": 2, "reference": 3, "invalid": -2147483648}
+    _values = {
+        "null": 0,
+        "zero": 1,
+        "copy": 2,
+        "reference": 3,
+        "ghost": 4,
+        "invalid": -2147483648,
+    }
 
 
 class QudaGammaBasis(Enum):
@@ -805,6 +820,26 @@ class QudaNoiseType(Enum):
     _prefix = "quda_noise_"
     _suffix = ""
     _values = {"gauss": 0, "uniform": 1, "invalid": -2147483648}
+
+
+class QudaDilutionType(Enum):
+    """
+    spin = 0
+    color = 1
+    spin_color = 2
+    spin_color_even_odd = 3
+    invalid = -2147483648
+    """
+
+    _prefix = "quda_dilution_"
+    _suffix = ""
+    _values = {
+        "spin": 0,
+        "color": 1,
+        "spin_color": 2,
+        "spin_color_even_odd": 3,
+        "invalid": -2147483648,
+    }
 
 
 class QudaProjectionType(Enum):
@@ -978,6 +1013,18 @@ class QudaBoolean(Enum):
     _values = {"false": 0, "true": 1, "invalid": -2147483648}
 
 
+class QudaBLASType(Enum):
+    """
+    gemm = 0
+    lu_inv = 1
+    invalid = -2147483648
+    """
+
+    _prefix = "quda_blas_"
+    _suffix = ""
+    _values = {"gemm": 0, "lu_inv": 1, "invalid": -2147483648}
+
+
 class QudaBLASOperation(Enum):
     """
     n = 0    # No transpose
@@ -1147,16 +1194,26 @@ class QudaContractGamma(Enum):
     }
 
 
-class QudaWFlowType(Enum):
+class QudaGaugeSmearType(Enum):
     """
-    wilson = 0
-    symanzik = 1
+    ape = 0
+    stout = 1
+    ovrimp_stout = 2
+    wilson_flow = 3
+    symanzik_flow = 4
     invalid = -2147483648
     """
 
-    _prefix = "quda_wflow_type_"
+    _prefix = "quda_gauge_smear_"
     _suffix = ""
-    _values = {"wilson": 0, "symanzik": 1, "invalid": -2147483648}
+    _values = {
+        "ape": 0,
+        "stout": 1,
+        "ovrimp_stout": 2,
+        "wilson_flow": 3,
+        "symanzik_flow": 4,
+        "invalid": -2147483648,
+    }
 
 
 class QudaExtLibType(Enum):

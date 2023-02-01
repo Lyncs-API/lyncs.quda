@@ -239,6 +239,18 @@ class QudaInvertParam(Struct):
     - ca_lambda_max_precondition : Maximum eigenvalue for Chebyshev CA basis in a preconditioner solver
     - precondition_cycle : Number of preconditioner cycles to perform per iteration
     - schwarz_type : Whether to use additive or multiplicative Schwarz preconditioning
+    - accelerator_type_precondition : The type of accelerator type to use for preconditioner
+    - madwf_diagonal_suppressor : The following parameters are the ones used to perform the adaptive MADWF in MSPCG
+        * See section 3.3 of [arXiv:2104.05615]
+        * The diagonal constant to suppress the low modes when performing 5D transfer
+    - madwf_ls : The target MADWF Ls to be used in the accelerator
+    - madwf_null_miniter : The minimum number of iterations after which to generate the null vectors for MADWF
+    - madwf_null_tol : The maximum tolerance after which to generate the null vectors for MADWF
+    - madwf_train_maxiter : The maximum number of iterations for the training iterations
+    - madwf_param_load : Whether to load the MADWF parameters from the file system
+    - madwf_param_save : Whether to save the MADWF parameters to the file system
+    - madwf_param_infile : Path to load from the file system
+    - madwf_param_outfile : Path to save to the file system
     - residual_type : Whether to use the L2 relative residual, Fermilab heavy-quark
         * residual, or both to determine convergence.  To require that both
         * stopping conditions are satisfied, use a bitwise OR as follows:
@@ -381,6 +393,16 @@ class QudaInvertParam(Struct):
         "ca_lambda_max_precondition": "double",
         "precondition_cycle": "int",
         "schwarz_type": "QudaSchwarzType",
+        "accelerator_type_precondition": "QudaAcceleratorType",
+        "madwf_diagonal_suppressor": "double",
+        "madwf_ls": "int",
+        "madwf_null_miniter": "int",
+        "madwf_null_tol": "double",
+        "madwf_train_maxiter": "int",
+        "madwf_param_load": "QudaBoolean",
+        "madwf_param_save": "QudaBoolean",
+        "madwf_param_infile": "char [ 256 ]",
+        "madwf_param_outfile": "char [ 256 ]",
         "residual_type": "QudaResidualType",
         "cuda_prec_ritz": "QudaPrecision",
         "n_ev": "int",
@@ -425,8 +447,9 @@ class QudaEigParam(Struct):
         them.  For example if a different mass shift is being used
         than the one used to generate the space, then this should be
         false, but preserve_deflation would be true
-    - use_dagger : What type of Dirac operator we are using **/* If !(use_norm_op) && !(use_dagger) use M. **/* If use_dagger, use Mdag **/* If use_norm_op, use MdagM **/* If use_norm_op && use_dagger use MMdag.
+    - use_dagger : What type of Dirac operator we are using **/* If !(use_norm_op) && !(use_dagger) use M. **/* If use_dagger, use Mdag **/* If use_norm_op, use MdagM **/* If use_norm_op && use_dagger use MMdag. **/* If use_pc for any, then use the even-odd pc version
     - use_norm_op :
+    - use_pc :
     - use_eigen_qr : Use Eigen routines to eigensolve the upper Hessenberg via QR
     - compute_svd : Performs an MdagM solve, then constructs the left and right SVD.
     - compute_gamma5 : Performs the \gamma_5 OP solve by Post multipling the eignvectors with
@@ -478,6 +501,7 @@ class QudaEigParam(Struct):
         "preserve_evals": "QudaBoolean",
         "use_dagger": "QudaBoolean",
         "use_norm_op": "QudaBoolean",
+        "use_pc": "QudaBoolean",
         "use_eigen_qr": "QudaBoolean",
         "compute_svd": "QudaBoolean",
         "compute_gamma5": "QudaBoolean",
@@ -533,8 +557,8 @@ class QudaMultigridParam(Struct):
     - setup_tol : Tolerance to use in the setup phase
     - setup_maxiter : Maximum number of iterations for each setup solver
     - setup_maxiter_refresh : Maximum number of iterations for refreshing the null-space vectors
-    - setup_ca_basis : Basis to use for CA-CGN(E/R) setup
-    - setup_ca_basis_size : Basis size for CACG setup
+    - setup_ca_basis : Basis to use for CA solver setup
+    - setup_ca_basis_size : Basis size for CA solver setup
     - setup_ca_lambda_min : Minimum eigenvalue for Chebyshev CA basis
     - setup_ca_lambda_max : Maximum eigenvalue for Chebyshev CA basis
     - setup_type : Null-space type to use in the setup phase
@@ -543,14 +567,17 @@ class QudaMultigridParam(Struct):
     - coarse_solver : The solver that wraps around the coarse grid correction and smoother
     - coarse_solver_tol : Tolerance for the solver that wraps around the coarse grid correction and smoother
     - coarse_solver_maxiter : Maximum number of iterations for the solver that wraps around the coarse grid correction and smoother
-    - coarse_solver_ca_basis : Basis to use for CA-CGN(E/R) coarse solver
-    - coarse_solver_ca_basis_size : Basis size for CACG coarse solver
+    - coarse_solver_ca_basis : Basis to use for CA coarse solvers
+    - coarse_solver_ca_basis_size : Basis size for CA coarse solvers
     - coarse_solver_ca_lambda_min : Minimum eigenvalue for Chebyshev CA basis
     - coarse_solver_ca_lambda_max : Maximum eigenvalue for Chebyshev CA basis
     - smoother : Smoother to use on each level
     - smoother_tol : Tolerance to use for the smoother / solver on each level
     - nu_pre : Number of pre-smoother applications on each level
     - nu_post : Number of post-smoother applications on each level
+    - smoother_solver_ca_basis : Basis to use for CA smoother solvers
+    - smoother_solver_ca_lambda_min : Minimum eigenvalue for Chebyshev CA smoother basis
+    - smoother_solver_ca_lambda_max : Maximum eigenvalue for Chebyshev CA smoother basis
     - omega : Over/under relaxation factor for the smoother at each level
     - smoother_halo_precision : Precision to use for halo communication in the smoother
     - smoother_schwarz_type : Whether to use additive or multiplicative Schwarz preconditioning in the smoother
@@ -622,6 +649,9 @@ class QudaMultigridParam(Struct):
         "smoother_tol": "double [ QUDA_MAX_MG_LEVEL ]",
         "nu_pre": "int [ QUDA_MAX_MG_LEVEL ]",
         "nu_post": "int [ QUDA_MAX_MG_LEVEL ]",
+        "smoother_solver_ca_basis": "QudaCABasis [ QUDA_MAX_MG_LEVEL ]",
+        "smoother_solver_ca_lambda_min": "double [ QUDA_MAX_MG_LEVEL ]",
+        "smoother_solver_ca_lambda_max": "double [ QUDA_MAX_MG_LEVEL ]",
         "omega": "double [ QUDA_MAX_MG_LEVEL ]",
         "smoother_halo_precision": "QudaPrecision [ QUDA_MAX_MG_LEVEL ]",
         "smoother_schwarz_type": "QudaSchwarzType [ QUDA_MAX_MG_LEVEL ]",
@@ -660,14 +690,25 @@ class QudaGaugeObservableParam(Struct):
     """
     QudaGaugeObservableParam struct:
     - struct_size : Size of this struct in bytes.  Used to ensure that the host application and QUDA see the same struct
-    - su_project : Whether to porject onto the manifold prior to measurement
+    - su_project : Whether to project onto the manifold prior to measurement
     - compute_plaquette : Whether to compute the plaquette
     - plaquette : Total, spatial and temporal field energies, respectively
+    - compute_polyakov_loop : Whether to compute the temporal Polyakov loop
+    - ploop : Real and imaginary part of temporal Polyakov loop
+    - compute_gauge_loop_trace : Whether to compute gauge loop traces
+    - traces : Individual complex traces of each loop
+    - input_path_buff : Array of paths
+    - path_length : Length of each path
+    - loop_coeff : Multiplicative factor for each loop
+    - num_paths : Total number of paths
+    - max_length : Maximum length of any path
+    - factor : Global multiplicative factor to apply to each loop trace
     - compute_qcharge : Whether to compute the topological charge and field energy
     - qcharge : Computed topological charge
     - energy : Total, spatial and temporal field energies, respectively
     - compute_qcharge_density : Whether to compute the topological charge density
     - qcharge_density : Pointer to host array of length volume where the q-charge density will be copied
+    - remove_staggered_phase : Whether or not the resident gauge field has staggered phases applied and if they should
     """
 
     _types = {
@@ -675,11 +716,45 @@ class QudaGaugeObservableParam(Struct):
         "su_project": "QudaBoolean",
         "compute_plaquette": "QudaBoolean",
         "plaquette": "double [ 3 ]",
+        "compute_polyakov_loop": "QudaBoolean",
+        "ploop": "double [ 2 ]",
+        "compute_gauge_loop_trace": "QudaBoolean",
+        "traces": "double_complex *",
+        "input_path_buff": "int * *",
+        "path_length": "int *",
+        "loop_coeff": "double *",
+        "num_paths": "int",
+        "max_length": "int",
+        "factor": "double",
         "compute_qcharge": "QudaBoolean",
         "qcharge": "double",
         "energy": "double [ 3 ]",
         "compute_qcharge_density": "QudaBoolean",
         "qcharge_density": "void *",
+        "remove_staggered_phase": "",
+    }
+
+
+class QudaGaugeSmearParam(Struct):
+    """
+    QudaGaugeSmearParam struct:
+    - struct_size : Size of this struct in bytes.  Used to ensure that the host application and QUDA see the same struct
+    - n_steps : The total number of smearing steps to perform.
+    - epsilon : Serves as one of the coefficients in Over Improved Stout smearing, or as the step size in
+    - alpha : Wilson/Symanzik flow*< The single coefficient used in APE smearing
+    - rho : Serves as one of the coefficients used in Over Improved Stout smearing, or as the single coefficient used in Stout
+    - meas_interval : Perform the requested measurements on the gauge field at this interval
+    - smear_type : The smearing type to perform
+    """
+
+    _types = {
+        "struct_size": "size_t",
+        "n_steps": "unsigned int",
+        "epsilon": "double",
+        "alpha": "double",
+        "rho": "double",
+        "meas_interval": "unsigned int",
+        "smear_type": "QudaGaugeSmearType",
     }
 
 
@@ -687,7 +762,8 @@ class QudaBLASParam(Struct):
     """
     QudaBLASParam struct:
     - struct_size : Size of this struct in bytes.  Used to ensure that the host application and QUDA see the same struct
-    - trans_a : operation op(A) that is non- or (conj.) transpose.
+    - blas_type : Type of BLAS computation to perfrom
+    - trans_a : GEMM params*< operation op(A) that is non- or (conj.) transpose.
     - trans_b : operation op(B) that is non- or (conj.) transpose.
     - m : number of rows of matrix op(A) and C.
     - n : number of columns of matrix op(B) and C.
@@ -703,13 +779,15 @@ class QudaBLASParam(Struct):
     - c_stride : stride of the C array in strided(batched) mode
     - alpha : scalar used for multiplication.
     - beta : scalar used for multiplication. If beta==0, C does not have to be a valid input.
-    - batch_count : number of pointers contained in arrayA, arrayB and arrayC.
+    - inv_mat_size : LU inversion params*< The rank of the square matrix in the LU inversion
+    - batch_count : Common params*< number of pointers contained in arrayA, arrayB and arrayC.
     - data_type : Specifies if using S(C) or D(Z) BLAS type
     - data_order : Specifies if using Row or Column major
     """
 
     _types = {
         "struct_size": "size_t",
+        "blas_type": "QudaBLASType",
         "trans_a": "QudaBLASOperation",
         "trans_b": "QudaBLASOperation",
         "m": "int",
@@ -726,6 +804,7 @@ class QudaBLASParam(Struct):
         "c_stride": "int",
         "alpha": "double_complex",
         "beta": "double_complex",
+        "inv_mat_size": "int",
         "batch_count": "int",
         "data_type": "QudaBLASDataType",
         "data_order": "QudaBLASDataOrder",

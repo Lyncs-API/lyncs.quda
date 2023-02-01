@@ -13,6 +13,7 @@ from lyncs_cppyy import nullptr
 from lyncs_utils import prod
 from .enums import QudaPrecision
 from .lib import lib, cupy
+from .array import lat_dims
 
 from lyncs_cppyy import to_pointer
 import ctypes
@@ -218,44 +219,45 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             return False
         return True
 
-    def _prepare(self, *fields, copy=False, check=False, **kwargs):
-        "Prepares the fields by creating new ones if None given; else casting them to type(self), then checking them if compatible with self, and/or copying them"
-        if not fields:
-            raise ValueError("No fields given")
-        if len(fields) == 1:
-            field = fields[0]
-            if field is self:
-                return field
-            if field is None:
-                return self.new(**kwargs)
-            cls = type(self)
-            if not isinstance(field, cls):
-                field = cls(field)
-            if check and not self.equivalent(field, **kwargs):
-                if copy:
-                    return self.copy(other=field, **kwargs)
-                raise ValueError("The given field is not appropriate")
-            field.__array_finalize__(self)
+    def _prepare(self, field, copy=False, check=False, **kwargs):
+        if field is self:
             return field
-        return tuple(
-            self._prepare(field, copy=copy, check=check, **kwargs) for field in fields
-        )
+        if field is None:
+            return self.new(**kwargs)
+        cls = type(self)
+        if not isinstance(field, cls):
+            field = cls(field)
+        if check and not self.equivalent(field, **kwargs):
+            if copy:
+                return self.copy(other=field, **kwargs)
+            raise ValueError("The given field is not appropriate")
+        field.__array_finalize__(self)
+        return field
 
-    def prepare_out(self, *fields, **kwargs):
+    def prepare(self, fields, **kwargs):
+        """Prepares the fields by creating new ones if None given;
+        else casting them to type(self), then checking them if compatible with self,
+        and/or copying them
+        """
+        if isinstance(fields, (tuple, list)):
+            return type(fields)(self.prepare(field, **kwargs) for field in fields)
+        return self._prepare(fields, **kwargs)
+
+    def prepare_out(self, fields, **kwargs):
         "Function to call for preparing output(s) to be passed for a calculation"
         # Typically, we do want to check but not copy an output
         kwargs.setdefault("check", True)
         kwargs.setdefault("copy", False)
         if kwargs["copy"]:
             raise ValueError("An output should never be copied")
-        return self._prepare(*fields, **kwargs)
+        return self.prepare(fields, **kwargs)
 
-    def prepare_in(self, *fields, **kwargs):
+    def prepare_in(self, fields, **kwargs):
         "Function to call for preparing input(s) to be used for a calculation"
         # Typically, we want to check and copy an input
         kwargs.setdefault("check", True)
         kwargs.setdefault("copy", True)
-        return self._prepare(*fields, **kwargs)
+        return self.prepare(fields, **kwargs)
 
     def __init__(self, field, comm=None, **kwargs):
         self.field = field
@@ -284,7 +286,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         if isinstance(field, LatticeField):
             field = field.field
         if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
-            raise TypeError("Supporting only numpy or cupy for field")
+            raise TypeError(
+                f"Supporting only numpy or cupy for field, got {type(field)}"
+            )
         if isinstance(field, cupy.ndarray) and field.device.id != lib.device_id:
             raise TypeError("Field is stored on a different device than the quda lib")
         if len(field.shape) < 4:
@@ -371,7 +375,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def quda_dims(self):
         "Memory array with lattice dimensions"
-        return array("i", reversed(self.dims))
+        return lat_dims(list(reversed(self.dims)))
 
     @property
     def dofs(self):
@@ -432,6 +436,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             self.ndims,
             self.quda_dims,
             self.pad,
+            self.quda_location,
             self.quda_precision,
             self.quda_ghost_exchange,
         )

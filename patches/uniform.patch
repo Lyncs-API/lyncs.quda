@@ -1,9 +1,9 @@
 diff --git a/include/gauge_tools.h b/include/gauge_tools.h
-index e32f38f..5f7cd47 100644
+index 503c20b..23c418c 100644
 --- a/include/gauge_tools.h
 +++ b/include/gauge_tools.h
-@@ -69,6 +69,24 @@ namespace quda
-   void gaugeGauss(GaugeField &U, unsigned long long seed, double epsilon);
+@@ -91,6 +91,24 @@ namespace quda
+   void gaugeNoise(GaugeField &U, unsigned long long seed, QudaNoiseType type);
  
    /**
 +     @brief Generate uniformly distributed SU(N) fields.
@@ -28,10 +28,10 @@ index e32f38f..5f7cd47 100644
  
       @param[out] dataDs Output smeared field
 diff --git a/include/kernels/gauge_random.cuh b/include/kernels/gauge_random.cuh
-index 4a98c4d..22fe4f8 100644
+index 3c348d7..4a70c0e 100644
 --- a/include/kernels/gauge_random.cuh
 +++ b/include/kernels/gauge_random.cuh
-@@ -37,23 +37,26 @@ namespace quda {
+@@ -37,20 +37,26 @@ namespace quda {
      }
    };
  
@@ -41,9 +41,9 @@ index 4a98c4d..22fe4f8 100644
 +      real rand1 = uniform<real>::rand(localState);
 +      real rand2 = uniform<real>::rand(localState);
 +      
-+      real phi = 2.0 * M_PI * rand1;
++      real phi = 2.0 * rand1;
 +      real radius = sqrt(-log(rand2));
-+      quda::sincos(phi, &arr2[i], &arr1[i]);
++      quda::sincospi(phi, &arr2[i], &arr1[i]);
 +      arr1[i] *= radius;
 +      arr2[i] *= radius;
 +    }
@@ -53,25 +53,23 @@ index 4a98c4d..22fe4f8 100644
    {
      Link ret;
 -    real rand1[4], rand2[4], phi[4], radius[4], temp1[4], temp2[4];
-+    real temp1[4], temp2[4];
- 
+-
 -    for (int i = 0; i < 4; ++i) {
 -      rand1[i] = uniform<real>::rand(localState);
 -      rand2[i] = uniform<real>::rand(localState);
--    }
--
--    for (int i = 0; i < 4; ++i) {
--      phi[i] = 2.0 * M_PI * rand1[i];
+-      phi[i] = 2.0 * rand1[i];
 -      radius[i] = sqrt(-log(rand2[i]));
--      quda::sincos(phi[i], &temp2[i], &temp1[i]);
+-      quda::sincospi(phi[i], &temp2[i], &temp1[i]);
 -      temp1[i] *= radius[i];
 -      temp2[i] *= radius[i];
 -    }
++    real temp1[4], temp2[4];
++
 +    gauss(localState, temp1, temp2, 4);
  
      // construct Anti-Hermitian matrix
      const real rsqrt_3 = quda::rsqrt(3.0);
-@@ -112,4 +115,122 @@ namespace quda {
+@@ -109,4 +115,122 @@ namespace quda {
      }
    };
  
@@ -195,23 +193,25 @@ index 4a98c4d..22fe4f8 100644
 +  };
  }
 diff --git a/lib/gauge_random.cu b/lib/gauge_random.cu
-index 5d7ceca..8a4fc38 100644
+index 0e056d3..87ffdac 100644
 --- a/lib/gauge_random.cu
 +++ b/lib/gauge_random.cu
-@@ -24,7 +24,7 @@ namespace quda {
-       sigma(static_cast<Float>(sigma)),
+@@ -25,9 +25,9 @@ namespace quda {
        group(U.LinkType() == QUDA_SU3_LINKS)
      {
--      if (getVerbosity() >= QUDA_SUMMARIZE) {
-+      if (getVerbosity() >= QUDA_VERBOSE) {
-         if (group) printfQuda("Creating Gaussian distrbuted Lie group field with sigma = %e\n", sigma);
-         else printfQuda("Creating Gaussian distrbuted Lie algebra field\n");
+       if (group) {
+-        logQuda(QUDA_SUMMARIZE, "Creating Gaussian distributed Lie group field with sigma = %e\n", sigma);
++        logQuda(QUDA_VERBOSE, "Creating Gaussian distributed Lie group field with sigma = %e\n", sigma);
+       } else {
+-        logQuda(QUDA_SUMMARIZE, "Creating Gaussian distributed Lie algebra field\n");
++        logQuda(QUDA_VERBOSE, "Creating Gaussian distributed Lie algebra field\n");
        }
-@@ -70,4 +70,58 @@ namespace quda {
-     RNG randstates(U, seed);
+       strcat(aux, group ? ",lie_group" : "lie_algebra");
+       apply(device::get_default_stream());
+@@ -71,4 +71,57 @@ namespace quda {
      gaugeGauss(U, randstates, sigma);
    }
-+
+ 
 +  template <typename Float, int nColor, QudaReconstructType recon>
 +  class GaugeUniform : TunableKernel2D
 +  {

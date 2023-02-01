@@ -119,7 +119,6 @@ class Dirac:
         #  add an attribute for Dirac object in DiracMatrix object
         # self.quda_gauge = self.gauge.quda_field as well as _quda in Dirac
         params.gauge = self.gauge.quda_field
-
         if self.csw != 0.0 and not self.gauge.is_coarse:
             if self.clover is None:
                 object.__setattr__(
@@ -182,6 +181,7 @@ class Dirac:
                     else nullptr,
                 ),
             )
+
         return self._quda
 
     def get_matrix(self, key="M"):
@@ -369,7 +369,6 @@ class DiracMatrix:
     def __call__(self, rhs, out=None):
         rhs = spinor(rhs)
         out = rhs.prepare_out(out)
-
         if self.dirac.full:
             self.quda(out.quda_field, rhs.quda_field)
         elif self.dirac.even:

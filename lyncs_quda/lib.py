@@ -18,7 +18,7 @@ from lyncs_cppyy import Lib, nullptr, cppdef
 from lyncs_cppyy.ll import addressof, to_pointer
 from lyncs_utils import static_property, lazy_import
 from . import __path__
-from .config import QUDA_MPI, GITVERSION
+from .config import QUDA_MPI, QUDA_GITVERSION, QUDA_PRECISION, QUDA_RECONSTRUCT
 
 cupy = lazy_import("cupy")
 
@@ -38,7 +38,7 @@ class QudaLib(Lib):
         self._device_id = 0
         self._comm = None
         if not self.tune_dir:
-            self.tune_dir = user_data_dir("quda", "lyncs") + "/" + GITVERSION
+            self.tune_dir = user_data_dir("quda", "lyncs") + "/" + QUDA_GITVERSION
         super().__init__(*args, **kwargs)
 
     @property
@@ -225,6 +225,8 @@ class QudaLib(Lib):
     def end_quda(self):
         if not self.initialized:
             raise RuntimeError("Quda has not been initialized")
+        if self.tune_enabled:
+            self.saveTuneCache()
         self.endQuda()
         self._comm = None
         self._initialized = False
@@ -257,7 +259,7 @@ headers = [
     "quda.h",
     "gauge_field.h",
     "gauge_tools.h",
-    "gauge_force_quda.h",
+    "gauge_path_quda.h",
     "gauge_update_quda.h",
     "clover_field.h",
     "dirac_quda.h",
@@ -265,7 +267,9 @@ headers = [
     "blas_quda.h",
     "multigrid.h",
     "evenodd.h",
+    "array.h",
     "momentum.h",
+    "tune_quda.h",
 ]
 
 
@@ -274,6 +278,7 @@ lib = QudaLib(
     header=headers,
     library=["libquda.so"] + libs,
     namespace=["quda", "lyncs_quda"],
+    defined={"QUDA_PRECISION": QUDA_PRECISION, "QUDA_RECONSTRUCT": QUDA_RECONSTRUCT},
 )
 lib.MPI = MPI
 
