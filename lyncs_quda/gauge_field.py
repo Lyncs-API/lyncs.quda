@@ -438,6 +438,18 @@ class GaugeField(LatticeField):
         )
         return out
 
+    def square(self, out=None):
+        "Returns the squared gauge field"
+        self = self.full()
+        out = self.prepare_out(out)
+        self.backend.matmul(
+            self.default_view(),
+            self.default_view(),
+            out=out.default_view(),
+            axes=[(2, 3)] * 3,
+        )
+        return out
+
     def shift(self, shift, axis=None, out=None):
         """
         Shifts the field by a given separation.
