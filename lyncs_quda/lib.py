@@ -222,11 +222,14 @@ class QudaLib(Lib):
             )
         return self.lyncs_quda_copy_struct
 
+    def save_tuning(self):
+        if self.tune_enabled:
+            self.saveTuneCache()
+
     def end_quda(self):
         if not self.initialized:
             raise RuntimeError("Quda has not been initialized")
-        if self.tune_enabled:
-            self.saveTuneCache()
+        self.save_tuning()
         self.endQuda()
         self._comm = None
         self._initialized = False
