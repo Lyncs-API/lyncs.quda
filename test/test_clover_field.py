@@ -30,7 +30,6 @@ def test_default(lattice):
 @device_loop  # enables device
 @lattice_loop  # enables lattice
 def test_params(lib, lattice, device, dtype):
-
     gf = gauge(lattice, dtype=dtype, device=device)
     # gf.zero()
     clv = CloverField(gf, computeTrLog=True, coeff=0)

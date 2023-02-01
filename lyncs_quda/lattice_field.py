@@ -139,7 +139,6 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             local_lattice = ()
             procs = comm.dims
             for ldim, cdim in zip(global_lattice, procs):
-
                 if not (ldim / cdim).is_integer():
                     raise ValueError(
                         "Each lattice dim needs to be divisible by the corresponding dim of the Cartesian communicator!"

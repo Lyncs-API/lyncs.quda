@@ -2,7 +2,6 @@ from lyncs_quda import enums, Enum
 
 
 def test_enums():
-
     for enum in dir(enums):
         if enum.startswith("_"):
             continue

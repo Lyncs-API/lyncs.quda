@@ -20,7 +20,6 @@ from .enums import QudaPrecision
 
 @dataclass(frozen=True)
 class Dirac:
-
     # For QUDA DiracParam class:
     gauge: GaugeField  # TODO: check acceptable geometry of gauge as an argument to QUDA Dirac class
     clover: Union[CloverField, GaugeField] = None

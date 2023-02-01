@@ -110,11 +110,9 @@ class Integrator:
     mom_coeffs: tuple = field(init=False, default=(0.5, 0.5))
 
     def __call__(self, field, mom, helper):
-
         # Use negative time for reversed integration
         dtime = self.time / self.steps
         for step in range(self.steps):
-
             for fcoeff, mcoeff in zip(self.pos_coeffs, self.mom_coeffs):
                 field, mom = helper.update(field, mom, fcoeff * dtime, mcoeff * dtime)
 
