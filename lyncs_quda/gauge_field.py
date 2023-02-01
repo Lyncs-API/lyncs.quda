@@ -701,7 +701,7 @@ class GaugeField(LatticeField):
         """
         Computes the gauge paths on the lattice.
 
-        The paths are list of integers with the following structure
+        A path is a list of integers with the following structure
         - Directions on the lattice are numbered from 1 to self.ndims
         - Negative values mean moving in a backward direction
         - The first movement must be always positive
