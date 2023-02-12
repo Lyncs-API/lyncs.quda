@@ -11,7 +11,7 @@ from contextlib import contextmanager
 import numpy
 from lyncs_cppyy import nullptr
 from lyncs_utils import prod
-from .enums import QudaPrecision
+from .enums import QudaPrecision, QudaFieldLocation, QudaGhostExchange
 from .lib import lib, cupy
 from .array import lat_dims
 
@@ -347,7 +347,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def quda_location(self):
         "Quda enum for memory location of the field (CPU or CUDA)"
-        return getattr(lib, f"QUDA_{self.location}_FIELD_LOCATION")
+        return int(QudaFieldLocation[self.location])
 
     @property
     def ndims(self):
@@ -404,7 +404,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def quda_precision(self):
         "Quda enum for field data type precision"
-        return int(QudaPrecision[get_precision(self.dtype)])
+        return int(QudaPrecision[self.precision])
 
     @property
     def ghost_exchange(self):
@@ -414,7 +414,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def quda_ghost_exchange(self):
         "Quda enum for ghost exchange"
-        return getattr(lib, f"QUDA_GHOST_EXCHANGE_{self.ghost_exchange}")
+        return int(QudaGhostExchange[self.ghost_exchange])
 
     @property
     def pad(self):

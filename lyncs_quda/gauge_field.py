@@ -24,6 +24,13 @@ from .array import Array
 from .lattice_field import LatticeField, backend
 from .spinor_field import spinor
 from .time_profile import default_profiler
+from .enums import (
+    QudaReconstructType,
+    QudaGaugeFieldOrder,
+    QudaFieldGeometry,
+    QudaTboundary,
+    QudaLinkType,
+)
 
 # TODO: Make array dims consistent with gauge order
 
@@ -168,7 +175,7 @@ class GaugeField(LatticeField):
     @property
     def quda_reconstruct(self):
         "Quda enum for reconstruct type of the field"
-        return getattr(lib, f"QUDA_RECONSTRUCT_{self.reconstruct}")
+        return int(QudaReconstructType[self.reconstruct])
 
     @property
     def ncol(self):
@@ -193,7 +200,7 @@ class GaugeField(LatticeField):
     @property
     def quda_order(self):
         "Quda enum for data order of the field"
-        return getattr(lib, f"QUDA_{self.order}_GAUGE_ORDER")
+        return int(QudaGaugeFieldOrder[self.order])
 
     @property
     def _geometry_values(self):
@@ -227,7 +234,7 @@ class GaugeField(LatticeField):
     @property
     def quda_geometry(self):
         "Quda enum for geometry of the field"
-        return getattr(lib, f"QUDA_{self.geometry}_GEOMETRY")
+        return int(QudaFieldGeometry[self.geometry])
 
     @property
     def is_coarse(self):
@@ -250,12 +257,12 @@ class GaugeField(LatticeField):
     @property
     def t_boundary(self):
         "Boundary conditions in time"
-        return "PERIODIC"
+        return "PERIODIC_T"
 
     @property
     def quda_t_boundary(self):
         "Quda enum for boundary conditions in time"
-        return getattr(lib, f"QUDA_{self.t_boundary}_T")
+        return int(QudaTboundary[self.t_boundary])
 
     @property
     def link_type(self):
@@ -269,7 +276,7 @@ class GaugeField(LatticeField):
     @property
     def quda_link_type(self):
         "Quda enum for link type"
-        return getattr(lib, f"QUDA_{self.link_type}_LINKS")
+        return int(QudaLinkType[self.link_type])
 
     @property
     def quda_params(self):
@@ -284,7 +291,6 @@ class GaugeField(LatticeField):
         params.link_type = self.quda_link_type
         params.gauge = to_pointer(self.ptr)
         params.create = lib.QUDA_REFERENCE_FIELD_CREATE
-        params.location = self.quda_location
         params.t_boundary = self.quda_t_boundary
         params.order = self.quda_order
         params.nColor = self.ncol
