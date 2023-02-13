@@ -8,6 +8,7 @@ __all__ = [
 
 from array import array
 from contextlib import contextmanager
+from functools import cache
 import numpy
 from lyncs_cppyy import nullptr
 from lyncs_utils import prod
@@ -428,10 +429,16 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             return self.field.__array_interface__["data"][0]
         return self.field.data.ptr
 
+    @staticmethod
+    @cache
+    def _quda_params(*args):
+        "Call wrapper to cache param structures"
+        return lib.LatticeFieldParam(*args)
+
     @property
     def quda_params(self):
         "Returns an instance of quda::LatticeFieldParam"
-        return lib.LatticeFieldParam(
+        return self._quda_params(
             self.ndims,
             self.quda_dims,
             self.pad,

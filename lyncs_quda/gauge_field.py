@@ -16,6 +16,7 @@ __all__ = [
 from time import time
 from math import sqrt
 from collections import defaultdict
+from functools import cache
 import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
 from lyncs_utils import prod, isiterable
@@ -28,6 +29,7 @@ from .enums import (
     QudaReconstructType,
     QudaGaugeFieldOrder,
     QudaFieldGeometry,
+    QudaFieldCreate,
     QudaTboundary,
     QudaLinkType,
 )
@@ -278,22 +280,36 @@ class GaugeField(LatticeField):
         "Quda enum for link type"
         return int(QudaLinkType[self.link_type])
 
+    @staticmethod
+    @cache
+    def _quda_params(*args, **kwargs):
+        "Call wrapper to cache param structures"
+        params = lib.GaugeFieldParam(*args)
+        for key, val in kwargs.items():
+            setattr(params, key, val)
+        return params
+
     @property
     def quda_params(self):
         "Returns an instance of quda::GaugeFieldParams"
         # TODO: Support MILC gauge order (site_offset, site_size)
         # TODO: Support Staggered phase (staggeredPhaseType, staggeredPhaseApplied)
         # TODO: Allow control on QudaGaugeFixed, i_mu, nFace, anisotropy, tadpole, compute_fat_link_max,
-        params = lib.GaugeFieldParam()
-        lib.copy_struct(params, super().quda_params)
-        params.reconstruct = self.quda_reconstruct
-        params.geometry = self.quda_geometry
-        params.link_type = self.quda_link_type
+        params = self._quda_params(
+            self.quda_dims,
+            self.quda_precision,
+            self.quda_reconstruct,
+            self.pad,
+            self.quda_geometry,
+            self.quda_ghost_exchange,
+            location=self.quda_location,
+            link_type=self.quda_link_type,
+            create=int(QudaFieldCreate["reference"]),
+            t_boundary=self.quda_t_boundary,
+            order=self.quda_order,
+            nColor=self.ncol,
+        )
         params.gauge = to_pointer(self.ptr)
-        params.create = lib.QUDA_REFERENCE_FIELD_CREATE
-        params.t_boundary = self.quda_t_boundary
-        params.order = self.quda_order
-        params.nColor = self.ncol
         return params
 
     @property
