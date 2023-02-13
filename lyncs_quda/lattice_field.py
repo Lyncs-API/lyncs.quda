@@ -8,10 +8,11 @@ __all__ = [
 
 from array import array
 from contextlib import contextmanager
+from functools import cache
 import numpy
 from lyncs_cppyy import nullptr
 from lyncs_utils import prod
-from .enums import QudaPrecision
+from .enums import QudaPrecision, QudaFieldLocation, QudaGhostExchange
 from .lib import lib, cupy
 from .array import lat_dims
 
@@ -347,7 +348,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def quda_location(self):
         "Quda enum for memory location of the field (CPU or CUDA)"
-        return getattr(lib, f"QUDA_{self.location}_FIELD_LOCATION")
+        return int(QudaFieldLocation[self.location])
 
     @property
     def ndims(self):
@@ -374,7 +375,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def quda_dims(self):
         "Memory array with lattice dimensions"
-        return lat_dims(list(reversed(self.dims)))
+        return lat_dims(tuple(reversed(self.dims)))
 
     @property
     def dofs(self):
@@ -404,7 +405,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def quda_precision(self):
         "Quda enum for field data type precision"
-        return int(QudaPrecision[get_precision(self.dtype)])
+        return int(QudaPrecision[self.precision])
 
     @property
     def ghost_exchange(self):
@@ -414,7 +415,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def quda_ghost_exchange(self):
         "Quda enum for ghost exchange"
-        return getattr(lib, f"QUDA_GHOST_EXCHANGE_{self.ghost_exchange}")
+        return int(QudaGhostExchange[self.ghost_exchange])
 
     @property
     def pad(self):
@@ -428,10 +429,16 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             return self.field.__array_interface__["data"][0]
         return self.field.data.ptr
 
+    @staticmethod
+    @cache
+    def _quda_params(*args):
+        "Call wrapper to cache param structures"
+        return lib.LatticeFieldParam(*args)
+
     @property
     def quda_params(self):
         "Returns an instance of quda::LatticeFieldParam"
-        return lib.LatticeFieldParam(
+        return self._quda_params(
             self.ndims,
             self.quda_dims,
             self.pad,
