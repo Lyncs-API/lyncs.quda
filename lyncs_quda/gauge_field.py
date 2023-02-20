@@ -65,9 +65,8 @@ def momentum(lattice, **kwargs):
 class GaugeField(LatticeField):
     "Mimics the quda::GaugeField object"
 
-    @LatticeField.field.setter
-    def field(self, field):
-        LatticeField.field.fset(self, field)
+    def _check_field(self, field):
+        super()._check_field(field)#probably ok
         if self.reconstruct == "INVALID":
             raise TypeError(f"Unrecognized field dofs {self.dofs}")
 
@@ -129,11 +128,6 @@ class GaugeField(LatticeField):
             kwargs.update({"is_momentum": True})
 
         return super().copy(other, out, **kwargs)
-
-    def __array_finalize__(self, obj):
-        "Support for __array_finalize__ standard"
-        # need to reset QUDA object when meta data of its Python wrapper is changed
-        self._quda = None
 
     def _prepare(self, field, **kwargs):
         field = super()._prepare(field, **kwargs)
@@ -501,7 +495,7 @@ class GaugeField(LatticeField):
         if tol is None:
             tol = numpy.finfo(self.dtype).eps
 
-        assert self.device == cupy.cuda.runtime.getDevice()
+        assert self.device_id == cupy.cuda.runtime.getDevice()
         fails = cupy.zeros((1,), dtype="int32")
         lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
         # return fails.get()[0]  # shouldn't we reduce?

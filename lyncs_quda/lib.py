@@ -18,7 +18,7 @@ from lyncs_cppyy import Lib, nullptr, cppdef
 from lyncs_cppyy.ll import addressof, to_pointer
 from lyncs_utils import static_property, lazy_import
 from . import __path__
-from .config import QUDA_MPI, QUDA_GITVERSION, QUDA_PRECISION, QUDA_RECONSTRUCT
+from .config import QUDA_MPI, GITVERSION, QUDA_PRECISION, QUDA_RECONSTRUCT
 
 cupy = lazy_import("cupy")
 
@@ -38,7 +38,7 @@ class QudaLib(Lib):
         self._device_id = 0
         self._comm = None
         if not self.tune_dir:
-            self.tune_dir = user_data_dir("quda", "lyncs") + "/" + QUDA_GITVERSION
+            self.tune_dir = user_data_dir("quda", "lyncs") + "/" + GITVERSION
         super().__init__(*args, **kwargs)
 
     @property

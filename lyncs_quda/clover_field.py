@@ -70,7 +70,7 @@ class CloverField(LatticeField):
             self._fmunu.global_lattice,
             dofs=(idof,),
             dtype=prec,
-            device=self._fmunu.device,
+            device=self._fmunu.device_id,
             empty=True,
         )
         self._clover = new(idof)
@@ -205,7 +205,7 @@ class CloverField(LatticeField):
         if not self._direct:
             lib.computeClover(self.quda_field, self._fmunu.quda_field, self.coeff)
             self._direct = True
-        return self._clover.field
+        return self._clover
 
     @property
     def inverse_field(self):
@@ -213,7 +213,7 @@ class CloverField(LatticeField):
             self.clover_field
             lib.cloverInvert(self.quda_field, self.computeTrLog)
             self._inverse = True
-        return self._cloverInv.field
+        return self._cloverInv
 
     @property
     def trLog(self):
