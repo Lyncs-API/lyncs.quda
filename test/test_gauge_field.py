@@ -60,7 +60,9 @@ def test_zero(lib, lattice, device, dtype):
 
     assert gf.project() == 4 * np.prod(lattice)
     gf.zero()
-
+    print("NEWWWWW")
+    assert gf+gf==0
+    print("NEWWWWEWEWE")
     gf2 = gf.new()
     gf2.gaussian()
     assert gf.dot(gf2) == 0
@@ -77,7 +79,9 @@ def test_zero(lib, lattice, device, dtype):
 
     gf3 = momentum(lattice, dtype=dtype, device=device)
     gf3.zero()
+    print("ss!!!!!!!!!!!!!!!!!",type(gf),gf.is_momentum)
     assert gf + gf3 == 0
+    print("SSSS",gf.is_momentum)
     assert gf3 + gf == 0
 
 
@@ -134,7 +138,7 @@ def test_random(lib, lattice, device, dtype):
 
     gf2 = gf.copy()
     assert gf == gf2
-    assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)
+    assert isclose(gf.norm2(), (gf**2).sum(), rel_tol=1e-6)
 
 
 @dtype_loop  # enables dtype
@@ -147,7 +151,7 @@ def test_exponential(lib, lattice, device, dtype):
 
     gf.unity()
     mom.copy(out=gf)
-    assert np.allclose(gf.field, 0)
+    assert np.allclose(gf, 0)
     # gf.is_momentum = False
     assert gf == 0
 
@@ -161,7 +165,7 @@ def test_exponential(lib, lattice, device, dtype):
 
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
-    assert np.allclose(gf.field, gf2.field)
+    assert np.allclose(gf, gf2)
     assert gf2 == gf
 
     gf.gaussian()

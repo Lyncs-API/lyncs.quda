@@ -8,7 +8,7 @@ __all__ = [
 
 from array import array
 from contextlib import contextmanager
-import numpy
+import numpy, inspect
 from lyncs_cppyy import nullptr
 from lyncs_utils import prod
 from .enums import QudaPrecision
@@ -106,7 +106,7 @@ def backend(device=True):
         cupy.cuda.runtime.setDevice(lib.device_id)
 
 
-class LatticeField: #(numpy.lib.mixins.NDArrayOperatorsMixin):
+class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     "Mimics the quda::LatticeField object"
 
     @classmethod
@@ -182,14 +182,13 @@ class LatticeField: #(numpy.lib.mixins.NDArrayOperatorsMixin):
 
         # check=False => here any output is accepted
         out = self.prepare_out(out, check=False, **kwargs)
-
         if other is None:
             other = self
         # we prepare other without copying because we do copy here!
         other = out.prepare_in(other, copy=False, check=False, **kwargs)
         try:
             out.quda_field.copy(other.quda_field)
-        except:  # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not catched by this
+        except:  # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not caught by this
             # As last resort trying to copy elementwise
             out.default_view()[:] = other.default_view()
 
@@ -254,28 +253,33 @@ class LatticeField: #(numpy.lib.mixins.NDArrayOperatorsMixin):
     _children = {}
     
     def __new__(cls, field, **kwargs):
-        #? does this get called when creating a new instance via view casting, as it is __new__ of a parent of the below child
-        #  not sure as the doc says: 'view casting and new-from-template, the equivalent of ndarray.__new__(MySubClass,... is called, at the C level'
-        # if not called, this is ok;
+        #TODO: get dofs and local dims from kwargs, instead of getting them
+        # from self.shape assuming that it has the form (dofs, local_dims)
         if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
             raise TypeError(
                 f"Supporting only numpy or cupy for field, got {type(field)}"
             )
-        mod = numpy if isinstance(field, numpy.ndarray) else cupy
-        parent = mod.ndarray #type(field)
-        child = cls._children.setdefault(parent, type(cls.__name__+"ext", (cls, parent), {})) #inspect.
-        obj = mod.asarray(field).view(type=child)
-
+        parent = type(field) 
+        child = cls._children.setdefault(parent, type(cls.__name__+"ext",(cls, parent), {"__array_ufunc__":cls.__array_ufunc__}))
+        obj = inspect.getmodule(parent).asarray(field).view(type=child)
+        #self._dims = kwargs.get("dims", self.shape[-self.ndims :])
+        #self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
+        
         return obj
 
     #field check should be performed
-    def __array_finalize__(self, obj):
+    def __array_finalize__(self, obj, **kwargs):
         "Support for __array_finalize__ standard"
-        # called after __new__ in all cases of instance creation
+        # Note: this is called when creating a temporary, possibly causing
+        # some issues.  Apparently, this temporary is flattened and loose
+        # shape information
         # self: newly created instance
         # obj: input instance
         self._check_field(obj)
-        if obj is None: return
+        if obj is None: return # can be removed; we are not bypassing ndarray.__new__
+        # This will require some care when we use attr for dims and dofs in _check_field
+        #self._dims = kwargs.get("dims", self.shape[-self.ndims :])
+        #self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])  
         self.__init__(obj, comm=getattr(obj, "comm", None))
 
     def __init__(self, field, comm=None, **kwargs):
@@ -291,16 +295,11 @@ class LatticeField: #(numpy.lib.mixins.NDArrayOperatorsMixin):
     def _check_field(self, field=None):
         if field is None:
             field = self
-        #? the following can be removed?
-        if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
-            raise TypeError(
-                f"Supporting only numpy or cupy for field, got {type(field)}"
-            )
         if isinstance(field, cupy.ndarray) and field.device.id != lib.device_id:
             raise TypeError("Field is stored on a different device than the quda lib")
         if len(field.shape) < 4:
             raise ValueError("A lattice field should not have shape smaller than 4")
-
+        
     def activate(self):
         "Activates the current field. To be called before using the object in quda"
         "to make sure the communicator is set for MPI"
@@ -319,14 +318,15 @@ class LatticeField: #(numpy.lib.mixins.NDArrayOperatorsMixin):
     def complex_view(self):
         "Returns a complex view of the field"
         if self.iscomplex:
-            return self
-        return self.view(get_complex_dtype(self.dtype))
+            return self.view(type=self.backend.ndarray)
+        return self.view(get_complex_dtype(self.dtype), self.backend.ndarray)
 
     def float_view(self):
         "Returns a complex view of the field"
+        #don't need to upcast if we keep dofs and dims as attributes
         if not self.iscomplex:
-            return self
-        return self.view(get_float_dtype(self.dtype))
+            return self.view(type=self.backend.ndarray)
+        return self.view(get_float_dtype(self.dtype), self.backend.ndarray)
 
     def default_view(self):
         "Returns the default view of the field including reshaping"
@@ -368,7 +368,7 @@ class LatticeField: #(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def dims(self):
         "Shape of the local lattice dimensions"
-        return self.shape[-self.ndims :]
+        return self.shape[-self.ndims :]  #self._dims #self.shape[-self.ndims :]
 
     @property
     def local_lattice(self):
@@ -390,7 +390,7 @@ class LatticeField: #(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def dofs(self):
         "Shape of the per-site degrees of freedom"
-        return self.shape[: -self.ndims]
+        return self.shape[: -self.ndims]   #self._dofs #self.shape[: -self.ndims]
 
     @property
     def iscomplex(self):
@@ -480,7 +480,7 @@ class LatticeField: #(numpy.lib.mixins.NDArrayOperatorsMixin):
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         out = kwargs.get("out", (self,))[0]
         prepare = (
-            lambda arg: out.prepare_in(arg).view(self.backend.ndarray)
+            lambda arg: out.prepare_in(arg).view(type=self.backend.ndarray)
             if isinstance(arg, (LatticeField, cupy.ndarray, numpy.ndarray))
             else arg
         )
@@ -496,6 +496,7 @@ class LatticeField: #(numpy.lib.mixins.NDArrayOperatorsMixin):
         result = fnc(*args, **kwargs)
         if not isinstance(result, self.backend.ndarray):
             return result
+        print("ufunc",self.shape,ufunc,type(result),result.shape,flush=True)
         return self.prepare_out(result, check=False)
 
     def __bool__(self):

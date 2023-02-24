@@ -36,6 +36,21 @@ class CloverField(LatticeField):
      *  so that sigma_mu,nu = i[g_mu, g_nu], F_mu,nu = (Q_mu,nu - Q_nu,mu)/8 (1/2 is missing from sigma_mu,nu)
     """
 
+    def __new__(cls, gauge, **kwargs):
+        #TODO: get dofs and local dims from kwargs, instead of getting them
+        # from self.shape assuming that it has the form (dofs, local_dims)
+        if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
+            raise TypeError(
+                f"Supporting only numpy or cupy for field, got {type(field)}"
+            )
+        parent = type(field)
+        child = cls._children.setdefault(parent, type(cls.__name__+"ext", (cls, parent), {}))
+        obj = inspect.getmodule(parent).asarray(field).view(type=child)
+
+        #self._dims = kwargs.get("dims", self.shape[-self.ndims :])
+	#self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
+        return obj
+    
     def __init__(
         self,
         fmunu,
@@ -53,7 +68,7 @@ class CloverField(LatticeField):
         if not isinstance(fmunu, GaugeField):
             fmunu = GaugeField(fmunu)
         self._fmunu = fmunu.compute_fmunu()
-        super().__init__(self._fmunu.field, comm=self._fmunu.comm)
+        super().__init__(self._fmunu, comm=self._fmunu.comm)
 
         # QUDA clover field inherently works with real's not with complex's (c.f., include/clover_field_order.h)
 
@@ -116,7 +131,7 @@ class CloverField(LatticeField):
         shape = (2,)  # even-odd
         shape += (self.dofs[0] // N, -1, N)
 
-        return self.field.view().reshape(shape)
+        return self.float_view().reshape(shape)
 
     @property
     def twisted(self):
