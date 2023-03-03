@@ -48,19 +48,15 @@ class CloverField(LatticeField):
                 f"Supporting only numpy or cupy for field, got {type(fmunu)}"
             )
         is_clover = False
-        print("clv new0",type(fmunu),fmunu.shape,isinstance(fmunu,GaugeField),isinstance(fmunu,LatticeField),isinstance(fmunu, (numpy.ndarray, cupy.ndarray)))
         if not isinstance(fmunu, GaugeField):
             if kwargs.get("is_clover", False):
                 is_clover = True
                 parent = type(fmunu)
                 field = fmunu
-                print("it is clover")
             else:
                 fmunu = GaugeField(fmunu)
-                print("try",fmunu.shape)
 
         if not is_clover: # not copying from a clover-field array
-            print("clv new",type(fmunu))
             idof = int((fmunu.ncol * fmunu.ndims) ** 2 / 2)
             prec = fmunu.dtype
             field = fmunu.backend.empty((idof,) + fmunu.dims, dtype=prec)
@@ -90,7 +86,6 @@ class CloverField(LatticeField):
         #           as the result won't come with  meta info such as 'coeff' or 'mu2'
 
         super().__init__(obj, getattr(obj, "comm", None))
-        print("clv init",type(obj))
         if isinstance(obj, GaugeField):
             # explicit construction
             # QUDA clover field inherently works with real's not with complex's (c.f., include/clover_field_order.h)

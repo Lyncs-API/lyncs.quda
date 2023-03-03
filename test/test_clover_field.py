@@ -118,7 +118,6 @@ def test_unit(lib, lattice, device, dtype):
 
     clv.fill(0)
     assert clv == 0
-    print("GGGGGGGGGGGG")
     assert clv + 0 == 0
     idof = int(((clv.ncol * clv.nspin) ** 2 / 2))
     if dtype == "float64":

@@ -1,7 +1,9 @@
 from random import random
 import numpy as np
+from lyncs_utils import isclose
 from lyncs_quda import (
     gauge,
+    momentum,
     spinor,
     gauge_coarse,
     gauge_scalar,
@@ -15,6 +17,7 @@ from lyncs_quda.testing import (
     dtype_loop,
     mu_loop,
     gamma_loop,
+    epsilon_loop,
 )
 
 
