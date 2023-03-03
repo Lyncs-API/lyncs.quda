@@ -65,27 +65,21 @@ def momentum(lattice, **kwargs):
 class GaugeField(LatticeField):
     "Mimics the quda::GaugeField object"
 
-    l_children = {}
-
-    def new__(cls, field, **kwargs):
-        if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
-            raise TypeError(
-                f"Supporting only numpy or cupy for field, got {type(field)}"
-            )
-        parent = type(field)
-        child = cls._children.setdefault(parent, type(cls.__name__+"ext",(cls, parent), {}))
-        print("new 0",parent,child.__bases__,child.__mro__)
-        obj = inspect.getmodule(parent).asarray(field).view(type=child)
-        print("new")
-
-        return obj
-
+    _children = {}
+    
     def _check_field(self, field=None):
+        # NOTE:
+        #  - For now, we store dofs and local lattice info in the shape of the array
+        #  - The canonical form for GaugeField is [dofs, local_lattice]
+        #     where len(dofs) == 1,2 and len(local_lattice) = 4
         super()._check_field(field)
-        if field is None or not isinstance(field, LatticeField):
+        if field is None:
             field = self
-        if field.reconstruct == "INVALID":
-            raise TypeError(f"Unrecognized field dofs {self.dofs}")
+        dofs = field.shape[:-self.ndims]
+        pdofs = prod(dofs) if dofs[0] not in self._geometry_values[1] or dofs[0]==1 else prod(dofs[1:])
+        pdofs *= 2**(self.iscomplex)
+        if not (pdofs in (12, 8, 10) or sqrt(pdofs / 2).is_integer()):
+            raise TypeError(f"Unrecognized field dofs {dofs}")
 
     def new(self, reconstruct=None, geometry=None, **kwargs):
         "Returns a new empty field based on the current"
@@ -143,15 +137,12 @@ class GaugeField(LatticeField):
         dst = self if out is None else out
         if src.is_momentum != dst.is_momentum:
             kwargs.update({"is_momentum": True})
-            print("changed")
 
-        print("gauge cp")
         return super().copy(other, out, **kwargs)
 
     def _prepare(self, field, **kwargs):
         field = super()._prepare(field, **kwargs)
         is_momentum = kwargs.get("is_momentum", self.is_momentum)
-        print("gageu _prep")
         field.is_momentum = is_momentum
         return field
 
@@ -257,12 +248,9 @@ class GaugeField(LatticeField):
 
     @is_momentum.setter
     def is_momentum(self, value):
-        print("momo setter",value,self._quda)
         self._is_momentum = value
         if self._quda is not None:
             self._quda = None
-            #self._quda.link_type = self.quda_link_type
-            #print(self.quda_link_type, self._quda.LinkType())
 
     @property
     def t_boundary(self):
@@ -311,10 +299,8 @@ class GaugeField(LatticeField):
     def quda_field(self):
         "Returns an instance of quda::(cpu/cuda)GaugeField for QUDA_(CPU/CUDA)_FIELD_LOCATION"
         self.activate()
-        print("gauge_quda",self._quda)
         if self._quda is None:
             self._quda = make_shared(lib.GaugeField.Create(self.quda_params))
-        print("after gagueg",self._quda.LinkType())
         return self._quda
 
     def is_native(self):

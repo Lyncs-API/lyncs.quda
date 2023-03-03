@@ -38,9 +38,6 @@ def test_numpy():
     assert isinstance(field + 0, type(field))
 
     field2 = field.copy()
-    print("GGGGGGG")
-    assert field+field2==0
-    print("GGGGGGGGGGG@")
     field += 0
     assert field2 == field
     field -= 0
@@ -69,11 +66,6 @@ def test_cupy():
 
     field2 = field.copy()
     field += 0
-    print("G")
-    assert cp.add(field,field2)==0
-    print("K")
-    assert cp.add(field,0)==0
-    print("KK")
     assert field2 == field
     field -= 0
     assert field2 == field

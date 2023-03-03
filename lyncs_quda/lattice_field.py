@@ -179,7 +179,11 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         #
         # If other and out are both given, this behaves like a classmethod
         # where out&other are casted into type(self)
-
+        # TODO:
+        #  * check if this dose not cause any bugs if it overwrites ndarray.copy
+        #     - For now, we cast self to ndarray before performing ndarray methods like flatten
+        #     - the second arg should be "order='C'" to match the signiture?
+        
         # check=False => here any output is accepted
         out = self.prepare_out(out, check=False, **kwargs)
         if other is None:
@@ -189,7 +193,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         try:
             out.quda_field.copy(other.quda_field)
         except:  # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not caught by this
-            # As last resort trying to copy elementwise
+            # As a last resort, trying to copy elementwise
             out.default_view()[:] = other.default_view()
 
         return out
@@ -218,7 +222,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             return self.new(**kwargs)
         cls = type(self)
         if not isinstance(field, cls):
-            field = cls(field)
+            field = cls(field, **kwargs)
         if check and not self.equivalent(field, **kwargs):
             if copy:
                 return self.copy(other=field, **kwargs)
@@ -268,7 +272,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return obj
 
     #field check should be performed
-    def __array_finalize__(self, obj, **kwargs):
+    def __array_finalize__(self, obj):
         "Support for __array_finalize__ standard"
         # Note: this is called when creating a temporary, possibly causing
         # some issues.  Apparently, this temporary is flattened and loose
@@ -496,7 +500,6 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         result = fnc(*args, **kwargs)
         if not isinstance(result, self.backend.ndarray):
             return result
-        print("ufunc",self.shape,ufunc,type(result),result.shape,flush=True)
         return self.prepare_out(result, check=False)
 
     def __bool__(self):

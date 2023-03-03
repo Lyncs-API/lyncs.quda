@@ -10,7 +10,7 @@ from lyncs_quda.testing import (
     epsilon_loop,
 )
 from lyncs_cppyy.ll import addressof
-from lyncs_utils import isclose, allclose
+from lyncs_utils import isclose#, allclose
 
 
 @lattice_loop
@@ -60,9 +60,6 @@ def test_zero(lib, lattice, device, dtype):
 
     assert gf.project() == 4 * np.prod(lattice)
     gf.zero()
-    print("NEWWWWW")
-    assert gf+gf==0
-    print("NEWWWWEWEWE")
     gf2 = gf.new()
     gf2.gaussian()
     assert gf.dot(gf2) == 0
@@ -79,9 +76,7 @@ def test_zero(lib, lattice, device, dtype):
 
     gf3 = momentum(lattice, dtype=dtype, device=device)
     gf3.zero()
-    print("ss!!!!!!!!!!!!!!!!!",type(gf),gf.is_momentum)
     assert gf + gf3 == 0
-    print("SSSS",gf.is_momentum)
     assert gf3 + gf == 0
 
 
@@ -239,6 +234,35 @@ def test_force(lib, lattice, device, epsilon):
         zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
         assert zeros == 0
 
+from lyncs_utils import isiterable
+from collections.abc import Mapping
+def values(dct):
+    "Calls values, if available, or dict.values"
+    try:
+        return dct.values()
+    except AttributeError:
+        return dict.values(dct)
+def allclose(left, right, **kwargs):
+    if isinstance(left, cp.ndarray) and isinstance(right, cp.ndarray):
+        return np.allclose(left,right)
+    if isinstance(left, cp.ndarray) and not isinstance(right, cp.ndarray):
+        left = [left] * len(right)
+    if not isinstance(left, cp.ndarray) and isinstance(right, cp.ndarray):
+        right = [right] * len(left)
+    if len(left) != len(right):
+        return False
+    if isinstance(left, Mapping) or isinstance(right, Mapping):
+        if not isinstance(left, Mapping):
+            pairs = zip(left, values(right))
+        elif not isinstance(right, Mapping):
+            pairs = zip(values(left), right)
+        else:
+            if set(keys(left)) != set(keys(right)):
+                return False
+            pairs = dictzip(left, right, values_only=True)
+    else:
+        pairs = zip(left, right)
+    return all((allclose(*pair, **kwargs) for pair in pairs))
 
 # @dtype_loop  # enables dtype
 @device_loop  # enables device

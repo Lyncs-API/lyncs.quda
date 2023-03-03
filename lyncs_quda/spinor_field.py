@@ -37,6 +37,7 @@ def spinor_coarse(lattice, dofs=24, **kwargs):
 class SpinorField(LatticeField):
     "Mimics the quda::ColorSpinorField object"
 
+    _children = {}
     gammas = ["DEGRAND_ROSSI", "UKQCD", "CHIRAL"]
 
     @classmethod
