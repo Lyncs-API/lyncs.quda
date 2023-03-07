@@ -8,7 +8,7 @@ __all__ = [
 
 from array import array
 from contextlib import contextmanager
-import numpy, inspect
+import numpy
 from lyncs_cppyy import nullptr
 from lyncs_utils import prod
 from .enums import QudaPrecision
@@ -259,13 +259,20 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     def __new__(cls, field, **kwargs):
         #TODO: get dofs and local dims from kwargs, instead of getting them
         # from self.shape assuming that it has the form (dofs, local_dims)
+
+        if isinstance(field, LatticeField):
+            return field
         if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
             raise TypeError(
                 f"Supporting only numpy or cupy for field, got {type(field)}"
             )
-        parent = type(field) 
-        child = cls._children.setdefault(parent, type(cls.__name__+"ext",(cls, parent), {"__array_ufunc__":cls.__array_ufunc__}))
-        obj = inspect.getmodule(parent).asarray(field).view(type=child)
+        parent = type(field)
+        if parent in cls._children.keys():
+            child  = cls._children.get(parent)
+        else:
+            child = type(cls.__name__+"ext",(cls, parent), {})
+            cls._children.update({parent: child})
+        obj = field.view(type=child)
         #self._dims = kwargs.get("dims", self.shape[-self.ndims :])
         #self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
         

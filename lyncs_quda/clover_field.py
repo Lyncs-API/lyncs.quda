@@ -43,6 +43,8 @@ class CloverField(LatticeField):
     def __new__(cls, fmunu, **kwargs):
         #TODO: get dofs and local dims from kwargs, instead of getting them
         # from self.shape assuming that it has the form (dofs, local_dims)
+        if isinstance(fmunu, CloverField):
+            return fmunu
         if not isinstance(fmunu, (numpy.ndarray, cupy.ndarray)):
             raise TypeError(
                 f"Supporting only numpy or cupy for field, got {type(fmunu)}"
@@ -55,14 +57,20 @@ class CloverField(LatticeField):
                 field = fmunu
             else:
                 fmunu = GaugeField(fmunu)
-
+                
+        # Set parent
         if not is_clover: # not copying from a clover-field array
             idof = int((fmunu.ncol * fmunu.ndims) ** 2 / 2)
             prec = fmunu.dtype
             field = fmunu.backend.empty((idof,) + fmunu.dims, dtype=prec)
             parent = fmunu.backend.ndarray
-        child = cls._children.setdefault(parent, type(cls.__name__+"ext", (cls, parent), {}))
-        obj = inspect.getmodule(parent).asarray(field).view(type=child)
+        # Set child
+        if parent in cls._children.keys():
+            child  = cls._children.get(parent)
+        else:
+            child = type(cls.__name__+"ext",(cls, parent), {})
+            cls._children.update({parent: child})
+        obj = field.view(type=child)
 
         #self._dims = kwargs.get("dims", self.shape[-self.ndims :])
 	#self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
