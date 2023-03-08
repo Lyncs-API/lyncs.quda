@@ -7,11 +7,13 @@ __all__ = [
     "Array",
 ]
 
+from functools import cache
 from lyncs_utils import isiterable
 from .lib import lib
 
 
-def lat_dims(elems=[1, 1, 1, 1]):
+@cache
+def lat_dims(elems=(1, 1, 1, 1)):
     # QUDA_MAX_DIM = 6 by default
     return Array(int, lib.QUDA_MAX_DIM, elems).qarray
 

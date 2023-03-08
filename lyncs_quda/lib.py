@@ -9,6 +9,7 @@ __all__ = [
     "PATHS",
 ]
 
+import atexit
 from os import environ
 from pathlib import Path
 from array import array
@@ -122,6 +123,7 @@ class QudaLib(Lib):
         # self.initQUDA(2,dev)
         self.initQuda(dev)
         self._device_id = self.get_current_device()
+        atexit.register(self.end_quda)
 
     # for profiling
     def initQUDA(self, val, *args):
@@ -233,6 +235,7 @@ class QudaLib(Lib):
         self.endQuda()
         self._comm = None
         self._initialized = False
+        atexit.unregister(self.end_quda)
 
     def __getattr__(self, key):
         if key.startswith("_"):
