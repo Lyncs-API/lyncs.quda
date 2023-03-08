@@ -268,9 +268,10 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
                 f"Supporting only numpy or cupy for field, got {type(field)}"
             )
         parent = numpy.ndarray if isinstance(field, numpy.ndarray) else cupy.ndarray
-        if (cls, parent) not in cls._children:
-            cls._children[(cls, parent)] = type(cls.__name__ + "ext", (cls, parent), {})
-        obj = field.view(type=cls._children[(cls, parent)])
+        child = (cls, parent)
+        if child not in cls._children:
+            cls._children[child] = type(cls.__name__ + "ext", child, {})
+        obj = field.view(type=cls._children[child])
         # self._dims = kwargs.get("dims", self.shape[-self.ndims :])
         # self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
 
