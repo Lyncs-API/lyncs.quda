@@ -28,8 +28,6 @@ class CloverField(LatticeField):
      This is designed as an intermediary to QUDA CloverField class
      so that it should have 1-to-1 correspondence to an QUDA instance.
     Note:
-     * This class stores the corresponding gauge field in its "field" attribute
-        to make except-clause of copy() work
      * direct & inverse fields are both allocated upon initialization
      * Only rho is mutable.  To change other params, a new instance should be created
      * QUDA convention for clover field := 1+i ( kappa csw )/4 sigma_mu,nu F_mu,nu (<-sigma_mu,nu: spinor tensor)
@@ -38,8 +36,6 @@ class CloverField(LatticeField):
      *  wihout a normalization factor of 1/4 or 1/32 (suggested in interface_quda.cpp) 
     """
 
-    _children = {}
-    
     def __new__(cls, fmunu, **kwargs):
         #TODO: get dofs and local dims from kwargs, instead of getting them
         # from self.shape assuming that it has the form (dofs, local_dims)
@@ -53,29 +49,16 @@ class CloverField(LatticeField):
         if not isinstance(fmunu, GaugeField):
             if kwargs.get("is_clover", False):
                 is_clover = True
-                parent = type(fmunu)
                 field = fmunu
             else:
                 fmunu = GaugeField(fmunu)
                 
-        # Set parent
         if not is_clover: # not copying from a clover-field array
             idof = int((fmunu.ncol * fmunu.ndims) ** 2 / 2)
             prec = fmunu.dtype
             field = fmunu.backend.empty((idof,) + fmunu.dims, dtype=prec)
-            parent = fmunu.backend.ndarray
-        # Set child
-        if parent in cls._children.keys():
-            child  = cls._children.get(parent)
-        else:
-            child = type(cls.__name__+"ext",(cls, parent), {})
-            cls._children.update({parent: child})
-        obj = field.view(type=child)
-
-        #self._dims = kwargs.get("dims", self.shape[-self.ndims :])
-	#self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
         
-        return obj
+        return super().__new__(cls, field, **kwargs)
     
     def __init__(
         self,
