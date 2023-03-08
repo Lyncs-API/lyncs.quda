@@ -260,19 +260,16 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         #TODO: get dofs and local dims from kwargs, instead of getting them
         # from self.shape assuming that it has the form (dofs, local_dims)
 
-        if isinstance(field, LatticeField):
+        if isinstance(field, cls):
             return field
         if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
             raise TypeError(
                 f"Supporting only numpy or cupy for field, got {type(field)}"
             )
         parent = type(field)
-        if parent in cls._children.keys():
-            child  = cls._children.get(parent)
-        else:
-            child = type(cls.__name__+"ext",(cls, parent), {})
-            cls._children.update({parent: child})
-        obj = field.view(type=child)
+        if (cls, parent) not in cls._children:
+            cls._children[(cls,parent)] = type(cls.__name__+"ext",(cls, parent), {})
+        obj = field.view(type=cls._children[(cls,parent)])
         #self._dims = kwargs.get("dims", self.shape[-self.ndims :])
         #self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
         
@@ -379,7 +376,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def dims(self):
         "Shape of the local lattice dimensions"
-        return self.shape[-self.ndims :]  #self._dims #self.shape[-self.ndims :]
+        return self.shape[-self.ndims :]
 
     @property
     def local_lattice(self):
@@ -401,7 +398,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def dofs(self):
         "Shape of the per-site degrees of freedom"
-        return self.shape[: -self.ndims]   #self._dofs #self.shape[: -self.ndims]
+        return self.shape[: -self.ndims]
 
     @property
     def iscomplex(self):

@@ -16,7 +16,7 @@ __all__ = [
 from time import time
 from math import sqrt
 from collections import defaultdict
-import numpy, inspect
+import numpy
 from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
 from lyncs_utils import prod, isiterable
 from .lib import lib, cupy
@@ -65,8 +65,6 @@ def momentum(lattice, **kwargs):
 class GaugeField(LatticeField):
     "Mimics the quda::GaugeField object"
 
-    _children = {}
-    
     def _check_field(self, field=None):
         # NOTE:
         #  - For now, we store dofs and local lattice info in the shape of the array

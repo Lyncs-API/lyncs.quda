@@ -2,7 +2,6 @@ from lyncs_quda import LatticeField
 from pytest import raises
 import numpy as np
 import cupy as cp
-import inspect
 shape = (4, 3, 4, 4, 4, 4)
 
 
@@ -22,7 +21,7 @@ def test_precision():
 
 def test_numpy():
     field = LatticeField(np.zeros(shape))
-    print(inspect.getmodule(field))
+
     assert field.location == "CPU"
     assert field.dims == shape[-4:]
     assert field.dofs == shape[:-4]
@@ -47,6 +46,7 @@ def test_numpy():
     field /= 1
     assert field2 == field
 
+    
 def test_cupy():
     field = LatticeField(cp.zeros(shape))
     assert field.location == "CUDA"
@@ -55,7 +55,6 @@ def test_cupy():
     assert field.precision == "double"
 
     assert not field
-    print(type(field))
     assert field + 0 == field
     assert field + 1 != field
     assert field - 0 == field

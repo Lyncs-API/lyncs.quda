@@ -6,7 +6,7 @@ __all__ = [
     "CloverField",
 ]
 
-import numpy, inspect
+import numpy
 from cppyy.gbl.std import vector
 
 from lyncs_cppyy import make_shared, to_pointer
