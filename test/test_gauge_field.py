@@ -10,7 +10,7 @@ from lyncs_quda.testing import (
     epsilon_loop,
 )
 from lyncs_cppyy.ll import addressof
-from lyncs_utils import isclose#, allclose
+from lyncs_utils import isclose  # , allclose
 
 
 @lattice_loop
@@ -234,17 +234,22 @@ def test_force(lib, lattice, device, epsilon):
         zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
         assert zeros == 0
 
+
 from lyncs_utils import isiterable
 from collections.abc import Mapping
+
+
 def values(dct):
     "Calls values, if available, or dict.values"
     try:
         return dct.values()
     except AttributeError:
         return dict.values(dct)
+
+
 def allclose(left, right, **kwargs):
     if isinstance(left, cp.ndarray) and isinstance(right, cp.ndarray):
-        return np.allclose(left,right)
+        return np.allclose(left, right)
     if isinstance(left, cp.ndarray) and not isinstance(right, cp.ndarray):
         left = [left] * len(right)
     if not isinstance(left, cp.ndarray) and isinstance(right, cp.ndarray):
@@ -263,6 +268,7 @@ def allclose(left, right, **kwargs):
     else:
         pairs = zip(left, right)
     return all((allclose(*pair, **kwargs) for pair in pairs))
+
 
 # @dtype_loop  # enables dtype
 @device_loop  # enables device

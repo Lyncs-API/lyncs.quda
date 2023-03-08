@@ -32,12 +32,12 @@ class CloverField(LatticeField):
      * Only rho is mutable.  To change other params, a new instance should be created
      * QUDA convention for clover field := 1+i ( kappa csw )/4 sigma_mu,nu F_mu,nu (<-sigma_mu,nu: spinor tensor)
      *  so that sigma_mu,nu = i[g_mu, g_nu], F_mu,nu = (Q_mu,nu - Q_nu,mu)/8 (1/2 is missing from sigma_mu,nu)
-     * Apparently, an input to QUDA clover object, coeff = kappa*csw 
-     *  wihout a normalization factor of 1/4 or 1/32 (suggested in interface_quda.cpp) 
+     * Apparently, an input to QUDA clover object, coeff = kappa*csw
+     *  wihout a normalization factor of 1/4 or 1/32 (suggested in interface_quda.cpp)
     """
 
     def __new__(cls, fmunu, **kwargs):
-        #TODO: get dofs and local dims from kwargs, instead of getting them
+        # TODO: get dofs and local dims from kwargs, instead of getting them
         # from self.shape assuming that it has the form (dofs, local_dims)
         if isinstance(fmunu, CloverField):
             return fmunu
@@ -52,14 +52,14 @@ class CloverField(LatticeField):
                 field = fmunu
             else:
                 fmunu = GaugeField(fmunu)
-                
-        if not is_clover: # not copying from a clover-field array
+
+        if not is_clover:  # not copying from a clover-field array
             idof = int((fmunu.ncol * fmunu.ndims) ** 2 / 2)
             prec = fmunu.dtype
             field = fmunu.backend.empty((idof,) + fmunu.dims, dtype=prec)
-        
+
         return super().__new__(cls, field, **kwargs)
-    
+
     def __init__(
         self,
         obj,
@@ -70,7 +70,7 @@ class CloverField(LatticeField):
         eps2=0,
         rho=0,
         computeTrLog=False,
-        **kwargs
+        **kwargs,
     ):
         # WARNING: ndarray object is not supposed to be view-casted to CloverField object
         #           except in __new__, for which __init__ will be called subsequently,
@@ -88,12 +88,8 @@ class CloverField(LatticeField):
                 empty=True,
             )
             self._fmunu = obj.compute_fmunu()
-            self._direct = (
-                False  # Here, it is a flag to indicate whether the field has been computed
-            )
-            self._inverse = (
-                False  # Here, it is a flag to indicate whether the field has been computed
-            )
+            self._direct = False  # Here, it is a flag to indicate whether the field has been computed
+            self._inverse = False  # Here, it is a flag to indicate whether the field has been computed
             self.coeff = coeff
             self._twisted = twisted
             self._twist_flavor = tf
@@ -107,12 +103,14 @@ class CloverField(LatticeField):
         elif isinstance(obj, self.backend.ndarray):
             pass
         else:
-            raise ValueError("The input is expected to be ndarray or LatticeField object")
+            raise ValueError(
+                "The input is expected to be ndarray or LatticeField object"
+            )
 
     def _prepare(self, field, copy=False, check=False, **kwargs):
         # When CloverField object prepares its input, the input is assumed to be of CloverField
         return super()._prepare(field, copy=copy, check=check, is_clover=True, **kwargs)
-    
+
     # naming suggestion: native_view? default_* saved for dofs+lattice?
     def default_view(self):
         N = 1 if self.order == "FLOAT2" else 4
