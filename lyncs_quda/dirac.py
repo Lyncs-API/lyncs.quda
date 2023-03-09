@@ -64,7 +64,7 @@ class Dirac:
     @property
     def quda_type(self):
         "Quda enum for quda dslash type"
-        return getattr(lib, f"QUDA_{self.type}_DIRAC")
+        return int(QudaDiracType[self.type])
 
     @property
     def matPCtype(self):

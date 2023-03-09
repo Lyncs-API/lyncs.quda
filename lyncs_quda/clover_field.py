@@ -159,7 +159,7 @@ class CloverField(LatticeField):
     @property
     def quda_order(self):
         "Quda enum for data order of the field"
-        return getattr(lib, f"QUDA_{self.order}_CLOVER_ORDER")
+        return int(QudaCloverFieldOrder[self.order])
 
     @property
     def quda_params(self):
@@ -182,7 +182,7 @@ class CloverField(LatticeField):
         params.cloverInv = to_pointer(self._cloverInv.ptr)
         params.coeff = self.coeff
         params.twisted = self.twisted
-        params.twist_flavor = getattr(lib, f"QUDA_TWIST_{self.twist_flavor}")
+        params.twist_flavor = int(QudaTwistFlavorType[self.twist_flavor]))
         params.mu2 = self.mu2
         params.epsilon2 = self.eps2
         params.rho = self.rho
@@ -352,10 +352,10 @@ class CloverField(LatticeField):
         if gauge.precision == "double":
             u = gauge.prepare_in(gauge, reconstruct="NO").extended_field(sites=R)
         lib.cloverDerivative(
-            force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_ODD_PARITY")
+            force.quda_field, u, oprodEx, 1.0, int(QudaParity["ODD"])
         )
         lib.cloverDerivative(
-            force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_EVEN_PARITY")
+            force.quda_field, u, oprodEx, 1.0, int(QudaParity["EVEN"])
         )
 
         return force
