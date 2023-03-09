@@ -161,6 +161,7 @@ class GaugeField(LatticeField):
         return dofs
 
     @property
+    @QudaReconstructType
     def reconstruct(self):
         "Reconstruct type of the field"
         dofs = self.dofs_per_link
@@ -173,11 +174,6 @@ class GaugeField(LatticeField):
         if sqrt(dofs / 2).is_integer():
             return "NO"
         return "INVALID"
-
-    @property
-    def quda_reconstruct(self):
-        "Quda enum for reconstruct type of the field"
-        return int(QudaReconstructType[self.reconstruct])
 
     @property
     def ncol(self):
@@ -298,7 +294,7 @@ class GaugeField(LatticeField):
         params = self._quda_params(
             self.quda_dims,
             self.quda_precision,
-            self.quda_reconstruct,
+            int(self.reconstruct),
             self.pad,
             self.quda_geometry,
             self.quda_ghost_exchange,
