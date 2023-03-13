@@ -185,7 +185,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         #  * check if this dose not cause any bugs if it overwrites ndarray.copy
         #     - For now, we cast self to ndarray before performing ndarray methods like flatten
         #     - the second arg should be "order='C'" to match the signiture?
-        
+
         # check=False => here any output is accepted
         out = self.prepare_out(out, check=False, **kwargs)
         if other is None:
@@ -257,9 +257,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return self.prepare(fields, **kwargs)
 
     _children = {}
-    
+
     def __new__(cls, field, **kwargs):
-        #TODO: get dofs and local dims from kwargs, instead of getting them
+        # TODO: get dofs and local dims from kwargs, instead of getting them
         # from self.shape assuming that it has the form (dofs, local_dims)
 
         if isinstance(field, cls):
@@ -270,14 +270,14 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             )
         parent = numpy.ndarray if isinstance(field, numpy.ndarray) else cupy.ndarray
         if (cls, parent) not in cls._children:
-            cls._children[(cls,parent)] = type(cls.__name__+"ext",(cls, parent), {})
-        obj = field.view(type=cls._children[(cls,parent)])
-        #self._dims = kwargs.get("dims", self.shape[-self.ndims :])
-        #self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
-        
+            cls._children[(cls, parent)] = type(cls.__name__ + "ext", (cls, parent), {})
+        obj = field.view(type=cls._children[(cls, parent)])
+        # self._dims = kwargs.get("dims", self.shape[-self.ndims :])
+        # self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
+
         return obj
 
-    #field check should be performed
+    # field check should be performed
     def __array_finalize__(self, obj):
         "Support for __array_finalize__ standard"
         # Note: this is called when creating a temporary, possibly causing
@@ -286,10 +286,11 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         # self: newly created instance
         # obj: input instance
         self._check_field(obj)
-        if obj is None: return # can be removed; we are not bypassing ndarray.__new__
+        if obj is None:
+            return  # can be removed; we are not bypassing ndarray.__new__
         # This will require some care when we use attr for dims and dofs in _check_field
-        #self._dims = kwargs.get("dims", self.shape[-self.ndims :])
-        #self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])  
+        # self._dims = kwargs.get("dims", self.shape[-self.ndims :])
+        # self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
         self.__init__(obj, comm=getattr(obj, "comm", None))
 
     def __init__(self, field, comm=None, **kwargs):
@@ -309,7 +310,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             raise TypeError("Field is stored on a different device than the quda lib")
         if len(field.shape) < 4:
             raise ValueError("A lattice field should not have shape smaller than 4")
-        
+
     def activate(self):
         "Activates the current field. To be called before using the object in quda"
         "to make sure the communicator is set for MPI"
@@ -333,7 +334,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def float_view(self):
         "Returns a complex view of the field"
-        #don't need to upcast if we keep dofs and dims as attributes
+        # don't need to upcast if we keep dofs and dims as attributes
         if not self.iscomplex:
             return self.view(type=self.backend.ndarray)
         return self.view(get_float_dtype(self.dtype), self.backend.ndarray)
@@ -359,7 +360,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def device_id(self):
         return getattr(self.device, "id", None)
-    
+
     @property
     @QudaFieldLocation
     def location(self):

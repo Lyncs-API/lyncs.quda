@@ -145,25 +145,24 @@ class SpinorField(LatticeField):
         for key, val in kwargs.items():
             setattr(params, key, val)
         return params
-    
+
     @property
     def quda_params(self):
         "Returns and instance of quda::ColorSpinorParams"
         params = self._spc_params(
             super().quda_params,
-            nColor = self.ncolor,
-            nSpin = self.nspin,
-            nVec = self.nvec,
-            gammaBasis = int(self.gamma_basis),
-            pc_type = int(self.pc_type),
-            twistFlavor = int(self.twist_flavor),
-            
-            v = to_pointer(self.ptr),
-            create = int(QudaFieldCreate["reference"]),
-            location = int(self.location),
-            fieldOrder = int(self.order),
-            siteOrder = int(self.site_order),
-            )
+            nColor=self.ncolor,
+            nSpin=self.nspin,
+            nVec=self.nvec,
+            gammaBasis=int(self.gamma_basis),
+            pc_type=int(self.pc_type),
+            twistFlavor=int(self.twist_flavor),
+            v=to_pointer(self.ptr),
+            create=int(QudaFieldCreate["reference"]),
+            location=int(self.location),
+            fieldOrder=int(self.order),
+            siteOrder=int(self.site_order),
+        )
         return params
 
     @property

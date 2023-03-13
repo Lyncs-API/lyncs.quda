@@ -83,9 +83,13 @@ class GaugeField(LatticeField):
         super()._check_field(field)
         if field is None:
             field = self
-        dofs = field.shape[:-self.ndims]
-        pdofs = prod(dofs) if dofs[0] not in self._geometry_values[1] or dofs[0]==1 else prod(dofs[1:])
-        pdofs *= 2**(self.iscomplex)
+        dofs = field.shape[: -self.ndims]
+        pdofs = (
+            prod(dofs)
+            if dofs[0] not in self._geometry_values[1] or dofs[0] == 1
+            else prod(dofs[1:])
+        )
+        pdofs *= 2 ** (self.iscomplex)
         if not (pdofs in (12, 8, 10) or sqrt(pdofs / 2).is_integer()):
             raise TypeError(f"Unrecognized field dofs {dofs}")
 

@@ -17,6 +17,7 @@ from .spinor_field import spinor
 from .time_profile import default_profiler, TimeProfile
 from .enums import *
 
+
 def solve(mat, rhs, out=None, **kwargs):
     return Solver(mat)(rhs, out, **kwargs)
 
@@ -139,7 +140,9 @@ class Solver:
         return self._get_mat("_mat_precon", self.precision_precondition)
 
     precision_precondition = QudaPrecision(
-        None, lpath="_params.precision_precondition", default=lambda self: self.precision
+        None,
+        lpath="_params.precision_precondition",
+        default=lambda self: self.precision,
     )
 
     @property
@@ -163,7 +166,9 @@ class Solver:
         self._profiler = value
 
     inv_type = QudaInverterType(None, lpath="_params.inv_type")
-    inv_type_precondition = QudaInverterType(None, lpath="_params.inv_type_precondition")
+    inv_type_precondition = QudaInverterType(
+        None, lpath="_params.inv_type_precondition"
+    )
 
     @property
     def preconditioner(self):
@@ -187,7 +192,9 @@ class Solver:
         None, lpath="_params.return_residual", callback=_update_return_residual
     )
 
-    residual_type = QudaResidualType(None, lpath="_params.residual_type", default="L2_RELATIVE")
+    residual_type = QudaResidualType(
+        None, lpath="_params.residual_type", default="L2_RELATIVE"
+    )
 
     @property
     def quda(self):
