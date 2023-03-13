@@ -26,6 +26,18 @@ class EnumValue(namedtuple("EnumValue", ["cls", "key"])):
             return self.cls is other.cls and int(self) == int(other)
         return False
 
+    def __ne__(self, other):
+        return not (
+            self == other
+        )  # TODO: perhaps better to insert if-cond for NotImpelented
+
+    def __contains__(self, other):
+        if isinstance(other, str):
+            return self.cls.clean(other) in str(self)
+        if isinstance(other, int):
+            return self.to_string(other) in str(self)
+        return False
+
 
 class EnumMeta(type):
     "Metaclass for enum types"
@@ -42,18 +54,19 @@ class EnumMeta(type):
         "List of enum items"
         return cls._values.items()
 
-    def clean(cls, key):
+    def clean(cls, rep):
+        # should turn everything into upper for consistency
         "Strips away prefix and suffix from key"
         "See enums.py to find what is prefix and suffix for a given enum value"
-        if isinstance(key, EnumValue):
-            key = str(key)
-        if isinstance(key, str):
-            key = key.lower()
-            if cls._prefix and key.startswith(cls._prefix):
-                key = key[len(cls._prefix) :]
-            if cls._suffix and key.endswith(cls._suffix):
-                key = key[: -len(cls._suffix)]
-        return key
+        if isinstance(rep, EnumValue):
+            rep = str(rep)
+        if isinstance(rep, str):
+            rep = rep.lower()
+            if cls._prefix and rep.startswith(cls._prefix):
+                rep = rep[len(cls._prefix) :]
+            if cls._suffix and rep.endswith(cls._suffix):
+                rep = rep[: -len(cls._suffix)]
+        return rep
 
     def to_string(cls, rep):
         "Returns the key representative of the given enum value"
@@ -103,17 +116,26 @@ class Enum(metaclass=EnumMeta):
     _suffix = ""
     _values = {}
 
-    def __init__(self, key, default=None, callback=None):
-        self.key = key
+    def __init__(self, fnc, lpath=None, default=None, callback=None):
+        # fnc is supposed to return either a stripped key name or value of
+        # the corresponding QUDA enum type
+        self.fnc = fnc
+        self.lpath = lpath
         self.default = default
         self.callback = callback
 
+    def __call__(self, instance):
+        # intended for property.fget, which then invokes
+        # property.__get__(self, obj, objtype=None)
+        return EnumValue(type(self), self.fnc(instance))
+
+    # not meant to be a stnadard descriptor, c.f., solver.py
     def __get__(self, instance, owner):
         if instance is None:
             raise AttributeError
 
         out = instance
-        for key in self.key.split("."):
+        for key in self.lpath.split("."):
             out = getattr(out, key)
         return type(self)[out]
 
@@ -126,9 +148,9 @@ class Enum(metaclass=EnumMeta):
         new = int(type(self)[new])
 
         out = instance
-        for key in self.key.split(".")[:-1]:
+        for key in self.lpath.split(".")[:-1]:
             out = getattr(out, key)
-        key = self.key.split(".")[-1]
+        key = self.lpath.split(".")[-1]
         old = int(getattr(out, key))
 
         setattr(out, key, new)

@@ -20,6 +20,6 @@ def test_solve_random(lib, lattice, device, gamma, dtype=None):
     mat = dirac.M
     out = mat.solve(rhs, delta=1e-4)  # this value allowed convergence for all cases
     res = mat(out)
-    res.field -= rhs.field
+    res -= rhs
     res = res.norm() / rhs.norm()
     assert res < 1e-9

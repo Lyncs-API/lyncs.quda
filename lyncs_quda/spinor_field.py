@@ -8,12 +8,13 @@ __all__ = [
     "SpinorField",
 ]
 
-from functools import reduce
+from functools import reduce, cache
 from time import time
 from lyncs_cppyy import make_shared
 from lyncs_cppyy.ll import to_pointer
 from .lib import lib
 from .lattice_field import LatticeField
+from .enums import *
 
 """
 NOTE:
@@ -74,6 +75,7 @@ class SpinorField(LatticeField):
         return 1
 
     @property
+    @QudaGammaBasis
     def gamma_basis(self):
         "Gamma basis in use"
         return self._gamma_basis
@@ -90,11 +92,7 @@ class SpinorField(LatticeField):
         self._gamma_basis = value.upper()
 
     @property
-    def quda_gamma_basis(self):
-        "Quda enum for gamma basis in use"
-        return getattr(lib, f"QUDA_{self.gamma_basis}_GAMMA_BASIS")
-
-    @property
+    @QudaFieldOrder
     def order(self):
         "Data order of the field"
         if self.precision in ["single", "half"] and self.nspin == 4:
@@ -103,21 +101,13 @@ class SpinorField(LatticeField):
         return "FLOAT2"
 
     @property
-    def quda_order(self):
-        "Quda enum for data order of the field"
-        return getattr(lib, f"QUDA_{self.order}_FIELD_ORDER")
-
-    @property
+    @QudaTwistFlavorType
     def twist_flavor(self):
         "Twist flavor of the field"
         return "SINGLET"
 
     @property
-    def quda_twist_flavor(self):
-        "Quda enum for twist flavor of the field"
-        return getattr(lib, f"QUDA_TWIST_{self.twist_flavor}")
-
-    @property
+    @QudaSiteOrder
     def site_order(self):
         "Site order in use"
         return self._site_order
@@ -141,32 +131,38 @@ class SpinorField(LatticeField):
         self._site_order = value
 
     @property
-    def quda_site_order(self):
-        "Quda enum for site order in use"
-        return getattr(lib, f"QUDA_{self.site_order}_SITE_ORDER")
-
-    @property
-    def quda_pc_type(self):
+    @QudaPCType
+    def pc_type(self):
         "Select checkerboard preconditioning method"
-        return getattr(lib, f"QUDA_{self.ndims}D_PC")
+        return f"{self.ndims}D_PC"
+
+    @staticmethod
+    @cache
+    def _spc_params(param, **kwargs):
+        "Call wrapper to cache param structures"
+        params = lib.ColorSpinorParam()
+        lib.copy_struct(params, param)
+        for key, val in kwargs.items():
+            setattr(params, key, val)
+        return params
 
     @property
     def quda_params(self):
         "Returns and instance of quda::ColorSpinorParams"
-        params = lib.ColorSpinorParam()
-        lib.copy_struct(params, super().quda_params)
-        params.nColor = self.ncolor
-        params.nSpin = self.nspin
-        params.nVec = self.nvec
-        params.gammaBasis = self.quda_gamma_basis
-        params.pc_type = self.quda_pc_type
-        params.twistFlavor = self.quda_twist_flavor
-
-        params.v = to_pointer(self.ptr)
-        params.create = lib.QUDA_REFERENCE_FIELD_CREATE
-        params.location = self.quda_location
-        params.fieldOrder = self.quda_order
-        params.siteOrder = self.quda_site_order
+        params = self._spc_params(
+            super().quda_params,
+            nColor=self.ncolor,
+            nSpin=self.nspin,
+            nVec=self.nvec,
+            gammaBasis=int(self.gamma_basis),
+            pc_type=int(self.pc_type),
+            twistFlavor=int(self.twist_flavor),
+            v=to_pointer(self.ptr),
+            create=int(QudaFieldCreate["reference"]),
+            location=int(self.location),
+            fieldOrder=int(self.order),
+            siteOrder=int(self.site_order),
+        )
         return params
 
     @property
@@ -180,7 +176,7 @@ class SpinorField(LatticeField):
     def is_native(self):
         "Whether the field is native for Quda"
         return lib.colorspinor.isNative(
-            self.quda_order, self.quda_precision, self.nspin, self.ncolor
+            int(self.order), self.quda_precision, self.nspin, self.ncolor
         )
 
     def zero(self):
@@ -190,12 +186,12 @@ class SpinorField(LatticeField):
     def gaussian(self, seed=None):
         "Generates a random gaussian noise spinor"
         seed = seed or int(time() * 1e9)
-        lib.spinorNoise(self.quda_field, seed, lib.QUDA_NOISE_GAUSS)
+        lib.spinorNoise(self.quda_field, seed, int(QudaNoiseType["GAUSS"]))
 
     def uniform(self, seed=None):
         "Generates a random uniform noise spinor"
         seed = seed or int(time() * 1e9)
-        lib.spinorNoise(self.quda_field, seed, lib.QUDA_NOISE_UNIFORM)
+        lib.spinorNoise(self.quda_field, seed, int(QudaNoiseType["UNIFORM"]))
 
     def gamma5(self, out=None):
         "Returns the vector transformed by gamma5"

@@ -9,6 +9,7 @@ __all__ = [
     "parallel_loop",
     "mtype_loop",
     "mark_mpi",
+    "epsilon_loop",
 ]
 
 from random import random

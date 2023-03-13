@@ -1,7 +1,9 @@
 from random import random
 import numpy as np
+from lyncs_utils import isclose
 from lyncs_quda import (
     gauge,
+    momentum,
     spinor,
     gauge_coarse,
     gauge_scalar,
@@ -15,6 +17,7 @@ from lyncs_quda.testing import (
     dtype_loop,
     mu_loop,
     gamma_loop,
+    epsilon_loop,
 )
 
 
@@ -26,7 +29,7 @@ def test_params(lib, lattice, device, dtype):
     dirac = gf.Dirac()
     params = dirac.quda_params
     assert dirac.precision == gf.precision
-    assert params.type == dirac.quda_type
+    assert params.type == dirac.type
     assert params.kappa == dirac.kappa
     assert params.m5 == dirac.m5
     assert params.Ls == dirac.Ls
@@ -65,25 +68,25 @@ def test_zero(lib, lattice, device, gamma, mu, dtype=None):
     sf.uniform()
     kappa = random()
     dirac = gf.Dirac(kappa=kappa)
-    assert (dirac.M(sf).field == sf.field).all()
-    assert (dirac.Mdag(sf).field == sf.field).all()
-    assert (dirac.MdagM(sf).field == sf.field).all()
-    assert (dirac.MMdag(sf).field == sf.field).all()
+    assert (dirac.M(sf) == sf).all()
+    assert (dirac.Mdag(sf) == sf).all()
+    assert (dirac.MdagM(sf) == sf).all()
+    assert (dirac.MMdag(sf) == sf).all()
 
     dirac = gf.Dirac(kappa=kappa, mu=mu)
-    sfmu = (2 * kappa * mu) * 1j * sf.gamma5().field
-    assert np.allclose(dirac.M(sf).field, sf.field + sfmu)
-    assert np.allclose(dirac.Mdag(sf).field, sf.field - sfmu)
-    assert np.allclose(dirac.MdagM(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
-    assert np.allclose(dirac.MMdag(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
+    sfmu = (2 * kappa * mu) * 1j * sf.gamma5()
+    assert np.allclose(dirac.M(sf), sf + sfmu)
+    assert np.allclose(dirac.Mdag(sf), sf - sfmu)
+    assert np.allclose(dirac.MdagM(sf), (1 + (2 * kappa * mu) ** 2) * sf)
+    assert np.allclose(dirac.MMdag(sf), (1 + (2 * kappa * mu) ** 2) * sf)
 
     csw = random()
     dirac = gf.Dirac(kappa=kappa, mu=mu, csw=csw)
-    sfmu = (2 * kappa * mu) * 1j * sf.gamma5().field
-    assert np.allclose(dirac.M(sf).field, sf.field + sfmu)
-    assert np.allclose(dirac.Mdag(sf).field, sf.field - sfmu)
-    assert np.allclose(dirac.MdagM(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
-    assert np.allclose(dirac.MMdag(sf).field, (1 + (2 * kappa * mu) ** 2) * sf.field)
+    sfmu = (2 * kappa * mu) * 1j * sf.gamma5()
+    assert np.allclose(dirac.M(sf), sf + sfmu)
+    assert np.allclose(dirac.Mdag(sf), sf - sfmu)
+    assert np.allclose(dirac.MdagM(sf), (1 + (2 * kappa * mu) ** 2) * sf)
+    assert np.allclose(dirac.MMdag(sf), (1 + (2 * kappa * mu) ** 2) * sf)
 
 
 # @dtype_loop  # enables dtype #Double precision multigrid has not been enabled
@@ -99,10 +102,10 @@ def test_coarse_zero(lib, lattice, device, dtype=None):
     sf.uniform()
 
     dirac = gf.Dirac(clover=gf2)
-    assert (dirac.M(sf).field == sf.field).all()
-    assert (dirac.Mdag(sf).field == sf.field).all()
-    assert (dirac.MdagM(sf).field == sf.field).all()
-    assert (dirac.MMdag(sf).field == sf.field).all()
+    assert (dirac.M(sf) == sf).all()
+    assert (dirac.Mdag(sf) == sf).all()
+    assert (dirac.MdagM(sf) == sf).all()
+    assert (dirac.MMdag(sf) == sf).all()
 
 
 # @dtype_loop  # enables dtype

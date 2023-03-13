@@ -7,7 +7,7 @@ __all__ = [
     "Solver",
 ]
 
-from functools import wraps
+from functools import wraps, cache
 from warnings import warn
 from lyncs_cppyy import nullptr, make_shared
 from .dirac import Dirac, DiracMatrix
@@ -15,6 +15,7 @@ from .enums import QudaInverterType, QudaPrecision, QudaResidualType, QudaBoolea
 from .lib import lib
 from .spinor_field import spinor
 from .time_profile import default_profiler, TimeProfile
+from .enums import *
 
 
 def solve(mat, rhs, out=None, **kwargs):
@@ -131,7 +132,7 @@ class Solver:
         return self._get_mat("_mat_sloppy", self.precision_sloppy)
 
     precision_sloppy = QudaPrecision(
-        "_params.precision_sloppy", default=lambda self: self.precision
+        None, lpath="_params.precision_sloppy", default=lambda self: self.precision
     )
 
     @property
@@ -139,7 +140,9 @@ class Solver:
         return self._get_mat("_mat_precon", self.precision_precondition)
 
     precision_precondition = QudaPrecision(
-        "_params.precision_precondition", default=lambda self: self.precision
+        None,
+        lpath="_params.precision_precondition",
+        default=lambda self: self.precision,
     )
 
     @property
@@ -147,7 +150,7 @@ class Solver:
         return self._get_mat("_mat_eig", self.precision_eigensolver)
 
     precision_eigensolver = QudaPrecision(
-        "_params.precision_eigensolver", default=lambda self: self.precision
+        None, lpath="_params.precision_eigensolver", default=lambda self: self.precision
     )
 
     @property
@@ -162,8 +165,10 @@ class Solver:
             raise TypeError
         self._profiler = value
 
-    inv_type = QudaInverterType("_params.inv_type")
-    inv_type_precondition = QudaInverterType("_params.inv_type_precondition")
+    inv_type = QudaInverterType(None, lpath="_params.inv_type")
+    inv_type_precondition = QudaInverterType(
+        None, lpath="_params.inv_type_precondition"
+    )
 
     @property
     def preconditioner(self):
@@ -173,7 +178,7 @@ class Solver:
     def preconditioner(self, value):
         if value is None:
             self._precon = None
-            self._params.inv_type_precondition = lib.QUDA_INVALID_INVERTER
+            self._params.inv_type_precondition = int(QudaInverterType["INVALID"])
             self._params.preconditioner = nullptr
         else:
             raise NotImplementedError
@@ -184,10 +189,12 @@ class Solver:
         self._params.preserve_source = not new
 
     return_residual = QudaBoolean(
-        "_params.return_residual", callback=_update_return_residual
+        None, lpath="_params.return_residual", callback=_update_return_residual
     )
 
-    residual_type = QudaResidualType("_params.residual_type", default="L2_RELATIVE")
+    residual_type = QudaResidualType(
+        None, lpath="_params.residual_type", default="L2_RELATIVE"
+    )
 
     @property
     def quda(self):

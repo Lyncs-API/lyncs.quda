@@ -31,7 +31,6 @@ def test_default(lattice):
 @lattice_loop  # enables lattice
 def test_params(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
-    # gf.zero()
     clv = CloverField(gf, computeTrLog=True, coeff=0)
     params = clv.quda_params
 
@@ -45,14 +44,14 @@ def test_params(lib, lattice, device, dtype):
     assert params.mu2 == clv.mu2
     assert params.epsilon2 == clv.eps2
     assert params.rho == clv.rho
-    assert params.order == clv.quda_order
+    assert params.order == clv.order
     assert params.create == lib.QUDA_REFERENCE_FIELD_CREATE
-    assert params.location == clv.quda_location
+    assert params.location == clv.location
     assert params.Precision() == clv.quda_precision
     assert params.nDim == clv.ndims
     assert tuple(params.x)[: clv.ndims] == clv.dims
     assert params.pad == clv.pad
-    assert params.ghostExchange == clv.quda_ghost_exchange
+    assert params.ghostExchange == clv.ghost_exchange
 
 
 @dtype_loop  # enables dtype
@@ -117,7 +116,9 @@ def test_unit(lib, lattice, device, dtype):
         gf, coeff=1.0, tf="SINGLET", twisted=True, mu2=mu2, computeTrLog=True
     )
 
-    assert (clv.field == 0).all()
+    clv.fill(0)
+    assert clv == 0
+    assert clv + 0 == 0
     idof = int(((clv.ncol * clv.nspin) ** 2 / 2))
     if dtype == "float64":
         tmp = np.zeros((idof,) + lattice, dtype=dtype).reshape((2, 2, 36, -1))

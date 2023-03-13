@@ -8,12 +8,14 @@ __all__ = [
 
 import numpy
 from cppyy.gbl.std import vector
+from functools import cache
 
 from lyncs_cppyy import make_shared, to_pointer
 from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .gauge_field import GaugeField
 from .enums import QudaParity
+from .enums import *
 
 # TODO list
 # We want dimension of (cu/num)py array to reflect parity and order
@@ -28,17 +30,41 @@ class CloverField(LatticeField):
      This is designed as an intermediary to QUDA CloverField class
      so that it should have 1-to-1 correspondence to an QUDA instance.
     Note:
-     * This class stores the corresponding gauge field in its "field" attribute
-        to make except-clause of copy() work
      * direct & inverse fields are both allocated upon initialization
      * Only rho is mutable.  To change other params, a new instance should be created
      * QUDA convention for clover field := 1+i ( kappa csw )/4 sigma_mu,nu F_mu,nu (<-sigma_mu,nu: spinor tensor)
      *  so that sigma_mu,nu = i[g_mu, g_nu], F_mu,nu = (Q_mu,nu - Q_nu,mu)/8 (1/2 is missing from sigma_mu,nu)
+     * Apparently, an input to QUDA clover object, coeff = kappa*csw
+     *  wihout a normalization factor of 1/4 or 1/32 (suggested in interface_quda.cpp)
     """
+
+    def __new__(cls, fmunu, **kwargs):
+        # TODO: get dofs and local dims from kwargs, instead of getting them
+        # from self.shape assuming that it has the form (dofs, local_dims)
+        if isinstance(fmunu, CloverField):
+            return fmunu
+        if not isinstance(fmunu, (numpy.ndarray, cupy.ndarray)):
+            raise TypeError(
+                f"Supporting only numpy or cupy for field, got {type(fmunu)}"
+            )
+        is_clover = False
+        if not isinstance(fmunu, GaugeField):
+            if kwargs.get("is_clover", False):
+                is_clover = True
+                field = fmunu
+            else:
+                fmunu = GaugeField(fmunu)
+
+        if not is_clover:  # not copying from a clover-field array
+            idof = int((fmunu.ncol * fmunu.ndims) ** 2 / 2)
+            prec = fmunu.dtype
+            field = fmunu.backend.empty((idof,) + fmunu.dims, dtype=prec)
+
+        return super().__new__(cls, field, **kwargs)
 
     def __init__(
         self,
-        fmunu,
+        obj,
         coeff=0.0,
         twisted=False,
         mu2=0,
@@ -46,69 +72,46 @@ class CloverField(LatticeField):
         eps2=0,
         rho=0,
         computeTrLog=False,
+        **kwargs,
     ):
-        # ASSUME: coeff = kappa*csw wihout a normalization factor of 1/4 or 1/32 (suggested in interface_quda.cpp)
-        # ? better to store fmunu.quda_field to _fmunu -> import gauge_tensor to be used in some methods
-        # ? better to put clover into self.field -> need walk-around to make copy() work
-        if not isinstance(fmunu, GaugeField):
-            fmunu = GaugeField(fmunu)
-        self._fmunu = fmunu.compute_fmunu()
-        super().__init__(self._fmunu.field, comm=self._fmunu.comm)
+        # WARNING: ndarray object is not supposed to be view-casted to CloverField object
+        #           except in __new__, for which __init__ will be called subsequently,
+        #           as the result won't come with  meta info such as 'coeff' or 'mu2'
 
-        # QUDA clover field inherently works with real's not with complex's (c.f., include/clover_field_order.h)
+        super().__init__(obj, getattr(obj, "comm", None))
+        if isinstance(obj, GaugeField):
+            # explicit construction
+            # QUDA clover field inherently works with real's not with complex's (c.f., include/clover_field_order.h)
+            self._cloverInv = LatticeField.create(
+                self.global_lattice,
+                dofs=self.dofs,
+                dtype=self.dtype,
+                device=self.device_id,
+                empty=True,
+            )
+            self._fmunu = obj.compute_fmunu()
+            self._direct = False  # Here, it is a flag to indicate whether the field has been computed
+            self._inverse = False  # Here, it is a flag to indicate whether the field has been computed
+            self.coeff = coeff
+            self._twisted = twisted
+            self._twist_flavor = tf
+            self._mu2 = mu2
+            self._eps2 = eps2
+            self._rho = rho
+            self.computeTrLog = computeTrLog
+        elif isinstance(obj, CloverField):
+            # upcasting to ndarray or new from template
+            self.__dict__.update(obj.__dict__)
+        elif isinstance(obj, self.backend.ndarray):
+            pass
+        else:
+            raise ValueError(
+                "The input is expected to be ndarray or LatticeField object"
+            )
 
-        idof = int((self._fmunu.ncol * self._fmunu.ndims) ** 2 / 2)
-        prec = self._fmunu.precision
-        self._direct = (
-            False  # Here, it is a flag to indicate whether the field has been computed
-        )
-        self._inverse = (
-            False  # Here, it is a flag to indicate whether the field has been computed
-        )
-
-        new = lambda idof: LatticeField.create(
-            self._fmunu.global_lattice,
-            dofs=(idof,),
-            dtype=prec,
-            device=self._fmunu.device,
-            empty=True,
-        )
-        self._clover = new(idof)
-        self._cloverInv = new(idof)
-        self.coeff = coeff
-        self._twisted = twisted
-        self._twist_flavor = tf
-        self._mu2 = mu2
-        self._eps2 = eps2
-        self._rho = rho
-        self.computeTrLog = computeTrLog
-
-    # shape, dofs, dtype, iscomlex, isreal are overwriten to report their values for the clover field, instead of _fmunu
-
-    @property
-    def shape(self):
-        "Shape of the clover field"
-        return self._clover.shape
-
-    @property
-    def dofs(self):
-        "Shape of the per-site degrees of freedom"
-        return self._clover.dofs
-
-    @property
-    def dtype(self):
-        "Clover field data type"
-        return self._clover.dtype
-
-    @property
-    def iscomplex(self):
-        "Whether the clover field dtype is complex"
-        return self._clover.iscomplex
-
-    @property
-    def isreal(self):
-        "Whether the clover field dtype is real"
-        return self._clover.isreal
+    def _prepare(self, field, copy=False, check=False, **kwargs):
+        # When CloverField object prepares its input, the input is assumed to be of CloverField
+        return super()._prepare(field, copy=copy, check=check, is_clover=True, **kwargs)
 
     # naming suggestion: native_view? default_* saved for dofs+lattice?
     def default_view(self):
@@ -116,13 +119,14 @@ class CloverField(LatticeField):
         shape = (2,)  # even-odd
         shape += (self.dofs[0] // N, -1, N)
 
-        return self.field.view().reshape(shape)
+        return self.float_view().reshape(shape)
 
     @property
     def twisted(self):
         return self._twisted
 
     @property
+    @QudaTwistFlavorType
     def twist_flavor(self):
         return self._twist_flavor
 
@@ -150,16 +154,22 @@ class CloverField(LatticeField):
         self._rho = val
 
     @property
+    @QudaCloverFieldOrder
     def order(self):
         "Data order of the field"
         if self.precision == "double":
             return "FLOAT2"
         return "FLOAT4"
 
-    @property
-    def quda_order(self):
-        "Quda enum for data order of the field"
-        return getattr(lib, f"QUDA_{self.order}_CLOVER_ORDER")
+    @staticmethod
+    @cache
+    def _clv_params(param, **kwargs):
+        "Call wrapper to cache param structures"
+        params = lib.CloverFieldParam()
+        lib.copy_struct(params, param)
+        for key, val in kwargs.items():
+            setattr(params, key, val)
+        return params
 
     @property
     def quda_params(self):
@@ -175,20 +185,21 @@ class CloverField(LatticeField):
           an alias to inverse.  not really sure what this is, but does 
           not work properly when reconstruct==True
         """
-        params = lib.CloverFieldParam()
-        lib.copy_struct(params, super().quda_params)
-        params.inverse = True
-        params.clover = to_pointer(self._clover.ptr)
-        params.cloverInv = to_pointer(self._cloverInv.ptr)
-        params.coeff = self.coeff
-        params.twisted = self.twisted
-        params.twist_flavor = getattr(lib, f"QUDA_TWIST_{self.twist_flavor}")
-        params.mu2 = self.mu2
-        params.epsilon2 = self.eps2
-        params.rho = self.rho
-        params.order = self.quda_order
-        params.create = lib.QUDA_REFERENCE_FIELD_CREATE
-        params.location = self.quda_location
+        params = self._clv_params(
+            super().quda_params,
+            inverse=True,
+            clover=to_pointer(self.ptr),
+            cloverInv=to_pointer(self._cloverInv.ptr),
+            coeff=self.coeff,
+            twisted=self.twisted,
+            twist_flavor=int(self.twist_flavor),
+            mu2=self.mu2,
+            epsilon2=self.eps2,
+            rho=self.rho,
+            order=int(self.order),
+            create=int(QudaFieldCreate["reference"]),
+            location=int(self.location),
+        )
         return params
 
     @property
@@ -205,7 +216,7 @@ class CloverField(LatticeField):
         if not self._direct:
             lib.computeClover(self.quda_field, self._fmunu.quda_field, self.coeff)
             self._direct = True
-        return self._clover.field
+        return self.view(self.backend.ndarray)
 
     @property
     def inverse_field(self):
@@ -213,7 +224,7 @@ class CloverField(LatticeField):
             self.clover_field
             lib.cloverInvert(self.quda_field, self.computeTrLog)
             self._inverse = True
-        return self._cloverInv.field
+        return self._cloverInv.view(self.backend.ndarray)
 
     @property
     def trLog(self):
@@ -227,7 +238,7 @@ class CloverField(LatticeField):
 
     def is_native(self):
         "Whether the field is native for Quda"
-        return lib.clover.isNative(self.quda_order, self.quda_precision)
+        return lib.clover.isNative(int(self.order), self.quda_precision)
 
     @property
     def ncol(self):
@@ -351,11 +362,7 @@ class CloverField(LatticeField):
         u = gauge.extended_field(sites=R)
         if gauge.precision == "double":
             u = gauge.prepare_in(gauge, reconstruct="NO").extended_field(sites=R)
-        lib.cloverDerivative(
-            force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_ODD_PARITY")
-        )
-        lib.cloverDerivative(
-            force.quda_field, u, oprodEx, 1.0, getattr(lib, "QUDA_EVEN_PARITY")
-        )
+        lib.cloverDerivative(force.quda_field, u, oprodEx, 1.0, int(QudaParity["ODD"]))
+        lib.cloverDerivative(force.quda_field, u, oprodEx, 1.0, int(QudaParity["EVEN"]))
 
         return force

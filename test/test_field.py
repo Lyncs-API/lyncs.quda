@@ -22,6 +22,7 @@ def test_precision():
 
 def test_numpy():
     field = LatticeField(np.zeros(shape))
+
     assert field.location == "CPU"
     assert field.dims == shape[-4:]
     assert field.dofs == shape[:-4]

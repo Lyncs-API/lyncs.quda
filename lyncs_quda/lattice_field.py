@@ -15,6 +15,7 @@ from lyncs_utils import prod
 from .enums import QudaPrecision, QudaFieldLocation, QudaGhostExchange
 from .lib import lib, cupy
 from .array import lat_dims
+from .enums import *
 
 from lyncs_cppyy import to_pointer
 import ctypes
@@ -165,18 +166,12 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             self.global_lattice,
             dofs=kwargs.pop("dofs", self.dofs),
             dtype=kwargs.pop("dtype", self.dtype),
-            device=kwargs.pop("device", self.device),
+            device=kwargs.pop("device", self.device_id),
             comm=kwargs.pop("comm", self.comm),
             empty=empty,
             **kwargs,
         )
-        out.__array_finalize__(self)
         return out
-
-    def __array_finalize__(self, obj):
-        "Support for __array_finalize__ standard"
-        if self.comm is None:
-            self.comm = obj.comm
 
     def copy(self, other=None, out=None, **kwargs):
         "Returns out, a copy+=kwargs, of other if given, else of self"
@@ -184,20 +179,23 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         # dst: out (created anew, if not explicitly given)
         # ASSUME: if out != None, out <=> other/self+=kwargs
         #
-        # IF other and out are both given, this behaves like a classmethod
+        # If other and out are both given, this behaves like a classmethod
         # where out&other are casted into type(self)
+        # TODO:
+        #  * check if this dose not cause any bugs if it overwrites ndarray.copy
+        #     - For now, we cast self to ndarray before performing ndarray methods like flatten
+        #     - the second arg should be "order='C'" to match the signiture?
 
         # check=False => here any output is accepted
         out = self.prepare_out(out, check=False, **kwargs)
-
         if other is None:
             other = self
         # we prepare other without copying because we do copy here!
         other = out.prepare_in(other, copy=False, check=False, **kwargs)
         try:
             out.quda_field.copy(other.quda_field)
-        except:  # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not catched by this
-            # As last resort trying to copy elementwise
+        except:  # NotImplementedError:  #raised if self is LatticeField# at least, serial version calls exit(1) from qudaError, which is not caught by this
+            # As a last resort, trying to copy elementwise
             out.default_view()[:] = other.default_view()
 
         return out
@@ -211,8 +209,8 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         dtype = kwargs.get("dtype", self.dtype)
         if other.dtype != dtype:
             return False
-        device = kwargs.get("device", self.device)
-        if other.device != device:
+        device_id = kwargs.get("device", self.device_id)
+        if other.device_id != device_id:
             return False
         dofs = kwargs.get("dofs", self.dofs)
         if other.dofs != dofs:
@@ -226,12 +224,11 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             return self.new(**kwargs)
         cls = type(self)
         if not isinstance(field, cls):
-            field = cls(field)
+            field = cls(field, **kwargs)
         if check and not self.equivalent(field, **kwargs):
             if copy:
                 return self.copy(other=field, **kwargs)
             raise ValueError("The given field is not appropriate")
-        field.__array_finalize__(self)
         return field
 
     def prepare(self, fields, **kwargs):
@@ -259,8 +256,44 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         kwargs.setdefault("copy", True)
         return self.prepare(fields, **kwargs)
 
+    _children = {}
+
+    def __new__(cls, field, **kwargs):
+        # TODO: get dofs and local dims from kwargs, instead of getting them
+        # from self.shape assuming that it has the form (dofs, local_dims)
+
+        if isinstance(field, cls):
+            return field
+        if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
+            raise TypeError(
+                f"Supporting only numpy or cupy for field, got {type(field)}"
+            )
+        parent = numpy.ndarray if isinstance(field, numpy.ndarray) else cupy.ndarray
+        if (cls, parent) not in cls._children:
+            cls._children[(cls, parent)] = type(cls.__name__ + "ext", (cls, parent), {})
+        obj = field.view(type=cls._children[(cls, parent)])
+        # self._dims = kwargs.get("dims", self.shape[-self.ndims :])
+        # self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
+
+        return obj
+
+    # field check should be performed
+    def __array_finalize__(self, obj):
+        "Support for __array_finalize__ standard"
+        # Note: this is called when creating a temporary, possibly causing
+        # some issues.  Apparently, this temporary is flattened and loose
+        # shape information
+        # self: newly created instance
+        # obj: input instance
+        self._check_field(obj)
+        if obj is None:
+            return  # can be removed; we are not bypassing ndarray.__new__
+        # This will require some care when we use attr for dims and dofs in _check_field
+        # self._dims = kwargs.get("dims", self.shape[-self.ndims :])
+        # self._dofs = kwargs.get("dofs", field.shape[: -self.ndims])
+        self.__init__(obj, comm=getattr(obj, "comm", None))
+
     def __init__(self, field, comm=None, **kwargs):
-        self.field = field
         if comm is False:
             self.comm = comm
         elif comm is None:
@@ -270,52 +303,41 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         self._quda = None
         self.activate()
 
+    def _check_field(self, field=None):
+        if field is None:
+            field = self
+        if isinstance(field, cupy.ndarray) and field.device.id != lib.device_id:
+            raise TypeError("Field is stored on a different device than the quda lib")
+        if len(field.shape) < 4:
+            raise ValueError("A lattice field should not have shape smaller than 4")
+
     def activate(self):
         "Activates the current field. To be called before using the object in quda"
         "to make sure the communicator is set for MPI"
         # if self.comm is None, but #ranks>1, this will mess thigns up
         lib.set_comm(self.comm)
 
-    @property
-    def field(self):
-        "The underlaying lattice field"
-        return self._field
-
-    @field.setter
-    def field(self, field):
-        if isinstance(field, LatticeField):
-            field = field.field
-        if not isinstance(field, (numpy.ndarray, cupy.ndarray)):
-            raise TypeError(
-                f"Supporting only numpy or cupy for field, got {type(field)}"
-            )
-        if isinstance(field, cupy.ndarray) and field.device.id != lib.device_id:
-            raise TypeError("Field is stored on a different device than the quda lib")
-        if len(field.shape) < 4:
-            raise ValueError("A lattice field should not have shape smaller than 4")
-        self._field = field
-
-    def get(self):
+    def get(self, *args, **kwargs):
         "Returns the field as numpy array"
-        return self.__array__()
+        return self.__array__(*args, **kwargs)
 
     def __array__(self, *args, **kwargs):
-        out = self.field
         if self.device is not None:
-            out = out.get()
-        return out.__array__(*args, **kwargs)
+            return super().get(*args, **kwargs)
+        return super().__array__(*args, **kwargs)
 
     def complex_view(self):
         "Returns a complex view of the field"
         if self.iscomplex:
-            return self.field
-        return self.field.view(get_complex_dtype(self.dtype))
+            return self.view(type=self.backend.ndarray)
+        return self.view(get_complex_dtype(self.dtype), self.backend.ndarray)
 
     def float_view(self):
         "Returns a complex view of the field"
+        # don't need to upcast if we keep dofs and dims as attributes
         if not self.iscomplex:
-            return self.field
-        return self.field.view(get_float_dtype(self.dtype))
+            return self.view(type=self.backend.ndarray)
+        return self.view(get_float_dtype(self.dtype), self.backend.ndarray)
 
     def default_view(self):
         "Returns the default view of the field including reshaping"
@@ -324,31 +346,26 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def backend(self):
         "The backend of the field: cupy or numpy"
-        if isinstance(self.field, cupy.ndarray):
+        if isinstance(self, cupy.ndarray):
             return cupy
         return numpy
 
     @property
     def device(self):
         "Device id of the field (None if not on GPUs)"
-        if isinstance(self.field, cupy.ndarray):
-            return self.field.device.id
+        if isinstance(self, cupy.ndarray):
+            return super().device
         return None
 
     @property
-    def shape(self):
-        "Shape of the field"
-        return self.field.shape
+    def device_id(self):
+        return getattr(self.device, "id", None)
 
     @property
+    @QudaFieldLocation
     def location(self):
         "Memory location of the field (CPU or CUDA)"
-        return "CPU" if isinstance(self.field, numpy.ndarray) else "CUDA"
-
-    @property
-    def quda_location(self):
-        "Quda enum for memory location of the field (CPU or CUDA)"
-        return int(QudaFieldLocation[self.location])
+        return "CPU" if isinstance(self, numpy.ndarray) else "CUDA"
 
     @property
     def ndims(self):
@@ -383,19 +400,14 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return self.shape[: -self.ndims]
 
     @property
-    def dtype(self):
-        "Field data type"
-        return self.field.dtype
-
-    @property
     def iscomplex(self):
         "Whether the field dtype is complex"
-        return self.backend.iscomplexobj(self.field)
+        return self.backend.iscomplexobj(self)
 
     @property
     def isreal(self):
         "Whether the field dtype is real"
-        return self.backend.isrealobj(self.field)
+        return self.backend.isrealobj(self)
 
     @property
     def precision(self):
@@ -408,14 +420,10 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return int(QudaPrecision[self.precision])
 
     @property
+    @QudaGhostExchange
     def ghost_exchange(self):
         "Ghost exchange"
         return "NO"
-
-    @property
-    def quda_ghost_exchange(self):
-        "Quda enum for ghost exchange"
-        return int(QudaGhostExchange[self.ghost_exchange])
 
     @property
     def pad(self):
@@ -425,9 +433,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
     @property
     def ptr(self):
         "Memory pointer"
-        if isinstance(self.field, numpy.ndarray):
-            return self.field.__array_interface__["data"][0]
-        return self.field.data.ptr
+        if isinstance(self, numpy.ndarray):
+            return self.__array_interface__["data"][0]
+        return self.data.ptr
 
     @staticmethod
     @cache
@@ -442,9 +450,9 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             self.ndims,
             self.quda_dims,
             self.pad,
-            self.quda_location,
+            int(self.location),
             self.quda_precision,
-            self.quda_ghost_exchange,
+            int(self.ghost_exchange),
         )
 
     # ? this assumes: mem_type(QUDA_MEMORY_DEVICE),
@@ -480,9 +488,8 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
 
     def __array_ufunc__(self, ufunc, method, *args, **kwargs):
         out = kwargs.get("out", (self,))[0]
-
         prepare = (
-            lambda arg: out.prepare_in(arg).field
+            lambda arg: out.prepare_in(arg).view(type=self.backend.ndarray)
             if isinstance(arg, (LatticeField, cupy.ndarray, numpy.ndarray))
             else arg
         )
@@ -495,8 +502,10 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
                 kwargs[key] = prepare(val)
 
         fnc = getattr(ufunc, method)
-
-        return self.prepare_out(fnc(*args, **kwargs), check=False)
+        result = fnc(*args, **kwargs)
+        if not isinstance(result, self.backend.ndarray):
+            return result
+        return self.prepare_out(result, check=False)
 
     def __bool__(self):
-        return bool(self.field.all())
+        return bool(self.all())

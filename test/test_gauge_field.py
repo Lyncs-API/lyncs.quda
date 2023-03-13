@@ -10,7 +10,7 @@ from lyncs_quda.testing import (
     epsilon_loop,
 )
 from lyncs_cppyy.ll import addressof
-from lyncs_utils import isclose, allclose
+from lyncs_utils import isclose  # , allclose
 
 
 @lattice_loop
@@ -30,18 +30,18 @@ def test_params(lib, lattice, device, dtype):
     assert gf.is_native()
     assert params.nColor == 3
     assert params.nFace == 0
-    assert params.reconstruct == gf.quda_reconstruct
-    assert params.location == gf.quda_location
-    assert params.order == gf.quda_order
-    assert params.t_boundary == gf.quda_t_boundary
-    assert params.link_type == gf.quda_link_type
-    assert params.geometry == gf.quda_geometry
+    assert params.reconstruct == gf.reconstruct
+    assert params.location == gf.location
+    assert params.order == gf.order
+    assert params.t_boundary == gf.t_boundary
+    assert params.link_type == gf.link_type
+    assert params.geometry == gf.geometry
     assert addressof(params.gauge) == gf.ptr
     assert params.Precision() == gf.quda_precision
     assert params.nDim == gf.ndims
     assert tuple(params.x)[: gf.ndims] == gf.dims
     assert params.pad == gf.pad
-    assert params.ghostExchange == gf.quda_ghost_exchange
+    assert params.ghostExchange == gf.ghost_exchange
 
 
 @dtype_loop  # enables dtype
@@ -60,7 +60,6 @@ def test_zero(lib, lattice, device, dtype):
 
     assert gf.project() == 4 * np.prod(lattice)
     gf.zero()
-
     gf2 = gf.new()
     gf2.gaussian()
     assert gf.dot(gf2) == 0
@@ -134,7 +133,7 @@ def test_random(lib, lattice, device, dtype):
 
     gf2 = gf.copy()
     assert gf == gf2
-    assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)
+    assert isclose(gf.norm2(), (gf**2).sum(), rel_tol=1e-6)
 
 
 @dtype_loop  # enables dtype
@@ -147,7 +146,7 @@ def test_exponential(lib, lattice, device, dtype):
 
     gf.unity()
     mom.copy(out=gf)
-    assert np.allclose(gf.field, 0)
+    assert np.allclose(gf, 0)
     # gf.is_momentum = False
     assert gf == 0
 
@@ -161,7 +160,7 @@ def test_exponential(lib, lattice, device, dtype):
 
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
-    assert np.allclose(gf.field, gf2.field)
+    assert np.allclose(gf, gf2)
     assert gf2 == gf
 
     gf.gaussian()
@@ -234,6 +233,41 @@ def test_force(lib, lattice, device, epsilon):
 
         zeros = getattr(gf, path + "_field")(coeffs=0, force=True)
         assert zeros == 0
+
+
+from lyncs_utils import isiterable
+from collections.abc import Mapping
+
+
+def values(dct):
+    "Calls values, if available, or dict.values"
+    try:
+        return dct.values()
+    except AttributeError:
+        return dict.values(dct)
+
+
+def allclose(left, right, **kwargs):
+    if isinstance(left, cp.ndarray) and isinstance(right, cp.ndarray):
+        return np.allclose(left, right)
+    if isinstance(left, cp.ndarray) and not isinstance(right, cp.ndarray):
+        left = [left] * len(right)
+    if not isinstance(left, cp.ndarray) and isinstance(right, cp.ndarray):
+        right = [right] * len(left)
+    if len(left) != len(right):
+        return False
+    if isinstance(left, Mapping) or isinstance(right, Mapping):
+        if not isinstance(left, Mapping):
+            pairs = zip(left, values(right))
+        elif not isinstance(right, Mapping):
+            pairs = zip(values(left), right)
+        else:
+            if set(keys(left)) != set(keys(right)):
+                return False
+            pairs = dictzip(left, right, values_only=True)
+    else:
+        pairs = zip(left, right)
+    return all((allclose(*pair, **kwargs) for pair in pairs))
 
 
 # @dtype_loop  # enables dtype

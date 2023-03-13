@@ -31,18 +31,18 @@ def test_params(lib, lattice, device, dtype):
     assert params.nColor == sf.ncolor
     assert params.nSpin == sf.nspin
     assert params.nVec == sf.nvec
-    assert params.gammaBasis == sf.quda_gamma_basis
-    assert params.pc_type == sf.quda_pc_type
+    assert params.gammaBasis == sf.gamma_basis
+    assert params.pc_type == sf.pc_type
 
-    assert params.location == sf.quda_location
-    assert params.fieldOrder == sf.quda_order
-    assert params.siteOrder == sf.quda_site_order
+    assert params.location == sf.location
+    assert params.fieldOrder == sf.order
+    assert params.siteOrder == sf.site_order
     assert addressof(params.v) == sf.ptr
     assert params.Precision() == sf.quda_precision
     assert params.nDim == sf.ndims
     assert tuple(params.x)[: sf.ndims] == sf.dims
     assert params.pad == sf.pad
-    assert params.ghostExchange == sf.quda_ghost_exchange
+    assert params.ghostExchange == sf.ghost_exchange
 
 
 @dtype_loop  # enables dtype
@@ -51,13 +51,13 @@ def test_params(lib, lattice, device, dtype):
 def test_init(lib, lattice, device, dtype):
     sf = spinor(lattice, dtype=dtype, device=device)
     sf.zero()
-    assert (sf.field == 0).all()
+    assert (sf == 0).all()
     assert sf.norm1() == 0
     assert sf.norm2() == 0
     sf.uniform()
-    assert np.isclose(sf.field.mean(), 0.5 + 0.5j, atol=0.1)
+    assert np.isclose(sf.mean(), 0.5 + 0.5j, atol=0.1)
     sf.gaussian()
-    assert np.isclose(sf.field.mean(), 0.0, atol=0.1)
+    assert np.isclose(sf.mean(), 0.0, atol=0.1)
 
 
 # @dtype_loop  # enables dtype
@@ -68,4 +68,4 @@ def test_gamma5(lib, lattice, device, gamma, dtype=None):
     sf = spinor(lattice, dtype=dtype, device=device, gamma_basis=gamma)
     sf.uniform()
     sf2 = sf.gamma5().apply_gamma5()
-    assert (sf.field == sf2.field).all()
+    assert (sf == sf2).all()
