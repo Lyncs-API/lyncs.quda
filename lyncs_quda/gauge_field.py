@@ -33,6 +33,7 @@ from .enums import (
     QudaTboundary,
     QudaLinkType,
 )
+from .enums import *
 
 # TODO: Make array dims consistent with gauge order
 
@@ -164,6 +165,7 @@ class GaugeField(LatticeField):
         return dofs
 
     @property
+    @QudaReconstructType
     def reconstruct(self):
         "Reconstruct type of the field"
         dofs = self.dofs_per_link
@@ -178,11 +180,6 @@ class GaugeField(LatticeField):
         return "INVALID"
 
     @property
-    def quda_reconstruct(self):
-        "Quda enum for reconstruct type of the field"
-        return int(QudaReconstructType[self.reconstruct])
-
-    @property
     def ncol(self):
         "Number of colors"
         if self.reconstruct == "NO":
@@ -193,6 +190,7 @@ class GaugeField(LatticeField):
         return 3
 
     @property
+    @QudaGaugeFieldOrder
     def order(self):
         "Data order of the field"
         dofs = self.dofs_per_link
@@ -203,11 +201,6 @@ class GaugeField(LatticeField):
         return "FLOAT2"
 
     @property
-    def quda_order(self):
-        "Quda enum for data order of the field"
-        return int(QudaGaugeFieldOrder[self.order])
-
-    @property
     def _geometry_values(self):
         return (
             ("SCALAR", "VECTOR", "TENSOR", "COARSE"),
@@ -215,6 +208,7 @@ class GaugeField(LatticeField):
         )
 
     @property
+    @QudaFieldGeometry
     def geometry(self):
         """
         Geometry of the field
@@ -237,11 +231,6 @@ class GaugeField(LatticeField):
         return 1
 
     @property
-    def quda_geometry(self):
-        "Quda enum for geometry of the field"
-        return int(QudaFieldGeometry[self.geometry])
-
-    @property
     def is_coarse(self):
         "Whether is a coarse gauge field"
         return self.geometry == "COARSE" or (
@@ -260,16 +249,13 @@ class GaugeField(LatticeField):
             self._quda = None
 
     @property
+    @QudaTboundary
     def t_boundary(self):
         "Boundary conditions in time"
         return "PERIODIC_T"
 
     @property
-    def quda_t_boundary(self):
-        "Quda enum for boundary conditions in time"
-        return int(QudaTboundary[self.t_boundary])
-
-    @property
+    @QudaLinkType
     def link_type(self):
         "Type of the links"
         if self.is_coarse:
@@ -277,11 +263,6 @@ class GaugeField(LatticeField):
         if self.is_momentum:
             return "MOMENTUM"
         return "SU3"
-
-    @property
-    def quda_link_type(self):
-        "Quda enum for link type"
-        return int(QudaLinkType[self.link_type])
 
     @staticmethod
     @cache
@@ -301,15 +282,15 @@ class GaugeField(LatticeField):
         params = self._quda_params(
             self.quda_dims,
             self.quda_precision,
-            self.quda_reconstruct,
+            int(self.reconstruct),
             self.pad,
-            self.quda_geometry,
-            self.quda_ghost_exchange,
-            location=self.quda_location,
-            link_type=self.quda_link_type,
+            int(self.geometry),
+            int(self.ghost_exchange),
+            location=int(self.location),
+            link_type=int(self.link_type),
             create=int(QudaFieldCreate["reference"]),
-            t_boundary=self.quda_t_boundary,
-            order=self.quda_order,
+            t_boundary=int(self.t_boundary),
+            order=int(self.order),
             nColor=self.ncol,
         )
         params.gauge = to_pointer(self.ptr)
@@ -326,7 +307,7 @@ class GaugeField(LatticeField):
     def is_native(self):
         "Whether the field is native for Quda"
         return lib.gauge.isNative(
-            self.quda_order, self.quda_precision, self.quda_reconstruct
+            int(self.order), self.quda_precision, int(self.reconstruct)
         )
 
     def extended_field(self, sites=1):
@@ -567,7 +548,6 @@ class GaugeField(LatticeField):
             raise NotImplementedError(
                 "The underlying QUDA function will not work without GPU"
             )
-
         if self.geometry != "VECTOR":
             raise TypeError("This gauge object needs to have VECTOR geometry")
         plaq = lib.plaquette(self.extended_field(1))

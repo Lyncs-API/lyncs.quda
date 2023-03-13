@@ -44,14 +44,14 @@ def test_params(lib, lattice, device, dtype):
     assert params.mu2 == clv.mu2
     assert params.epsilon2 == clv.eps2
     assert params.rho == clv.rho
-    assert params.order == clv.quda_order
+    assert params.order == clv.order
     assert params.create == lib.QUDA_REFERENCE_FIELD_CREATE
-    assert params.location == clv.quda_location
+    assert params.location == clv.location
     assert params.Precision() == clv.quda_precision
     assert params.nDim == clv.ndims
     assert tuple(params.x)[: clv.ndims] == clv.dims
     assert params.pad == clv.pad
-    assert params.ghostExchange == clv.quda_ghost_exchange
+    assert params.ghostExchange == clv.ghost_exchange
 
 
 @dtype_loop  # enables dtype

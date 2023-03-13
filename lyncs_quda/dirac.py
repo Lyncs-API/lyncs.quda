@@ -15,7 +15,7 @@ from .gauge_field import gauge, GaugeField
 from .clover_field import CloverField
 from .spinor_field import spinor
 from .lib import lib
-from .enums import QudaPrecision
+from .enums import *
 
 
 @dataclass(frozen=True)
@@ -48,6 +48,7 @@ class Dirac:
     # TODO: Support more Dirac types
     #   Unsupported: DomainWall(4D/PC), Mobius(PC/Eofa), (Improved)Staggered(KD/PC), GaugeLaplace(PC), GaugeCovDev
     @property
+    @QudaDiracType
     def type(self):
         "Type of the operator"
         PC = "PC" if not self.full else ""
@@ -62,21 +63,13 @@ class Dirac:
         return "TWISTED_CLOVER" + PC
 
     @property
-    def quda_type(self):
-        "Quda enum for quda dslash type"
-        return int(QudaDiracType[self.type])
-
-    @property
+    @QudaMatPCType
     def matPCtype(self):
         if self.full:
             return "INVALID"
         parity = "EVEN" if self.even else "ODD"
         symm = "_ASYMMETRIC" if not self.symm else ""
         return f"{parity}_{parity}{symm}"
-
-    @property
-    def quda_matPCtype(self):
-        return getattr(lib, f"QUDA_MATPC_{self.matPCtype}")
 
     @property
     def is_coarse(self):
@@ -88,26 +81,22 @@ class Dirac:
         return self.gauge.precision
 
     @property
+    @QudaDagType
     def dagger(self):
         "If the operator is daggered"
         return "NO"
 
     @property
-    def quda_dagger(self):
-        "Quda enum for if the operator is dagger"
-        return getattr(lib, f"QUDA_DAG_{self.dagger}")
-
-    @property
     def quda_params(self):
         params = lib.DiracParam()
-        params.type = self.quda_type
+        params.type = int(self.type)
         params.kappa = self.kappa
         params.m5 = self.m5
         params.Ls = self.Ls
         params.mu = self.mu
         params.epsilon = self.epsilon
-        params.dagger = self.quda_dagger
-        params.matpcType = self.quda_matPCtype
+        params.dagger = int(self.dagger)
+        params.matpcType = int(self.matPCtype)
 
         # Needs to prevent the gauge field to get destroyed
         #  now we store QUDA gauge object in _quda, but it
@@ -299,16 +288,16 @@ class Dirac:
                 D.quda_dirac.Dslash(
                     xs[-1].quda_field.Odd(),
                     xs[-1].quda_field.Even(),
-                    getattr(lib, "QUDA_ODD_PARITY"),
+                    int(QudaParity["ODD"]),
                 )
                 D.quda_dirac.M(ps[i].quda_field.Even(), xs[-1].quda_field.Even())
                 D.quda_dirac.Dagger(getattr(lib, "QUDA_DAG_YES"))
                 D.quda_dirac.Dslash(
                     ps[i].quda_field.Odd(),
                     ps[i].quda_field.Even(),
-                    getattr(lib, "QUDA_ODD_PARITY"),
+                    int(QudaParity["ODD"]),
                 )
-                D.quda_dirac.Dagger(getattr(lib, "QUDA_DAG_NO"))
+                D.quda_dirac.Dagger(int(QudaDagType["NO"]))
         else:
             # Even-odd preconditioned case (i.e., PC in Dirac.type):
             # use only odd part of phi
@@ -317,16 +306,16 @@ class Dirac:
                 D.quda_dirac.Dslash(
                     xs[-1].quda_field.Even(),
                     xs[-1].quda_field.Odd(),
-                    getattr(lib, "QUDA_EVEN_PARITY"),
+                    int(QudaParity["EVEN"]),
                 )
                 D.quda_dirac.M(ps[i].quda_field.Odd(), xs[-1].quda_field.Odd())
                 D.quda_dirac.Dagger(getattr(lib, "QUDA_DAG_YES"))
                 D.quda_dirac.Dslash(
                     ps[i].quda_field.Even(),
                     ps[i].quda_field.Odd(),
-                    getattr(lib, "QUDA_EVEN_PARITY"),
+                    int(QudaParity["EVEN"]),
                 )
-                D.quda_dirac.Dagger(getattr(lib, "QUDA_DAG_NO"))
+                D.quda_dirac.Dagger((int(QudaDagType["NO"])))
 
         for i in range(n):
             xs[i].apply_gamma5()

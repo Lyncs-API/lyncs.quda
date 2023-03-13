@@ -8,12 +8,14 @@ __all__ = [
 
 import numpy
 from cppyy.gbl.std import vector
+from functools import cache
 
 from lyncs_cppyy import make_shared, to_pointer
 from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .gauge_field import GaugeField
 from .enums import QudaParity
+from .enums import *
 
 # TODO list
 # We want dimension of (cu/num)py array to reflect parity and order
@@ -126,6 +128,7 @@ class CloverField(LatticeField):
         return self._twisted
 
     @property
+    @QudaTwistFlavorType
     def twist_flavor(self):
         return self._twist_flavor
 
@@ -153,17 +156,23 @@ class CloverField(LatticeField):
         self._rho = val
 
     @property
+    @QudaCloverFieldOrder
     def order(self):
         "Data order of the field"
         if self.precision == "double":
             return "FLOAT2"
         return "FLOAT4"
-
-    @property
-    def quda_order(self):
-        "Quda enum for data order of the field"
-        return int(QudaCloverFieldOrder[self.order])
-
+    
+    @staticmethod
+    @cache
+    def _clv_params(param, **kwargs):
+        "Call wrapper to cache param structures"
+        params = lib.CloverFieldParam()
+        lib.copy_struct(params, param)
+        for key, val in kwargs.items():
+            setattr(params, key, val)
+        return params
+    
     @property
     def quda_params(self):
         "Returns an instance of quda::CloverFieldParams"
@@ -178,20 +187,21 @@ class CloverField(LatticeField):
           an alias to inverse.  not really sure what this is, but does 
           not work properly when reconstruct==True
         """
-        params = lib.CloverFieldParam()
-        lib.copy_struct(params, super().quda_params)
-        params.inverse = True
-        params.clover = to_pointer(self.ptr)
-        params.cloverInv = to_pointer(self._cloverInv.ptr)
-        params.coeff = self.coeff
-        params.twisted = self.twisted
-        params.twist_flavor = int(QudaTwistFlavorType[self.twist_flavor]))
-        params.mu2 = self.mu2
-        params.epsilon2 = self.eps2
-        params.rho = self.rho
-        params.order = self.quda_order
-        params.create = lib.QUDA_REFERENCE_FIELD_CREATE
-        params.location = self.quda_location
+        params = self._clv_params(
+            super().quda_params,
+            inverse = True,
+            clover = to_pointer(self.ptr),
+            cloverInv = to_pointer(self._cloverInv.ptr),
+            coeff = self.coeff,
+            twisted = self.twisted,
+            twist_flavor = int(self.twist_flavor),
+            mu2 = self.mu2,
+            epsilon2 = self.eps2,
+            rho = self.rho,
+            order = int(self.order),
+            create = int(QudaFieldCreate["reference"]),
+            location = int(self.location)
+            )
         return params
 
     @property
@@ -230,7 +240,7 @@ class CloverField(LatticeField):
 
     def is_native(self):
         "Whether the field is native for Quda"
-        return lib.clover.isNative(self.quda_order, self.quda_precision)
+        return lib.clover.isNative(int(self.order), self.quda_precision)
 
     @property
     def ncol(self):

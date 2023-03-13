@@ -29,7 +29,7 @@ def test_params(lib, lattice, device, dtype):
     dirac = gf.Dirac()
     params = dirac.quda_params
     assert dirac.precision == gf.precision
-    assert params.type == dirac.quda_type
+    assert params.type == dirac.type
     assert params.kappa == dirac.kappa
     assert params.m5 == dirac.m5
     assert params.Ls == dirac.Ls

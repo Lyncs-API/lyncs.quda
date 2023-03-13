@@ -30,18 +30,18 @@ def test_params(lib, lattice, device, dtype):
     assert gf.is_native()
     assert params.nColor == 3
     assert params.nFace == 0
-    assert params.reconstruct == gf.quda_reconstruct
-    assert params.location == gf.quda_location
-    assert params.order == gf.quda_order
-    assert params.t_boundary == gf.quda_t_boundary
-    assert params.link_type == gf.quda_link_type
-    assert params.geometry == gf.quda_geometry
+    assert params.reconstruct == gf.reconstruct
+    assert params.location == gf.location
+    assert params.order == gf.order
+    assert params.t_boundary == gf.t_boundary
+    assert params.link_type == gf.link_type
+    assert params.geometry == gf.geometry
     assert addressof(params.gauge) == gf.ptr
     assert params.Precision() == gf.quda_precision
     assert params.nDim == gf.ndims
     assert tuple(params.x)[: gf.ndims] == gf.dims
     assert params.pad == gf.pad
-    assert params.ghostExchange == gf.quda_ghost_exchange
+    assert params.ghostExchange == gf.ghost_exchange
 
 
 @dtype_loop  # enables dtype

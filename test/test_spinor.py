@@ -31,18 +31,18 @@ def test_params(lib, lattice, device, dtype):
     assert params.nColor == sf.ncolor
     assert params.nSpin == sf.nspin
     assert params.nVec == sf.nvec
-    assert params.gammaBasis == sf.quda_gamma_basis
-    assert params.pc_type == sf.quda_pc_type
+    assert params.gammaBasis == sf.gamma_basis
+    assert params.pc_type == sf.pc_type
 
-    assert params.location == sf.quda_location
-    assert params.fieldOrder == sf.quda_order
-    assert params.siteOrder == sf.quda_site_order
+    assert params.location == sf.location
+    assert params.fieldOrder == sf.order
+    assert params.siteOrder == sf.site_order
     assert addressof(params.v) == sf.ptr
     assert params.Precision() == sf.quda_precision
     assert params.nDim == sf.ndims
     assert tuple(params.x)[: sf.ndims] == sf.dims
     assert params.pad == sf.pad
-    assert params.ghostExchange == sf.quda_ghost_exchange
+    assert params.ghostExchange == sf.ghost_exchange
 
 
 @dtype_loop  # enables dtype
