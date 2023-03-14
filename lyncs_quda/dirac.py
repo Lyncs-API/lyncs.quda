@@ -15,7 +15,12 @@ from .gauge_field import gauge, GaugeField
 from .clover_field import CloverField
 from .spinor_field import spinor
 from .lib import lib
-from .enums import *
+from .enums import (
+    QudaDiracType,
+    QudaMatPCType,
+    QudaDagType,
+    QudaParity,
+    )
 
 
 @dataclass(frozen=True)
@@ -393,11 +398,12 @@ class DiracMatrix:
     @property
     def precision(self):
         "The precision of the operator (same as the gauge field)"
-        return QudaPrecision[self._prec]
+        return self._prec
 
     @property
+    @QudaMatPCType
     def mat_PC(self):
-        return QudaMatPCType[self.quda.getMatPCType()]
+        return self.quda.getMatPCType()
 
     @property
     def flops(self):

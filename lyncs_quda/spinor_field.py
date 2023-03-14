@@ -14,7 +14,15 @@ from lyncs_cppyy import make_shared
 from lyncs_cppyy.ll import to_pointer
 from .lib import lib
 from .lattice_field import LatticeField
-from .enums import *
+from .enums import (
+    QudaGammaBasis,
+    QudaFieldOrder,
+    QudaTwistFlavorType,
+    QudaSiteOrder,
+    QudaPCType,
+    QudaFieldCreate,
+    QudaNoiseType,
+    )
 
 """
 NOTE:
@@ -177,7 +185,7 @@ class SpinorField(LatticeField):
     def is_native(self):
         "Whether the field is native for Quda"
         return lib.colorspinor.isNative(
-            int(self.order), self.quda_precision, self.nspin, self.ncolor
+            int(self.order), int(self.precision), self.nspin, self.ncolor
         )
 
     def zero(self):

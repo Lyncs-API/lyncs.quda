@@ -47,7 +47,7 @@ def test_params(lib, lattice, device, dtype):
     assert params.order == clv.order
     assert params.create == lib.QUDA_REFERENCE_FIELD_CREATE
     assert params.location == clv.location
-    assert params.Precision() == clv.quda_precision
+    assert params.Precision() == clv.precision
     assert params.nDim == clv.ndims
     assert tuple(params.x)[: clv.ndims] == clv.dims
     assert params.pad == clv.pad

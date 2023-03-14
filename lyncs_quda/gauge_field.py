@@ -33,7 +33,6 @@ from .enums import (
     QudaTboundary,
     QudaLinkType,
 )
-from .enums import *
 
 # TODO: Make array dims consistent with gauge order
 
@@ -281,7 +280,7 @@ class GaugeField(LatticeField):
         # TODO: Allow control on QudaGaugeFixed, i_mu, nFace, anisotropy, tadpole, compute_fat_link_max,
         params = self._quda_params(
             self.quda_dims,
-            self.quda_precision,
+            int(self.precision),
             int(self.reconstruct),
             self.pad,
             int(self.geometry),
@@ -307,7 +306,7 @@ class GaugeField(LatticeField):
     def is_native(self):
         "Whether the field is native for Quda"
         return lib.gauge.isNative(
-            int(self.order), self.quda_precision, int(self.reconstruct)
+            int(self.order), int(self.precision), int(self.reconstruct)
         )
 
     def extended_field(self, sites=1):
@@ -593,7 +592,7 @@ class GaugeField(LatticeField):
             self = self.compute_fmunu()
         charge = numpy.zeros(4, dtype="double")
         if density is None:
-            density = self.new(dofs=(1,), dtype=self.precision)
+            density = self.new(dofs=(1,), dtype=str(self.precision))
         lib.computeQChargeDensity(charge[:3], charge[3:], density.ptr, self.quda_field)
         return charge[3], tuple(charge[:3]), density
 

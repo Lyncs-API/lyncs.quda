@@ -38,7 +38,7 @@ def test_params(lib, lattice, device, dtype):
     assert params.fieldOrder == sf.order
     assert params.siteOrder == sf.site_order
     assert addressof(params.v) == sf.ptr
-    assert params.Precision() == sf.quda_precision
+    assert params.Precision() == sf.precision
     assert params.nDim == sf.ndims
     assert tuple(params.x)[: sf.ndims] == sf.dims
     assert params.pad == sf.pad

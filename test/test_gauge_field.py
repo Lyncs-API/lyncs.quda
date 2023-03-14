@@ -37,7 +37,7 @@ def test_params(lib, lattice, device, dtype):
     assert params.link_type == gf.link_type
     assert params.geometry == gf.geometry
     assert addressof(params.gauge) == gf.ptr
-    assert params.Precision() == gf.quda_precision
+    assert params.Precision() == gf.precision
     assert params.nDim == gf.ndims
     assert tuple(params.x)[: gf.ndims] == gf.dims
     assert params.pad == gf.pad

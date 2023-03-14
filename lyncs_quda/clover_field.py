@@ -14,8 +14,7 @@ from lyncs_cppyy import make_shared, to_pointer
 from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .gauge_field import GaugeField
-from .enums import QudaParity
-from .enums import *
+from .enums import QudaParity, QudaTwistFlavorType, QudaCloverFieldOrder, QudaFieldCreate
 
 # TODO list
 # We want dimension of (cu/num)py array to reflect parity and order
@@ -240,7 +239,7 @@ class CloverField(LatticeField):
 
     def is_native(self):
         "Whether the field is native for Quda"
-        return lib.clover.isNative(int(self.order), self.quda_precision)
+        return lib.clover.isNative(int(self.order), int(self.precision))
 
     @property
     def ncol(self):

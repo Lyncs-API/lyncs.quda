@@ -15,7 +15,6 @@ from .enums import QudaInverterType, QudaPrecision, QudaResidualType, QudaBoolea
 from .lib import lib
 from .spinor_field import spinor
 from .time_profile import default_profiler, TimeProfile
-from .enums import *
 
 def solve(mat, rhs, out=None, **kwargs):
     return Solver(mat)(rhs, out, **kwargs)
@@ -107,7 +106,7 @@ class Solver:
         if not isinstance(mat, DiracMatrix):
             raise TypeError("mat should be an instance of Dirac or DiracMatrix")
         self._mat = mat
-        self._params.precision = int(QudaPrecision[mat.precision])
+        self._params.precision = int(mat.precision)
         # we should not call this method after setting the below fields
         self._mat_sloppy = None
         self._mat_precon = None

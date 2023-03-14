@@ -15,7 +15,6 @@ from lyncs_utils import prod
 from .enums import QudaPrecision, QudaFieldLocation, QudaGhostExchange
 from .lib import lib, cupy
 from .array import lat_dims
-from .enums import *
 
 from lyncs_cppyy import to_pointer
 import ctypes
@@ -409,14 +408,10 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
         return self.backend.isrealobj(self)
 
     @property
+    @QudaPrecision
     def precision(self):
         "Field data type precision"
         return get_precision(self.dtype)
-
-    @property
-    def quda_precision(self):
-        "Quda enum for field data type precision"
-        return int(QudaPrecision[self.precision])
 
     @property
     @QudaGhostExchange
@@ -450,7 +445,7 @@ class LatticeField(numpy.lib.mixins.NDArrayOperatorsMixin):
             self.quda_dims,
             self.pad,
             int(self.location),
-            self.quda_precision,
+            int(self.precision),
             int(self.ghost_exchange),
         )
 
