@@ -27,7 +27,9 @@ class EnumValue(namedtuple("EnumValue", ["cls", "key"])):
         return False
 
     def __ne__(self, other):
-        return not (self == other) #TODO: perhaps better to insert if-cond for NotImpelented
+        return not (
+            self == other
+        )  # TODO: perhaps better to insert if-cond for NotImpelented
 
     def __contains__(self, other):
         if isinstance(other, str):
@@ -35,6 +37,7 @@ class EnumValue(namedtuple("EnumValue", ["cls", "key"])):
         if isinstance(other, int):
             return self.to_string(other) in str(self)
         return False
+
 
 class EnumMeta(type):
     "Metaclass for enum types"
