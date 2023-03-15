@@ -1,0 +1,22 @@
+diff --git a/lib/comm_common.cpp b/lib/comm_common.cpp
+index 2c58188..f0be27f 100644
+--- a/lib/comm_common.cpp
++++ b/lib/comm_common.cpp
+@@ -1,6 +1,8 @@
+ #include <unistd.h> // for gethostname()
+ #include <assert.h>
+ #include <limits>
++#include <exception>
++#include <string>
+ 
+ #include <quda_internal.h>
+ #include <communicator_quda.h>
+@@ -142,7 +144,7 @@ namespace quda
+   backward::Printer p;
+   p.print(st, getOutputFile());
+ #endif
+-  comm_abort_(status);
++  throw std::runtime_error("QUDA Error: exit code " + std::to_string(status));
+ }
+ 
+ } // namespace quda
