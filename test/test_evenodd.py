@@ -1,7 +1,7 @@
 import pytest
 from lyncs_quda import evenodd, continous, to_quda, from_quda
 
-# from lyncs_quda.lib import fixlib as lib
+#from lyncs_quda.lib import fixlib as lib
 import numpy as np
 
 
