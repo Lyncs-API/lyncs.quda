@@ -10,7 +10,7 @@ from lyncs_quda.testing import (
     epsilon_loop,
 )
 from lyncs_cppyy.ll import addressof
-from lyncs_utils import isclose  # , allclose
+from lyncs_utils import isclose
 
 
 @lattice_loop
@@ -235,41 +235,6 @@ def test_force(lib, lattice, device, epsilon):
         assert zeros == 0
 
 
-from lyncs_utils import isiterable
-from collections.abc import Mapping
-
-
-def values(dct):
-    "Calls values, if available, or dict.values"
-    try:
-        return dct.values()
-    except AttributeError:
-        return dict.values(dct)
-
-
-def allclose(left, right, **kwargs):
-    if isinstance(left, cp.ndarray) and isinstance(right, cp.ndarray):
-        return np.allclose(left, right)
-    if isinstance(left, cp.ndarray) and not isinstance(right, cp.ndarray):
-        left = [left] * len(right)
-    if not isinstance(left, cp.ndarray) and isinstance(right, cp.ndarray):
-        right = [right] * len(left)
-    if len(left) != len(right):
-        return False
-    if isinstance(left, Mapping) or isinstance(right, Mapping):
-        if not isinstance(left, Mapping):
-            pairs = zip(left, values(right))
-        elif not isinstance(right, Mapping):
-            pairs = zip(values(left), right)
-        else:
-            if set(keys(left)) != set(keys(right)):
-                return False
-            pairs = dictzip(left, right, values_only=True)
-    else:
-        pairs = zip(left, right)
-    return all((allclose(*pair, **kwargs) for pair in pairs))
-
-
 # @dtype_loop  # enables dtype
 @device_loop  # enables device
 @lattice_loop  # enables lattice
@@ -287,9 +252,9 @@ def test_paths_wins(lib, lattice, device):
     rparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=False)
     lparts = tuple(zip(*lparts))
     rparts = tuple(zip(*rparts))
-    assert allclose(lparts[0], rparts[0])
-    assert allclose(lparts[1], out)
-    assert allclose(rparts[1], out)
+    assert all(np.allclose(left, right) for left, right in zip(lparts[0], rparts[0]))
+    assert all(np.allclose(left, out) for left in lparts[1])
+    assert all(np.allclose(left, out) for left in rparts[1])
 
     mom = momentum(lattice, dtype=dtype, device=device)
     mom.gaussian()
@@ -298,7 +263,7 @@ def test_paths_wins(lib, lattice, device):
     rparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=False)
     lparts = tuple(zip(*lparts))
     rparts = tuple(zip(*rparts))
-    assert allclose(lparts[0], rparts[0])
+    assert all(np.allclose(left, right) for left, right in zip(lparts[0], rparts[0]))
     ltracs = tuple(loop.reduce() for loop in lparts[1])
     rtracs = tuple(loop.reduce() for loop in rparts[1])
     assert np.allclose(ltracs, rtracs)
