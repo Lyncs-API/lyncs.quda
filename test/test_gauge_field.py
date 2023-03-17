@@ -10,7 +10,7 @@ from lyncs_quda.testing import (
     epsilon_loop,
 )
 from lyncs_cppyy.ll import addressof
-from lyncs_utils import isclose, allclose
+from lyncs_utils import isclose
 
 
 @lattice_loop
@@ -60,7 +60,6 @@ def test_zero(lib, lattice, device, dtype):
 
     assert gf.project() == 4 * np.prod(lattice)
     gf.zero()
-
     gf2 = gf.new()
     gf2.gaussian()
     assert gf.dot(gf2) == 0
@@ -134,7 +133,7 @@ def test_random(lib, lattice, device, dtype):
 
     gf2 = gf.copy()
     assert gf == gf2
-    assert isclose(gf.norm2(), (gf.field**2).sum(), rel_tol=1e-6)
+    assert isclose(gf.norm2(), (gf**2).sum(), rel_tol=1e-6)
 
 
 @dtype_loop  # enables dtype
@@ -147,7 +146,7 @@ def test_exponential(lib, lattice, device, dtype):
 
     gf.unity()
     mom.copy(out=gf)
-    assert np.allclose(gf.field, 0)
+    assert np.allclose(gf, 0)
     # gf.is_momentum = False
     assert gf == 0
 
@@ -161,7 +160,7 @@ def test_exponential(lib, lattice, device, dtype):
 
     mom.gaussian(epsilon=0)
     gf2 = mom.exponentiate()
-    assert np.allclose(gf.field, gf2.field)
+    assert np.allclose(gf, gf2)
     assert gf2 == gf
 
     gf.gaussian()
@@ -253,9 +252,9 @@ def test_paths_wins(lib, lattice, device):
     rparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=False)
     lparts = tuple(zip(*lparts))
     rparts = tuple(zip(*rparts))
-    assert allclose(lparts[0], rparts[0])
-    assert allclose(lparts[1], out)
-    assert allclose(rparts[1], out)
+    assert all(np.allclose(left, right) for left, right in zip(lparts[0], rparts[0]))
+    assert all(np.allclose(left, out) for left in lparts[1])
+    assert all(np.allclose(left, out) for left in rparts[1])
 
     mom = momentum(lattice, dtype=dtype, device=device)
     mom.gaussian()
@@ -264,7 +263,7 @@ def test_paths_wins(lib, lattice, device):
     rparts = gf.plaquette_field(sum_paths=False, insertion=mom, left=False)
     lparts = tuple(zip(*lparts))
     rparts = tuple(zip(*rparts))
-    assert allclose(lparts[0], rparts[0])
+    assert all(np.allclose(left, right) for left, right in zip(lparts[0], rparts[0]))
     ltracs = tuple(loop.reduce() for loop in lparts[1])
     rtracs = tuple(loop.reduce() for loop in rparts[1])
     assert np.allclose(ltracs, rtracs)

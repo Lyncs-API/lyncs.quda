@@ -31,7 +31,6 @@ def test_default(lattice):
 @lattice_loop  # enables lattice
 def test_params(lib, lattice, device, dtype):
     gf = gauge(lattice, dtype=dtype, device=device)
-    # gf.zero()
     clv = CloverField(gf, computeTrLog=True, coeff=0)
     params = clv.quda_params
 
@@ -117,7 +116,9 @@ def test_unit(lib, lattice, device, dtype):
         gf, coeff=1.0, tf="SINGLET", twisted=True, mu2=mu2, computeTrLog=True
     )
 
-    assert (clv.field == 0).all()
+    clv.fill(0)
+    assert clv == 0
+    assert clv + 0 == 0
     idof = int(((clv.ncol * clv.nspin) ** 2 / 2))
     if dtype == "float64":
         tmp = np.zeros((idof,) + lattice, dtype=dtype).reshape((2, 2, 36, -1))

@@ -74,11 +74,23 @@ def momentum(lattice, **kwargs):
 class GaugeField(LatticeField):
     "Mimics the quda::GaugeField object"
 
-    @LatticeField.field.setter
-    def field(self, field):
-        LatticeField.field.fset(self, field)
-        if self.reconstruct == "INVALID":
-            raise TypeError(f"Unrecognized field dofs {self.dofs}")
+    def _check_field(self, field=None):
+        # NOTE:
+        #  - For now, we store dofs and local lattice info in the shape of the array
+        #  - The canonical form for GaugeField is [dofs, local_lattice]
+        #     where len(dofs) == 1,2 and len(local_lattice) = 4
+        super()._check_field(field)
+        if field is None:
+            field = self
+        dofs = field.shape[: -self.ndims]
+        pdofs = (
+            prod(dofs)
+            if dofs[0] not in self._geometry_values[1] or dofs[0] == 1
+            else prod(dofs[1:])
+        )
+        pdofs *= 2 ** (self.iscomplex)
+        if not (pdofs in (12, 8, 10) or sqrt(pdofs / 2).is_integer()):
+            raise TypeError(f"Unrecognized field dofs {dofs}")
 
     def new(self, reconstruct=None, geometry=None, **kwargs):
         "Returns a new empty field based on the current"
@@ -138,11 +150,6 @@ class GaugeField(LatticeField):
             kwargs.update({"is_momentum": True})
 
         return super().copy(other, out, **kwargs)
-
-    def __array_finalize__(self, obj):
-        "Support for __array_finalize__ standard"
-        # need to reset QUDA object when meta data of its Python wrapper is changed
-        self._quda = None
 
     def _prepare(self, field, **kwargs):
         field = super()._prepare(field, **kwargs)
@@ -254,7 +261,7 @@ class GaugeField(LatticeField):
     def is_momentum(self, value):
         self._is_momentum = value
         if self._quda is not None:
-            self._quda.link_type = self.quda_link_type
+            self._quda = None
 
     @property
     def t_boundary(self):
@@ -523,7 +530,7 @@ class GaugeField(LatticeField):
         if tol is None:
             tol = numpy.finfo(self.dtype).eps
 
-        assert self.device == cupy.cuda.runtime.getDevice()
+        assert self.device_id == cupy.cuda.runtime.getDevice()
         fails = cupy.zeros((1,), dtype="int32")
         lib.projectSU3(self.quda_field, tol, to_pointer(fails.data.ptr, "int *"))
         # return fails.get()[0]  # shouldn't we reduce?
