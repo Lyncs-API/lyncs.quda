@@ -1,5 +1,5 @@
 """
-Interface to gauge_field.h
+Interface to color_spinor_field.h
 """
 
 __all__ = [
@@ -8,7 +8,7 @@ __all__ = [
     "SpinorField",
 ]
 
-from functools import reduce, cache
+from functools import cache
 from time import time
 from lyncs_cppyy import make_shared
 from lyncs_cppyy.ll import to_pointer
@@ -124,7 +124,7 @@ class SpinorField(LatticeField):
     def site_order(self, value):
         if value is None:
             value = "NONE"
-        values = f"Possible values are NONE, EVEN_ODD, ODD_EVEN"
+        values = "Possible values are NONE, EVEN_ODD, ODD_EVEN"
         if not isinstance(value, str):
             raise TypeError("Expected a string. " + values)
         value = value.upper()
@@ -215,7 +215,7 @@ class SpinorField(LatticeField):
         "L1 norm of the field"
         if parity == "EVEN":
             return lib.blas.norm1(self.quda_field.Even())
-        elif parity == "ODD":
+        if parity == "ODD":
             return lib.blas.norm1(self.quda_field.Odd())
         return lib.blas.norm1(self.quda_field)
 
@@ -223,7 +223,7 @@ class SpinorField(LatticeField):
         "L2 norm of the field"
         if parity == "EVEN":
             return lib.blas.norm2(self.quda_field.Even())
-        elif parity == "ODD":
+        if parity == "ODD":
             return lib.blas.norm2(self.quda_field.Odd())
         return lib.blas.norm2(self.quda_field)
 

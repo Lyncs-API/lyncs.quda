@@ -12,6 +12,7 @@ def test_error(lib, lattice):
     gf = gauge(lattice)
     gs = gauge_scalar(lattice)
 
+    gf.quda_field.copy(gs.quda_field)
     with pytest.raises(lib.std.runtime_error):
         gf.quda_field.copy(gs.quda_field)
     gf.zero()

@@ -7,7 +7,7 @@ __all__ = [
     "Solver",
 ]
 
-from functools import wraps, cache
+from functools import wraps
 from warnings import warn
 from lyncs_cppyy import nullptr, make_shared
 from .dirac import Dirac, DiracMatrix

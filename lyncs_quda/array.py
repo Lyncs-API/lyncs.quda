@@ -24,7 +24,7 @@ class Array:
     def __init__(self, typename, size, elems=None):
         self._qarray = lib.quda.array[typename, size]()
 
-        if elems != None:
+        if elems is not None:
             if isiterable(elems):
                 if len(elems) > size:
                     raise ValueError()

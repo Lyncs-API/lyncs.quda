@@ -1,9 +1,8 @@
 import pytest
 from lyncs_quda import evenodd, continous, to_quda, from_quda
 
-#from lyncs_quda.lib import fixlib as lib
+from lyncs_quda.lib import fixlib as lib
 import numpy as np
-
 
 @pytest.fixture(params=[(4,), (4, 8), (4, 4, 8), (4, 6, 8, 2)])
 def shape(request):
@@ -19,8 +18,7 @@ def inner(request):
 def outer(request):
     return request.param
 
-
-def test_evenodd(shape, inner, outer):
+def test_evenodd(lib, shape, inner, outer):
     tile = np.array([1, -1])
     for i in range(1, len(shape)):
         tile = np.array([tile, tile * -1])
@@ -28,9 +26,7 @@ def test_evenodd(shape, inner, outer):
     arr = np.tile(tile, shape)
     shape = arr.shape
     out = evenodd(arr)
-
     assert (continous(out) == arr).all()
-
     out = out.flatten()
     n = out.shape[0] // 2
 

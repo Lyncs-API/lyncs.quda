@@ -13,11 +13,10 @@ import atexit
 from os import environ
 from pathlib import Path
 from array import array
-from appdirs import user_data_dir
 from math import prod
-from lyncs_cppyy import Lib, nullptr, cppdef
-from lyncs_cppyy.ll import addressof, to_pointer
-from lyncs_utils import static_property, lazy_import
+from appdirs import user_data_dir
+from lyncs_cppyy import Lib, cppdef
+from lyncs_utils import lazy_import
 from . import __path__
 from .config import QUDA_MPI, QUDA_GITVERSION, QUDA_PRECISION, QUDA_RECONSTRUCT
 
@@ -86,7 +85,7 @@ class QudaLib(Lib):
                 f"device_id cannot be changed: current={self.device_id}, given={value}"
             )
         if not isinstance(value, int):
-            raise TypeError(f"Unsupported type for device: {type(device)}")
+            raise TypeError(f"Unsupported type for device ID: {type(value)}")
         self._device_id = value
 
     def get_current_device(self):
@@ -262,6 +261,7 @@ else:
 PATHS = list(__path__)
 
 headers = [
+    "comm_quda.h",
     "quda.h",
     "gauge_field.h",
     "gauge_tools.h",
