@@ -19,7 +19,7 @@ from .enums import (
     QudaMatPCType,
     QudaDagType,
     QudaParity,
-    )
+)
 
 
 @dataclass(frozen=True)

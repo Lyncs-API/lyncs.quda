@@ -4,6 +4,7 @@ from lyncs_quda import evenodd, continous, to_quda, from_quda
 from lyncs_quda.lib import fixlib as lib
 import numpy as np
 
+
 @pytest.fixture(params=[(4,), (4, 8), (4, 4, 8), (4, 6, 8, 2)])
 def shape(request):
     return request.param
@@ -17,6 +18,7 @@ def inner(request):
 @pytest.fixture(params=[(1,), (4,), (3, 3), (4, 4, 4)])
 def outer(request):
     return request.param
+
 
 def test_evenodd(lib, shape, inner, outer):
     tile = np.array([1, -1])

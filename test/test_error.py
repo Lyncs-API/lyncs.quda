@@ -4,7 +4,7 @@ import pytest
 from lyncs_quda.testing import (
     fixlib as lib,
     lattice_loop,
-    )
+)
 
 
 @lattice_loop

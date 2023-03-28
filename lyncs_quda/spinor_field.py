@@ -22,7 +22,7 @@ from .enums import (
     QudaPCType,
     QudaFieldCreate,
     QudaNoiseType,
-    )
+)
 
 """
 NOTE:
