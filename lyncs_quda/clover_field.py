@@ -6,15 +6,19 @@ __all__ = [
     "CloverField",
 ]
 
-import numpy
-from cppyy.gbl.std import vector
 from functools import cache
+import numpy
 
 from lyncs_cppyy import make_shared, to_pointer
 from .lib import lib, cupy
 from .lattice_field import LatticeField
 from .gauge_field import GaugeField
-from .enums import QudaParity, QudaTwistFlavorType, QudaCloverFieldOrder, QudaFieldCreate
+from .enums import (
+    QudaParity,
+    QudaTwistFlavorType,
+    QudaCloverFieldOrder,
+    QudaFieldCreate,
+)
 
 # TODO list
 # We want dimension of (cu/num)py array to reflect parity and order

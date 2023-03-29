@@ -8,10 +8,9 @@ __all__ = [
 
 from functools import wraps
 from dataclasses import dataclass, field
-from numpy import sqrt
 from typing import Union
 from lyncs_cppyy import make_shared, nullptr
-from .gauge_field import gauge, GaugeField
+from .gauge_field import GaugeField
 from .clover_field import CloverField
 from .spinor_field import spinor
 from .lib import lib
@@ -20,7 +19,7 @@ from .enums import (
     QudaMatPCType,
     QudaDagType,
     QudaParity,
-    )
+)
 
 
 @dataclass(frozen=True)
@@ -222,13 +221,13 @@ class Dirac:
         """
 
         if not self.full:
-            if "CLOVER" in self.type and self.symm == True:
+            if "CLOVER" in self.type and self.symm:
                 raise ValueError("Preconditioned matrix should be asymmetric")
-            if "CLOVER" not in self.type and self.symm != True:
+            if "CLOVER" not in self.type and not self.symm:
                 raise ValueError(
                     "Preconditioned matrix should be symmetric for non-clover type Dirac matrix"
                 )
-            if "CLOVER" in self.type and self.computeTrLog != True:
+            if "CLOVER" in self.type and not self.computeTrLog:
                 raise ValueError(
                     "computeTrLog should be set True in the preconditioned case"
                 )

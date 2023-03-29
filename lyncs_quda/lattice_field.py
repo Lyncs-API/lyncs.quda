@@ -6,7 +6,6 @@ __all__ = [
     "LatticeField",
 ]
 
-from array import array
 from contextlib import contextmanager
 from functools import cache
 import numpy
@@ -15,10 +14,6 @@ from lyncs_utils import prod
 from .enums import QudaPrecision, QudaFieldLocation, QudaGhostExchange
 from .lib import lib, cupy
 from .array import lat_dims
-
-from lyncs_cppyy import to_pointer
-import ctypes
-import traceback
 
 
 def get_precision(dtype):

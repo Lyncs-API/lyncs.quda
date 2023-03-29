@@ -18,12 +18,11 @@ from math import sqrt
 from collections import defaultdict
 from functools import cache
 import numpy
-from lyncs_cppyy import make_shared, lib as tmp, to_pointer, array_to_pointers
+from lyncs_cppyy import make_shared, to_pointer, array_to_pointers
 from lyncs_utils import prod, isiterable
 from .lib import lib, cupy
 from .array import Array
-from .lattice_field import LatticeField, backend
-from .spinor_field import spinor
+from .lattice_field import LatticeField
 from .time_profile import default_profiler
 from .enums import (
     QudaReconstructType,
@@ -121,8 +120,8 @@ class GaugeField(LatticeField):
                     kwargs["dofs"][0],
                     val // 2 if self.iscomplex else val,
                 )
-            except ValueError:
-                raise ValueError(f"Invalid reconstruct {reconstruct}")
+            except ValueError as VE:
+                raise VE(f"Invalid reconstruct {reconstruct}")
         out = super().new(**kwargs)
         is_momentum = kwargs.get("is_momentum", self.is_momentum)
         out.is_momentum = is_momentum
@@ -197,9 +196,8 @@ class GaugeField(LatticeField):
     def order(self):
         "Data order of the field"
         dofs = self.dofs_per_link
-        if self.precision != "double" and (
-            dofs == 8 or dofs == 12
-        ):  # if FLOAT8 defined, if prec=half/quarter and recon=8, FLOAT8
+        if self.precision != "double" and dofs in (8, 12):
+            # if FLOAT8 defined, if prec=half/quarter and recon=8, FLOAT8
             return "FLOAT4"
         return "FLOAT2"
 
@@ -346,7 +344,7 @@ class GaugeField(LatticeField):
                     self.ptr, self.quda_params, numpy.array(sites, dtype="int32")
                 )
             )
-        elif self.location == "CUDA":
+        if self.location == "CUDA":
             "Returns cudaGaugeField"
             return make_shared(
                 lib.createExtendedGauge(
@@ -531,7 +529,7 @@ class GaugeField(LatticeField):
         seed = seed or int(time() * 1e9)
         lib.gaugeGauss(self.quda_field, seed, epsilon)
 
-    def uniform(self, epsilon=1, seed=None):
+    def uniform(self, seed=None):
         """
         Generates Uniform distributed SU(N) field.
         """
@@ -756,7 +754,7 @@ class GaugeField(LatticeField):
             if not len(paths) == len(coeffs):
                 raise ValueError("Paths and coeffs must have the same length")
         else:
-            assert coeffs == None, "coeffs not used in case of not sum_paths"
+            assert coeffs is None, "coeffs not used in case of not sum_paths"
 
         # Preparing fnc
         if insertion is not None:
