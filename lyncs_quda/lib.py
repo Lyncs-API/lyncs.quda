@@ -223,6 +223,27 @@ class QudaLib(Lib):
             )
         return self.lyncs_quda_copy_struct
 
+    @property
+    def copy_strings(self):
+        try:
+            return self.lyncs_quda_copy_strings
+        except AttributeError:
+            cppdef(
+            """
+            void lyncs_quda_copy_strings(QudaMultigridParam &mp, std::vector<std::string> in, bool is_infile){
+            //void lyncs_quda_copy_strings(char (&out)[][256], std::vector<std::string> in){
+              int n = in.size();
+              for (int i=0; i<n; i++){
+                std::string s = in[i];
+                if (is_infile) strcpy(mp.vec_infile[i], s.c_str());
+                else strcpy(mp.vec_outfile[i], s.c_str()); 
+                //strcpy(out[i], s.c_str());
+              }                                     
+            }
+            """
+            )
+        return self.lyncs_quda_copy_strings
+    
     def save_tuning(self):
         if self.tune_enabled:
             self.saveTuneCache()
@@ -261,8 +282,8 @@ else:
 PATHS = list(__path__)
 
 headers = [
-    "comm_quda.h",
     "quda.h",
+    "comm_quda.h",
     "gauge_field.h",
     "gauge_tools.h",
     "gauge_path_quda.h",
