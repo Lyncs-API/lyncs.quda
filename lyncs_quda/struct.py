@@ -50,6 +50,24 @@ def to_code(val, typ=None):
             return nullptr
     return val
 
+
+def get_dtype(typ):
+    if "*" in typ:
+        return np.dtype(object)
+    typ_dict = {"complex":"c", "unsigned":"u", "float":"single", "char":"byte", "comlex_double":"double"}
+    typ_list = typ.split()
+    dtype = ""
+    for w in typ_list:
+        if w in ("complex", "unsigned"):
+            dtype = typ_dict[w] + dtype
+        dtype += typ_dict.get(w, w)
+    if typ in ("bool", "long"):
+        dtype += "_"
+    if "int" in typ:
+        dtype += "c"
+    return np.dtype(dtype)
+        
+
 def setitems(arr, vals, shape=None):
     "Sets items of an iterable object"
     shape = shape if shape is not None else arr.shape
@@ -69,29 +87,6 @@ def setitems(arr, vals, shape=None):
             arr[i] = val
             print("set item", i,"to",val)
 
-cppdef(
-    """
-    template <typename T, size_t nrow, size_t ncol> void set2Darray(T (&out)[nrow][ncol], T (&in)[nrow][ncol]){
-      for (size_t i = 0; i< nrow; i++){
-        for (size_t j = 0; j< ncol; j++){
-          out[i][j] = in[i][j];
-        }
-      }
-    }
-"""
-)
-cppdef(
-    """
-    template <typename T, size_t nrow, size_t ncol> void print2Darray(T (&a)[nrow][ncol]){
-      for (size_t i = 0; i< nrow; i++){
-        for (size_t j = 0; j< ncol; j++){
-          std::cout<<a[i][j]<<std::endl;
-        }
-      }
-    }
-    """
-)
-#cp.set_debug(True)
 class Struct:
     "Struct base class"
     _types = {}
@@ -117,7 +112,7 @@ class Struct:
                 #print(key, self._types[key])
                 setattr(self._quda_params, key, getattr(default_params, key))
 
-        # temporal fix
+        # temporal fix: newQudaMultigridParam does not assign a default value to n_level
         if "Multigrid" in type(self).__name__:
             n = getattr(self._quda_params, "n_level")
             n = lib.QUDA_MAX_MG_LEVEL if n < 0 and n > lib.QUDA_MAX_MG_LEVEL else n
@@ -145,32 +140,42 @@ class Struct:
     def _assign(self, key, val):
         print("assign")
         typ = self._types[key]
-        val = to_code(val, typ) if not("char" in typ and typ.count("[") == 2) else val
+        val = to_code(val, typ) 
         cur = getattr(self._quda_params, key)
 
-        if "[" in self._types[key] and not "file" in key and not hasattr(cur, "shape"):
+        if "[" in self._types[key] and not hasattr(cur, "shape"):# not sure if this is needed for cppyy3.0.0
             # safeguard against hectic behavior of cppyy
             raise RuntimeError("cppyy is not happy for now.  Try again!")
+
         
-        if hasattr(cur, "shape") and "[" in typ and "file" in key:
-          if typ.count("[") >0:
-              print(val)
-              setattr(self._quda_params, key, val)
-          elif typ.count("[") == 2:
-              for i in range(cur.shape[0]):
-                  print( val[i])
-                  #setattr(getattr(self._quda_params, key)[i], val[i])
-        elif hasattr(cur, "shape") and "[" in typ: 
-            shape = tuple([getattr(lib, macro) for macro in typ.split(" ") if "QUDA_" in macro or macro.isnumeric()])
+        if typ.count("[") > 1:
+            # cppyy<=3.0.0 cannot handle subviews properly
+            assert hasattr(cur, "shape")
+            if "file" in key:
+                array = np.chararray(cur.shape)
+                setitems(array, b"\0")
+                setitems(array, vals)
+                size = 1
+            else:
+                dtype = get_dtyp(typ[:-typ.index("[")].strip())
+                array = np.empty(cur.shape, dtype=dtype)
+                size = dtype.itemsize
+            lib.memcpy(to_pointer(addressof(cur)), to_pointer(array.__array_interface__["data"][0]), int(np.prod(cur.shape))*size)
+        elif typ.count("[") == 1:
+            assert hasattr(cur, "shape")
+            shape = tuple([getattr(lib, macro) for macro in typ.split(" ") if "QUDA_" in macro or macro.isnumeric()]) #not necessary for cppyy3.0.0? 
             print("assign (shape)",key,typ,val,cur,cur.shape,  isiterable(cur), shape)
-            cur.reshape(shape)
+            cur.reshape(shape) #not necessary for cppyy3.0.0?
+            if "*" in typ: 
+                for i in range(shape[0]):
+                    val = to_pointer(addressof(val), ctype = typ[:-typ.index("[")].strip())
             setitems(cur, val)
         else:
-            # cannot set nullptr to void *, int *, etc; works for classes such as Enum classes with bind_object
             if "*" in typ:
+                # cannot set nullptr to void *, int *, etc; works for classes such as Enum classes with bind_object
                 if val == nullptr:
                     raise ValueError("Cannot cast nullptr to a valid pointer")
-                val = to_pointer(val, ctype = typ)
+                val = to_pointer(addressof(val), ctype = typ)
             setattr(self._quda_params, key, val)
 
     def __dir__(self):
@@ -199,9 +204,12 @@ class Struct:
         return self._quda_params
 
     @property
+    def address(self):
+        return addressof(self.quda)
+    
+    @property
     def ptr(self):
         return to_pointer(addressof(self.quda), ctype = type(self).__name__ + " *")
-
 
     def printf(self):
         getattr(lib, "print"+type(self).__name__)(self._quda_params)
