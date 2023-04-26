@@ -6,13 +6,9 @@ __all__ = [
     "to_code",
 ]
 
-import io, sys
-from io import TextIOWrapper, BytesIO
-import cppyy as cp
-import cppyy.ll 
-from contextlib import redirect_stdout
-from lyncs_cppyy import nullptr, to_pointer, addressof, cppdef
-from lyncs_utils import isiterable #, setitems
+import numpy as np
+from lyncs_cppyy import nullptr, to_pointer, addressof
+from lyncs_utils import isiterable
 from .lib import lib
 from . import enums
 
@@ -27,6 +23,8 @@ def to_human(val, typ=None):
         return val
     if "*" in typ and val == nullptr:
         return 0
+    if "char" in typ:
+        return "".join(list(val))
     return val
 
 
@@ -37,7 +35,6 @@ def to_code(val, typ=None):
     if typ in dir(enums):
         if isinstance(val, int):
             return val
-        print("to_code",type(getattr(enums, typ)[val]))
         return int(getattr(enums, typ)[val])
     if typ in ["int", "float", "double"]:
         return val
@@ -68,11 +65,13 @@ def get_dtype(typ):
     return np.dtype(dtype)
         
 
-def setitems(arr, vals, shape=None):
+def setitems(arr, vals, shape=None, is_string=False):
     "Sets items of an iterable object"
     shape = shape if shape is not None else arr.shape
     size = shape[0] #len(arr)
-    print("set items",arr,size,shape, vals)
+    if not is_string and type(vals) == str:
+        # sometimes, vals is turned into str
+        vals = eval(vals)
     if hasattr(vals, "__len__") and type(vals) != bytes:
         if len(vals) > size:
             raise ValueError(
@@ -81,12 +80,13 @@ def setitems(arr, vals, shape=None):
     else:
         vals = (vals,) * size
     for i, val in enumerate(vals):
-        if hasattr(arr[i], "__len__") and len(shape)>1:
-            setitems(arr[i], val, shape = shape[1:])
+        if len(shape)>1 and hasattr(arr[i], "__len__"):
+            is_string = len(shape[1:]) == 1 and type(vals[0]) == str
+            setitems(arr[i], val, shape = shape[1:], is_string=is_string)
         else:
             arr[i] = val
-            print("set item", i,"to",val)
 
+            
 class Struct:
     "Struct base class"
     _types = {}
@@ -104,18 +104,11 @@ class Struct:
                 if not getattr(self._quda_params, key) in enm.values():
                     val = list(enm.values())[-1]
                     self._assign(key, val)
-            # to avoid codec error
-            elif 'file' in key and self._types[key].count("[")<0:
-                # TODO: think about a better thing to do here
-                #  The Problem: attribute access, getattr(self._quda_params, key), raises 'UnicodeDecodeError: 'utf-8' codec can't decode byte...'
-                #               if not initialized to 0's if one uses newQuda* functions
-                #print(key, self._types[key])
-                setattr(self._quda_params, key, getattr(default_params, key))
 
         # temporal fix: newQudaMultigridParam does not assign a default value to n_level
         if "Multigrid" in type(self).__name__:
             n = getattr(self._quda_params, "n_level")
-            n = lib.QUDA_MAX_MG_LEVEL if n < 0 and n > lib.QUDA_MAX_MG_LEVEL else n
+            n = lib.QUDA_MAX_MG_LEVEL if n < 0 or n > lib.QUDA_MAX_MG_LEVEL else n
             setattr(self._quda_params, "n_level", n)
             
         for arg in args:
@@ -138,7 +131,6 @@ class Struct:
             setattr(self, key, val)
 
     def _assign(self, key, val):
-        print("assign")
         typ = self._types[key]
         val = to_code(val, typ) 
         cur = getattr(self._quda_params, key)
@@ -150,26 +142,37 @@ class Struct:
         
         if typ.count("[") > 1:
             # cppyy<=3.0.0 cannot handle subviews properly
+            #  Trying to manipulate the sub-array either results in error or segfault
+            #   => array of arrays is set using glb.memcpy
+            # Alternative:
+            #  use ctypes (C = ctypes, arr = LowlevelView of array of arrays)
+            #    ptr = C.cast(cppyy.ll.addressof(arr), C.POINTER(C.c_int))
+            #    narr = np.ctypeslib.as_array(ptr, shape=arr.shape)
+            #  This allows to access sub-indicies properly, i.e., narr[2][3] = 9 works
             assert hasattr(cur, "shape")
             if "file" in key:
+                #? array = np.zeros(cur.shape, dtype="S1") and remove setitems(array, b"\0"); is this ok?
+                #? not sure of this as "" is not b"\0"
                 array = np.chararray(cur.shape)
-                setitems(array, b"\0")
-                setitems(array, vals)
+                setitems(array, b"\0") 
+                setitems(array, val)
                 size = 1
             else:
-                dtype = get_dtyp(typ[:-typ.index("[")].strip())
-                array = np.empty(cur.shape, dtype=dtype)
+                dtype = get_dtype(typ[:typ.index("[")].strip())
+                array = np.asarray(val, dtype=dtype)
                 size = dtype.itemsize
             lib.memcpy(to_pointer(addressof(cur)), to_pointer(array.__array_interface__["data"][0]), int(np.prod(cur.shape))*size)
         elif typ.count("[") == 1:
             assert hasattr(cur, "shape")
             shape = tuple([getattr(lib, macro) for macro in typ.split(" ") if "QUDA_" in macro or macro.isnumeric()]) #not necessary for cppyy3.0.0? 
-            print("assign (shape)",key,typ,val,cur,cur.shape,  isiterable(cur), shape)
-            cur.reshape(shape) #not necessary for cppyy3.0.0?
+            cur.reshape(shape) #? not necessary for cppyy3.0.0?
             if "*" in typ: 
                 for i in range(shape[0]):
                     val = to_pointer(addressof(val), ctype = typ[:-typ.index("[")].strip())
-            setitems(cur, val)
+            is_string = True if "char" in typ else False
+            if is_string:
+                setitems(cur, b"\0") # for printing
+            setitems(cur, val, is_string=is_string)
         else:
             if "*" in typ:
                 # cannot set nullptr to void *, int *, etc; works for classes such as Enum classes with bind_object
@@ -185,7 +188,6 @@ class Struct:
         return to_human(getattr(self._quda_params, key), self._types[key])
 
     def __setattr__(self, key, val):
-        print("set atr")
         if key in self.keys():
             try:
                 self._assign(key, val)
