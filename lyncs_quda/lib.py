@@ -222,7 +222,7 @@ class QudaLib(Lib):
                 """
             )
         return self.lyncs_quda_copy_struct
-
+    
     def save_tuning(self):
         if self.tune_enabled:
             self.saveTuneCache()
@@ -261,8 +261,8 @@ else:
 PATHS = list(__path__)
 
 headers = [
-    "comm_quda.h",
     "quda.h",
+    "comm_quda.h",
     "gauge_field.h",
     "gauge_tools.h",
     "gauge_path_quda.h",

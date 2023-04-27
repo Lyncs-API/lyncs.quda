@@ -118,7 +118,7 @@ class Enum(metaclass=EnumMeta):
 
     def __init__(self, fnc, lpath=None, default=None, callback=None):
         # fnc is supposed to return either a stripped key name or value of
-        # the corresponding QUDA enum type
+        # the corresponding QUDA enum type so as to decorate a property obj
         self.fnc = fnc
         self.lpath = lpath
         self.default = default
