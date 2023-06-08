@@ -108,7 +108,7 @@ class Struct:
         # temporal fix: newQudaMultigridParam does not assign a default value to n_level
         if "Multigrid" in type(self).__name__:
             n = getattr(self._quda_params, "n_level")
-            n = lib.QUDA_MAX_MG_LEVEL if n < 0 or n > lib.QUDA_MAX_MG_LEVEL else n
+            n = 2 if n < 0 or n > lib.QUDA_MAX_MG_LEVEL else n
             setattr(self._quda_params, "n_level", n)
             
         for arg in args:
@@ -135,8 +135,9 @@ class Struct:
         val = to_code(val, typ) 
         cur = getattr(self._quda_params, key)
 
-        if "[" in self._types[key] and not hasattr(cur, "shape"):# not sure if this is needed for cppyy3.0.0
+        if "[" in self._types[key] and not hasattr(cur, "shape"):
             # safeguard against hectic behavior of cppyy
+            # QudaEigParam *eig_param[QUDA_MAX_MG_LEVEL] is somehow turned into QudaEigParam **
             raise RuntimeError("cppyy is not happy for now.  Try again!")
 
         
@@ -166,9 +167,11 @@ class Struct:
             assert hasattr(cur, "shape")
             shape = tuple([getattr(lib, macro) for macro in typ.split(" ") if "QUDA_" in macro or macro.isnumeric()]) #not necessary for cppyy3.0.0? 
             cur.reshape(shape) #? not necessary for cppyy3.0.0?
-            if "*" in typ: 
-                for i in range(shape[0]):
-                    val = to_pointer(addressof(val), ctype = typ[:-typ.index("[")].strip())
+            if "*" in typ:
+                if hasattr(val, "__len__"):
+                    val = [to_pointer(addressof(v), ctype = typ[:-typ.index("[")].strip()) for v in val]
+                else:
+                    val = to_pointer(addressof(v), ctype = typ[:-typ.index("[")].strip())
             is_string = True if "char" in typ else False
             if is_string:
                 setitems(cur, b"\0") # for printing
@@ -199,6 +202,7 @@ class Struct:
             super().__setattr__(key, val)
 
     def __str__(self):
+        #TODO: cannot print param vals of type char* unless it is set to something as some bytes go beyond ascii range
         return str(dict(self.items()))
 
     @property

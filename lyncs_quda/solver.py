@@ -9,16 +9,17 @@ __all__ = [
 
 from functools import wraps
 from warnings import warn
+from cppyy import bind_object
 from lyncs_cppyy import nullptr, make_shared
 from .dirac import Dirac, DiracMatrix
-from .enums import QudaInverterType, QudaPrecision, QudaResidualType, QudaBoolean
+from .enums import QudaInverterType, QudaPrecision, QudaResidualType, QudaBoolean, QudaSolutionType
 from .lib import lib
 from .spinor_field import spinor
 from .time_profile import default_profiler, TimeProfile
 
 
-def solve(mat, rhs, out=None, **kwargs):
-    return Solver(mat)(rhs, out, **kwargs)
+def solve(mat, rhs, out=None, precon=None, **kwargs):
+    return Solver(mat, precon=precon)(rhs, out, **kwargs)
 
 
 class Solver:
@@ -79,11 +80,11 @@ class Solver:
     def _init_params():
         return lib.SolverParam()
 
-    def __init__(self, mat, **kwargs):
+    def __init__(self, mat, precon=None, **kwargs):
         self._params = self._init_params()
         self._solver = None
         self._profiler = None
-        self._precon = None
+        self.preconditioner = precon
         self.mat = mat
 
         params = type(self).default_params.copy()
@@ -180,7 +181,10 @@ class Solver:
             self._params.inv_type_precondition = int(QudaInverterType["INVALID"])
             self._params.preconditioner = nullptr
         else:
-            raise NotImplementedError
+            self._precon = value
+            self._params.inv_type_precondition = int(self._precon.inv_type_precondition)
+            self._params.preconditioner = self._precon.preconditioner
+            
 
     def _update_return_residual(self, old, new):
         assert self._params.return_residual == new
@@ -223,17 +227,27 @@ class Solver:
                 del params[key]
         return params
 
-    def __call__(self, rhs, out=None, warning=True, **kwargs):
+    def __call__(self, rhs, out=None, warning=True, solution_typ=None, **kwargs):
         rhs = spinor(rhs)
         out = rhs.prepare_out(out)
         kwargs = self.swap(**kwargs)
+        print("solver!!!", rhs.gamma_basis, out.gamma_basis)
         # ASSUME: QUDA_FULL_SITE_SUBSET
         if self.mat.dirac.full:
             self.quda(out.quda_field, rhs.quda_field)
-        elif self.mat.dirac.even:
-            self.quda(out.quda_field.Even(), rhs.quda_field.Even())
+        elif solution_typ is not None:
+            # Computes the full inverse based on the e-o preconditioned matrix
+            in_, out_ = bind_object(nullptr, "quda::ColorSpinorField"), bind_object(nullptr, "quda::ColorSpinorField")
+            styp = int(QudaSolutionType[solution_typ])
+            self.mat.dirac.quda_dirac.prepare(in_, out_, out.quda_field, rhs.quda_field, styp)
+            self.quda(out_, in_)
+            self.mat.dirac.quda_dirac.reconstruct(out.quda_field, rhs.quda_field, styp)
         else:
-            self.quda(out.quda_field.Odd(), rhs.quda_field.Odd())
+            # Computes the inverse of the Schur complement of the matpc type
+            if self.mat.dirac.even:
+                self.quda(out.quda_field.Even(), rhs.quda_field.Even())
+            else:
+                self.quda(out.quda_field.Odd(), rhs.quda_field.Odd())
         self.swap(**kwargs)
 
         if self.true_res > self.tol:
