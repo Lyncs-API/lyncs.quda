@@ -363,7 +363,6 @@ class Dirac:
     def setGaugeParam(self, **gauge_options):
         g_param = QudaGaugeParam()
         
-        print(self.type, self.dslash_type)
         #TODO: prepare default params for other type of dirac op
         if "wilson" in self.dslash_type or "clover" in self.dslash_type or "twisted" in self.dslash_type:
             lib.setWilsonGaugeParam(g_param.quda)
@@ -382,8 +381,6 @@ class Dirac:
         g_param.cpu_prec = int(self.gauge.precision)
         g_param.cuda_prec = int(self.gauge.precision)
         g_param.update(gauge_options)
-        print(getattr(g_param._quda_params,"gauge_order"), g_param.type)
-        print(self.gauge.quda_field.Gauge_p(), int(self.gauge.order))#g_param.gauge_order)
         lib.loadGaugeQuda(self.gauge.quda_field.Gauge_p(), g_param.quda)
         
     

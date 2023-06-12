@@ -231,7 +231,6 @@ class Solver:
         rhs = spinor(rhs)
         out = rhs.prepare_out(out)
         kwargs = self.swap(**kwargs)
-        print("solver!!!", rhs.gamma_basis, out.gamma_basis)
         # ASSUME: QUDA_FULL_SITE_SUBSET
         if self.mat.dirac.full:
             self.quda(out.quda_field, rhs.quda_field)

@@ -41,20 +41,14 @@ class MultigridPreconditioner:
         #     <- host_utils.h provides funcs to set global vars to some meaningful vals, according to vals in command_line...
         #  <- misc.h implemented in misc.cpp
         
-        # sets fields to default values
-        #app = lib.make_app()
-        #lib.add_multigrid_option_group(app)
-        #app.parse(1,"--solve_type 2")
         # Set internal global vars to their default vals
-        dslash_type = D.dslash_type #inv_param.dslash_type.upper()
+        dslash_type = D.dslash_type 
         solve_type = QudaSolveType["direct"] if D.full else QudaSolveType["direct_pc"] 
         lib.dslash_type = int(dslash_type)
         lib.solve_type = int(solve_type)
         lib.setQudaPrecisions()
         lib.setQudaDefaultMgTestParams()
         lib.setQudaMgSolveTypes()
-        
-        
 
         # Set param vals to the default vals and update according to the user's specification
         D.setGaugeParam(gauge_options=g_options)
@@ -79,20 +73,17 @@ class MultigridPreconditioner:
         inv_param.update(inv_options)
         mg_param.update(mg_options)
         if "clover" in D.type:
-            print("mult init clover")
             D.clover.clover_field
             D.clover.inverse_field
             lib.loadCloverQuda(D.clover.quda_field.V(), D.clover.quda_field.V(True), inv_param.quda)
         mg_param.invert_param = inv_param.quda #not sure if this is necessary?
 
         # Only these fermions are supported with MG
-        print(dslash_type, type(dslash_type))
         if dslash_type != "WILSON" and dslash_type != "CLOVER_WILSON" and dslash_type != "TWISTED_MASS" and dslash_type != "TWISTED_CLOVER":
             raise ValueError(f"dslash_type {dslash_type} not supported for MG")
         # Only these solve types are supported with MG
         if solve_type != "DIRECT" and solve_type != "DIRECT_PC":
             raise ValueError(f"Solve_type {solve_type} not supported with MG. Please use QUDA_DIRECT_SOLVE or QUDA_DIRECT_PC_SOLVE")
-        print(type(mg_param))
         if not isiterable(is_eig):
             is_eig = [is_eig]*mg_param.n_level
         for i, eig in enumerate(is_eig):
@@ -102,18 +93,21 @@ class MultigridPreconditioner:
                 eig_param.update(eig_options)
                 lib.set_mg_eig_param["QudaEigParam", lib.QUDA_MAX_MG_LEVEL](mg_param.eig_param, eig_param.quda, i)
             else:
-                print(mg_param.eig_param)
-                lib.set_mg_eig_param["QudaEigParam", lib.QUDA_MAX_MG_LEVEL](mg_param.eig_param, eig_param.quda, i, is_null=True)  #?to_pointer + addressof?
+                lib.set_mg_eig_param["QudaEigParam", lib.QUDA_MAX_MG_LEVEL](mg_param.eig_param, eig_param.quda, i, is_null=True)
                 
         return mg_param, inv_param
 
-    def setMG_solver(self, mg_param):
+    def setMG_solver(self, mg_param=None):
+        if mg_param is None:
+            mg_param = self.mg_param
         if self._mg_solver is None:
             self._mg_solver = lib.newMultigridQuda(mg_param.quda)
         else:
             self.updateMG_solver(mg_param)
         
-    def updateMG_solver(self, mg_param):
+    def updateMG_solver(self, mg_param=None):
+        if mg_param is None:
+            mg_param = self.mg_param
         lib.updateMultigridQuda(self._mg_solver, mg_param.quda)
 
     def destroyMG_solver(self):

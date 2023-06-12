@@ -2,6 +2,7 @@ import re
 import json
 import fileinput
 import subprocess
+import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from os.path import commonprefix
@@ -32,7 +33,20 @@ def patch_include(builder, ext):
                             continue
                 print(line, end="")
 
+def patch_utils(builder, ext):
+    install_dir = builder.get_install_dir(ext) + "/include/utils"
+    path = install_dir + "/command_line_params.h"
+    with fileinput.FileInput(str(path), inplace=True, backup=".bak") as fp:
+        for fline in fp:
+            line = str(fline)
+            #TODO: better way to remove QUDAApp related lines
+            if (line.strip().startswith("#include") and "CLI11" in line.strip()) or (fp.filelineno() > 14 and fp.filelineno() < 154):
+                print("", end="")
+                continue 
+	    print(line, end="")
 
+
+                
 # PATCH 2: generates enums.py
 
 ENUM_OUTPUT = """

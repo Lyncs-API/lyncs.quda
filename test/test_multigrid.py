@@ -26,11 +26,10 @@ def test_solve_mg_random(lib, lattice, device, gamma, dtype=None):
     prec.destroyMG_solver()
     assert res < 1e-9
 
-    if gamma == "UKQCD": # precond Dirac op works only with 
+    if gamma == "UKQCD": # precond Dirac op works only with UKQCD basis
         dirac = gf.Dirac(kappa=0.01, csw=1, computeTrLog=True, full=False)
         mat = dirac.M
         prec = MultigridPreconditioner(mat.dirac)
-        print(prec.inv_param.solution_type)
         pout = mat.solve(rhs, precon=prec, solution_typ=prec.inv_param.solution_type, delta=1e-4)
         res = out-pout
         res = res.norm() / pout.norm()

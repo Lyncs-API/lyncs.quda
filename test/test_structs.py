@@ -26,6 +26,7 @@ def test_assign_something(lib):
     ip = structs.QudaInvertParam()
     ep = structs.QudaEigParam()
 
+    print(mp)
     # ptr to strct class works
     mp.n_level = 3 # This is supposed to be set explicitly
     mp.invert_param = ip.quda

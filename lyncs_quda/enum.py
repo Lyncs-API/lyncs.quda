@@ -55,7 +55,6 @@ class EnumMeta(type):
         return cls._values.items()
 
     def clean(cls, rep):
-        # should turn everything into upper for consistency
         "Strips away prefix and suffix from key"
         "See enums.py to find what is prefix and suffix for a given enum value"
         if isinstance(rep, EnumValue):

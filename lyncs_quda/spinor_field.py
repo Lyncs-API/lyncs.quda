@@ -99,13 +99,10 @@ class SpinorField(LatticeField):
         if value is None:
             value = "UKQCD"
         values = f"Possible values are {SpinorField.gammas}"
-        if isinstance(value, EnumValue):
-            value = str(value)
-        if not isinstance(value, str):
-            raise TypeError("Expected a string. " + values)
-        if not value.upper() in values:
+        value = str(QudaGammaBasis[value]).upper()
+        if not value in values:
             raise ValueError("Invalid gamma. " + values)
-        self._gamma_basis = value.upper()
+        self._gamma_basis = value
 
     @property
     @QudaFieldOrder
@@ -134,10 +131,9 @@ class SpinorField(LatticeField):
             value = "NONE"
         values = "Possible values are NONE, EVEN_ODD, ODD_EVEN"
         if isinstance(value, EnumValue):
-            value = str(value)
+            value = str(value).upper()
         if not isinstance(value, str):
             raise TypeError("Expected a string. " + values)
-        value = value.upper()
         if value in ["NONE", "LEX", "LEXICOGRAPHIC"]:
             value = "LEXICOGRAPHIC"
         elif value in ["EO", "EVEN_ODD"]:

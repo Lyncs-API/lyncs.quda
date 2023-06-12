@@ -294,8 +294,8 @@ headers = [
     "array.h",
     "momentum.h",
     "tune_quda.h",
-    "host_utils.h",
-    "command_line_params.h",
+    "utils/host_utils.h",
+    "utils/command_line_params.h",
 ]
 
 lib = QudaLib(

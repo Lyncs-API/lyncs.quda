@@ -1,0 +1,11 @@
+diff --git a/CMakeLists.txt b/CMakeLists.txt
+index 181353712..7639d17ab 100644
+--- a/CMakeLists.txt
++++ b/CMakeLists.txt
+@@ -697,3 +697,6 @@ include(CTest)
+ add_subdirectory(lib)
+ add_subdirectory(tests)
+ add_subdirectory(doc)
++
++# move files in tests/utils for lyncs_quda
++install(DIRECTORY ${QUDA_SOURCE_DIR}/tests/utils FILES_MATCHING PATTERN "*.h" TYPE INCLUDE)

@@ -104,7 +104,9 @@ class Struct:
                 if not getattr(self._quda_params, key) in enm.values():
                     val = list(enm.values())[-1]
                     self._assign(key, val)
-
+            if "char" in self._types[key]:
+                self._assign(key, b"\0")
+                
         # temporal fix: newQudaMultigridParam does not assign a default value to n_level
         if "Multigrid" in type(self).__name__:
             n = getattr(self._quda_params, "n_level")
@@ -202,7 +204,6 @@ class Struct:
             super().__setattr__(key, val)
 
     def __str__(self):
-        #TODO: cannot print param vals of type char* unless it is set to something as some bytes go beyond ascii range
         return str(dict(self.items()))
 
     @property
