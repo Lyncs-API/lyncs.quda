@@ -183,7 +183,7 @@ class Solver:
         else:
             self._precon = value
             self._params.inv_type_precondition = int(self._precon.inv_type_precondition)
-            self._params.preconditioner = self._precon.preconditioner
+            self._params.preconditioner = self._precon.quda
             
 
     def _update_return_residual(self, old, new):

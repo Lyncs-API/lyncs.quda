@@ -23,7 +23,6 @@ def test_solve_mg_random(lib, lattice, device, gamma, dtype=None):
     res = mat(out)
     res -= rhs
     res = res.norm() / rhs.norm()
-    prec.destroyMG_solver()
     assert res < 1e-9
 
     if gamma == "UKQCD": # precond Dirac op works only with UKQCD basis
@@ -33,6 +32,5 @@ def test_solve_mg_random(lib, lattice, device, gamma, dtype=None):
         pout = mat.solve(rhs, precon=prec, solution_typ=prec.inv_param.solution_type, delta=1e-4)
         res = out-pout
         res = res.norm() / pout.norm()
-        prec.destroyMG_solver()
         assert res < 1e-9
     

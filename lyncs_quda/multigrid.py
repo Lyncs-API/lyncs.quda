@@ -12,22 +12,27 @@ from .enums import QudaInverterType, QudaPrecision, QudaSolveType
 from .structs import QudaInvertParam, QudaMultigridParam, QudaEigParam
 
 class MultigridPreconditioner:
-    __slots__ = ["_mg_solver", "mg_param", "inv_param"]
+    __slots__ = ["_quda", "mg_param", "inv_param"]
     
     def __init__(self, D, inv_options={}, mg_options={}, eig_options={}, is_eig=False):
-        self._mg_solver = None
+        self._quda = None
         self.mg_param, self.inv_param  = self.prepareParams(D, inv_options=inv_options, mg_options=mg_options, eig_options=eig_options, is_eig=is_eig)
-        self.setMG_solver(self.mg_param)
 
     @property
     @QudaInverterType
     def inv_type_precondition(self):
         return "MG_INVERTER"
 
+    #TODO: absorb updateMG_solver into this property and delete the function
+    #       This will reqiure detecting the change of mg and inv param structs from
+    #       the last update or creation of QUDA multigrid_solver object
     @property
-    def preconditioner(self):
-        return self._mg_solver
+    def quda(self):
+        if self._quda is None:
+            self._quda = lib.newMultigridQuda(self.mg_param.quda)
+        return self._quda
 
+    # TODO: can also accept structs?
     def prepareParams(self, D, g_options={}, inv_options={}, mg_options={}, eig_options={}, is_eig=False):
         # INPUT: D is a Dirac instance
         #        is_eig is a list of bools indicating whether eigsolver is used to generate
@@ -97,21 +102,12 @@ class MultigridPreconditioner:
                 
         return mg_param, inv_param
 
-    def setMG_solver(self, mg_param=None):
-        if mg_param is None:
-            mg_param = self.mg_param
-        if self._mg_solver is None:
-            self._mg_solver = lib.newMultigridQuda(mg_param.quda)
-        else:
-            self.updateMG_solver(mg_param)
-        
-    def updateMG_solver(self, mg_param=None):
-        if mg_param is None:
-            mg_param = self.mg_param
-        lib.updateMultigridQuda(self._mg_solver, mg_param.quda)
+    def updateMG_solver(self):
+        lib.updateMultigridQuda(self._quda, self.mg_param.quda)
 
-    def destroyMG_solver(self):
-        lib.destroyMultigridQuda(self._mg_solver)
-        self._mg_solver = None
+    def __del__(self):
+        if self._quda is not None:
+            lib.destroyMultigridQuda(self._quda)
+            self._quda = None
 
     
