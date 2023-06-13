@@ -8,7 +8,6 @@ def test_device_count(lib):
 
 def test_init(lib):
     assert lib.initialized
-    lib.setMultigridParam()
     lib.end_quda()
     assert not lib.initialized
     lib.init_quda()

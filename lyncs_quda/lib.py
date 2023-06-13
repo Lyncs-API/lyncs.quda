@@ -10,6 +10,7 @@ __all__ = [
 ]
 
 import atexit
+import cppyy
 from os import environ
 from pathlib import Path
 from array import array
@@ -306,6 +307,10 @@ lib = QudaLib(
     defined={"QUDA_PRECISION": QUDA_PRECISION, "QUDA_RECONSTRUCT": QUDA_RECONSTRUCT},
 )
 lib.MPI = MPI
+# TODO: need to change "load" function of Lib from lyncs_cppyy to avoid the line below
+# NOTE: This assumes: Python3.x & not runned from Jupyter notebook
+# alternative: os.path.dirname(os.path.abspath(__file__)) 
+cppyy.add_include_path(str(Path(__file__).parent.absolute()) + "/include/externals")
 
 # used?
 try:
