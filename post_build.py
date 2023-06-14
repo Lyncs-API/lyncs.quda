@@ -2,6 +2,7 @@ import re
 import json
 import fileinput
 import subprocess
+import shutil
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from os.path import commonprefix
@@ -32,7 +33,7 @@ def patch_include(builder, ext):
                             continue
                 print(line, end="")
 
-
+                
 # PATCH 2: generates enums.py
 
 ENUM_OUTPUT = """

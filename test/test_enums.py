@@ -8,7 +8,6 @@ def test_enums():
 
         enum = getattr(enums, enum)
         assert issubclass(enum, Enum)
-
         for key, val in enum.items():
             assert key in enum
             assert val in enum

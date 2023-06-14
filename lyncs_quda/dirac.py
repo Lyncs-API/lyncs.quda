@@ -14,11 +14,13 @@ from .gauge_field import GaugeField
 from .clover_field import CloverField
 from .spinor_field import spinor
 from .lib import lib
+from .structs import QudaGaugeParam
 from .enums import (
     QudaDiracType,
     QudaMatPCType,
     QudaDagType,
     QudaParity,
+    QudaDslashType,
     )
 
 
@@ -65,6 +67,18 @@ class Dirac:
         if self.mu == 0:
             return "CLOVER" + PC
         return "TWISTED_CLOVER" + PC
+
+    @property
+    @QudaDslashType
+    def dslash_type(self):
+        if "coarse" in self.type:
+            return "INVALID"
+        dslash_type = str(self.type).replace("pc","")
+        dslash_type = dslash_type.replace("gauge_","")
+        if "clover" == dslash_type: dslash_type += "_wilson"
+        if "mobius" in dslash_type: dslash_type = dslash_type.replace("domain_wall","dwf")
+
+        return dslash_type
 
     @property
     @QudaMatPCType
@@ -345,7 +359,31 @@ class Dirac:
 
         return out
 
-
+    #TODO: needs to be more automatic
+    def setGaugeParam(self, **gauge_options):
+        g_param = QudaGaugeParam()
+        
+        #TODO: prepare default params for other type of dirac op
+        if "wilson" in self.dslash_type or "clover" in self.dslash_type or "twisted" in self.dslash_type:
+            lib.setWilsonGaugeParam(g_param.quda)
+        elif "staggered" in self.type:
+            lib.setStaggeredGaugeParam(g_param.quda)
+        else:
+            lib.setGaugeParam(g_param.quda)
+        
+        g_param.location = int(self.gauge.location)
+        g_param.X = self.gauge.local_lattice
+        g_param.anisotropy = self.gauge.quda_field.Anisotropy()
+        g_param.tadpole_coeff = self.gauge.quda_field.Tadpole()
+        g_param.type = int(self.gauge.link_type)
+        g_param.gauge_order = int(self.gauge.order)
+        g_param.t_boundary = int(self.gauge.t_boundary)
+        g_param.cpu_prec = int(self.gauge.precision)
+        g_param.cuda_prec = int(self.gauge.precision)
+        g_param.update(gauge_options)
+        lib.loadGaugeQuda(self.gauge.quda_field.Gauge_p(), g_param.quda)
+        
+    
 GaugeField.Dirac = wraps(Dirac)(lambda *args, **kwargs: Dirac(*args, **kwargs))
 
 

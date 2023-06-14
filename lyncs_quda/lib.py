@@ -10,6 +10,7 @@ __all__ = [
 ]
 
 import atexit
+import cppyy
 from os import environ
 from pathlib import Path
 from array import array
@@ -223,6 +224,24 @@ class QudaLib(Lib):
             )
         return self.lyncs_quda_copy_struct
     
+    @property
+    def set_mg_eig_param(self):
+        try:
+            return self.lyncs_quda_set_mg_eig_param
+        except AttributeError:
+            cppdef(
+                """
+                template<typename T, int n>
+                void lyncs_quda_set_mg_eig_param(T** ptr_array, T param, int i, bool is_null=false) {
+                  if ( i < n) {
+                    if (is_null) ptr_array[i] = nullptr;
+                    else ptr_array[i] = &param;
+                  }
+                }
+                """
+            )
+        return self.lyncs_quda_set_mg_eig_param
+    
     def save_tuning(self):
         if self.tune_enabled:
             self.saveTuneCache()
@@ -276,17 +295,22 @@ headers = [
     "array.h",
     "momentum.h",
     "tune_quda.h",
+    "utils/host_utils.h",
+    "utils/command_line_params.h",
 ]
-
 
 lib = QudaLib(
     path=PATHS,
     header=headers,
-    library=["libquda.so"] + libs,
+    library=["libquda.so", "libquda_test.so"] + libs,
     namespace=["quda", "lyncs_quda"],
     defined={"QUDA_PRECISION": QUDA_PRECISION, "QUDA_RECONSTRUCT": QUDA_RECONSTRUCT},
 )
 lib.MPI = MPI
+# TODO: need to change "load" function of Lib from lyncs_cppyy to avoid the line below
+# NOTE: This assumes: Python3.x & not runned from Jupyter notebook
+# alternative: os.path.dirname(os.path.abspath(__file__)) 
+cppyy.add_include_path(str(Path(__file__).parent.absolute()) + "/include/externals")
 
 # used?
 try:

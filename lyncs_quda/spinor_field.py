@@ -14,6 +14,7 @@ from lyncs_cppyy import make_shared
 from lyncs_cppyy.ll import to_pointer
 from .lib import lib
 from .lattice_field import LatticeField
+from .enum import EnumValue
 from .enums import (
     QudaGammaBasis,
     QudaFieldOrder,
@@ -64,6 +65,11 @@ class SpinorField(LatticeField):
         self.gamma_basis = gamma_basis
         self.site_order = site_order
 
+    def _prepare(self, field, **kwargs):
+        kwargs.setdefault("gamma_basis", self.gamma_basis)
+        kwargs.setdefault("site_order", self.site_order)
+        return super()._prepare(field, **kwargs)
+        
     @property
     def ncolor(self):
         "Number of colors of the field"
@@ -93,11 +99,10 @@ class SpinorField(LatticeField):
         if value is None:
             value = "UKQCD"
         values = f"Possible values are {SpinorField.gammas}"
-        if not isinstance(value, str):
-            raise TypeError("Expected a string. " + values)
-        if not value.upper() in values:
+        value = str(QudaGammaBasis[value]).upper()
+        if not value in values:
             raise ValueError("Invalid gamma. " + values)
-        self._gamma_basis = value.upper()
+        self._gamma_basis = value
 
     @property
     @QudaFieldOrder
@@ -125,9 +130,10 @@ class SpinorField(LatticeField):
         if value is None:
             value = "NONE"
         values = "Possible values are NONE, EVEN_ODD, ODD_EVEN"
+        if isinstance(value, EnumValue):
+            value = str(value).upper()
         if not isinstance(value, str):
             raise TypeError("Expected a string. " + values)
-        value = value.upper()
         if value in ["NONE", "LEX", "LEXICOGRAPHIC"]:
             value = "LEXICOGRAPHIC"
         elif value in ["EO", "EVEN_ODD"]:
