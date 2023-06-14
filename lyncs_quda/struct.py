@@ -116,7 +116,8 @@ class Struct:
         for arg in args:
             self.update(arg)
         self.update(kwargs)
-
+        self.updated = False
+        
     def keys(self):
         "List of keys in the structure"
         return self._types.keys()
@@ -202,7 +203,8 @@ class Struct:
                 )
         else: #should we allow this?
             super().__setattr__(key, val)
-
+        super().__setattr__("updated", True)
+            
     def __str__(self):
         return str(dict(self.items()))
 

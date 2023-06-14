@@ -30,6 +30,9 @@ class MultigridPreconditioner:
     def quda(self):
         if self._quda is None:
             self._quda = lib.newMultigridQuda(self.mg_param.quda)
+        elif self.mg_param.updated or self.inv_param.updated:
+            print("UPDATEDDD")
+            lib.updateMultigridQuda(self._quda, self.mg_param.quda)
         return self._quda
 
     # TODO: can also accept structs?
@@ -101,9 +104,6 @@ class MultigridPreconditioner:
                 lib.set_mg_eig_param["QudaEigParam", lib.QUDA_MAX_MG_LEVEL](mg_param.eig_param, eig_param.quda, i, is_null=True)
                 
         return mg_param, inv_param
-
-    def updateMG_solver(self):
-        lib.updateMultigridQuda(self._quda, self.mg_param.quda)
 
     def __del__(self):
         if self._quda is not None:
