@@ -31,8 +31,9 @@ class MultigridPreconditioner:
         if self._quda is None:
             self._quda = lib.newMultigridQuda(self.mg_param.quda)
         elif self.mg_param.updated or self.inv_param.updated:
-            print("UPDATEDDD")
             lib.updateMultigridQuda(self._quda, self.mg_param.quda)
+            self.mg_param.updated = False
+            self.inv_param.updated = False
         return self._quda
 
     # TODO: can also accept structs?
